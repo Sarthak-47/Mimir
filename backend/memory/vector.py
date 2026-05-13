@@ -83,6 +83,32 @@ def query_memory(
         return []
 
 
+def add_document_memory(
+    user_id: int,
+    content: str,
+    file_id: int,
+    chunk_idx: int,
+    subject_id: int | None = None,
+) -> None:
+    """Embed and store a document chunk (from PDF/image parsing)."""
+    collection = get_collection()
+    doc_id = f"u{user_id}-f{file_id}-chunk{chunk_idx}"
+
+    metadata: dict = {
+        "user_id":  str(user_id),
+        "role":     "document",
+        "file_id":  str(file_id),
+    }
+    if subject_id is not None:
+        metadata["subject_id"] = str(subject_id)
+
+    collection.upsert(
+        ids=[doc_id],
+        documents=[content],
+        metadatas=[metadata],
+    )
+
+
 def delete_user_memory(user_id: int) -> None:
     """Remove all memory for a user (e.g., on account deletion)."""
     collection = get_collection()

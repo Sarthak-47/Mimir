@@ -98,7 +98,7 @@ export default function RightPanel({ activeSubject }: RightPanelProps) {
 
       {/* ── Weaknesses ── */}
       <div style={styles.section}>
-        <div style={styles.sectionTitle} style2={styles.sectionTitlePlain}>Weaknesses</div>
+        <div style={styles.sectionTitlePlain}>Weaknesses</div>
         <div style={styles.engraving} />
 
         {loading && <div style={styles.dimText}>Consulting the runes…</div>}

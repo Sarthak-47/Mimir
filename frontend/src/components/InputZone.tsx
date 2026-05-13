@@ -31,7 +31,17 @@ export default function InputZone({
     if (!text.trim()) return;
     onSend(text);
     setText("");
+    // Reset textarea height after clearing
+    if (textareaRef.current) textareaRef.current.style.height = "34px";
     textareaRef.current?.focus();
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    // Auto-resize up to maxHeight
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
   };
 
   // ── SCROLL — file upload ─────────────────────────────────
@@ -114,7 +124,7 @@ export default function InputZone({
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
           placeholder="Speak your query to Mimir..."
           style={styles.textarea}

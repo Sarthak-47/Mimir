@@ -4,8 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-
-const API = "http://localhost:8000/api/chronicle";
+import { API_CHRONICLE as API } from "@/config";
 
 interface ConvRow {
   id:         number;

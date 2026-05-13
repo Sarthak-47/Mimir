@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API = "http://localhost:8000/api/users";
+import { API_USERS as API } from "@/config";
 
 // ── Logo mark (reused from Sidebar) ─────────────────────────
 function LogoMark() {

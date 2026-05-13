@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Subject } from "@/App";
-
-const API = "http://localhost:8000/api/progress";
+import { API_PROGRESS as API } from "@/config";
 
 interface Stats {
   days_at_well:   number;

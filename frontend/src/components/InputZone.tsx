@@ -9,8 +9,8 @@ interface InputZoneProps {
   authToken?: string | null;
 }
 
-// ── Backend upload URL ───────────────────────────────────────
-const UPLOAD_URL = "http://localhost:8000/api/files/upload";
+import { API_FILES } from "@/config";
+const UPLOAD_URL = `${API_FILES}/upload`;
 
 export default function InputZone({
   onSend, onTrial, onRunes, onFates, activeSubjectName, authToken,

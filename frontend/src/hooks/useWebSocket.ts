@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// ── Config ──────────────────────────────────────────────────
-const WS_BASE_URL = "ws://localhost:8000/ws/chat";
+import { WS_CHAT as WS_BASE_URL } from "@/config";
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 

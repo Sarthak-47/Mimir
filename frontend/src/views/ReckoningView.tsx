@@ -5,8 +5,9 @@
 
 import { useEffect, useState } from "react";
 import type { Subject } from "@/App";
+import { API_PROGRESS, API_QUIZ } from "@/config";
 
-const API = "http://localhost:8000/api";
+const API = { progress: API_PROGRESS, quiz: API_QUIZ };
 
 interface Stats {
   days_at_well:   number;
@@ -75,9 +76,9 @@ export default function ReckoningView({ subjects, authToken }: ReckoningViewProp
       setLoading(true);
       try {
         const [s, t, h] = await Promise.all([
-          getJson<Stats>(`${API}/progress/stats`, authToken),
-          getJson<TopicRow[]>(`${API}/progress/topics`, authToken),
-          getJson<QuizHistoryRow[]>(`${API}/quiz/history?limit=10`, authToken),
+          getJson<Stats>(`${API.progress}/stats`, authToken),
+          getJson<TopicRow[]>(`${API.progress}/topics`, authToken),
+          getJson<QuizHistoryRow[]>(`${API.quiz}/history?limit=10`, authToken),
         ]);
         if (!cancelled) { setStats(s); setTopics(t); setHistory(h); }
       } catch { /* backend offline */ }

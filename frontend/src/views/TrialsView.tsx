@@ -7,8 +7,7 @@ import { useState } from "react";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { Subject } from "@/App";
-
-const API = "http://localhost:8000/api/quiz";
+import { API_QUIZ as API } from "@/config";
 
 interface TrialsViewProps {
   subjects:      Subject[];

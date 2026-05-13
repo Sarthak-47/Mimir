@@ -1,4 +1,17 @@
+import { useEffect, useState } from "react";
 import type { NavView } from "@/App";
+import { API_BASE } from "@/config";
+
+function useModelName(): string {
+  const [model, setModel] = useState("qwen2.5:14b"); // sensible default
+  useEffect(() => {
+    fetch(`${API_BASE}/health`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { model?: string } | null) => { if (d?.model) setModel(d.model); })
+      .catch(() => { /* offline — keep default */ });
+  }, []);
+  return model;
+}
 
 const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string }> = {
   oracle:    { rune: "ᚦ", title: "The Oracle",    subtitle: "Speak your question into the well" },
@@ -7,8 +20,6 @@ const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string
   chronicle: { rune: "ᛊ", title: "Chronicle",      subtitle: "Records of past sessions"              },
   scrolls:   { rune: "ᚱ", title: "Scrolls",        subtitle: "Your uploaded knowledge"               },
 };
-
-const MODEL_NAME = "qwen2.5:14b";
 
 interface TopbarProps {
   view: NavView;
@@ -19,6 +30,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ view, isConnected, activeSubjectName, username, onLogout }: TopbarProps) {
+  const MODEL_NAME = useModelName();
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"

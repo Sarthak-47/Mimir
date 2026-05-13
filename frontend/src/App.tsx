@@ -11,6 +11,7 @@ import ChronicleView from "@/views/ChronicleView";
 import ScrollsView from "@/views/ScrollsView";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
+import { API_BASE as API } from "@/config";
 
 // ── Types ──────────────────────────────────────────────────
 export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls";
@@ -31,7 +32,6 @@ export interface Subject {
 }
 
 // ── Constants ──────────────────────────────────────────────
-const API               = "http://localhost:8000";
 const STORAGE_TOKEN     = "mimir_token";
 const STORAGE_USERNAME  = "mimir_username";
 const STORAGE_EXAM_DATE = "mimir_exam_date";

@@ -5,9 +5,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Subject } from "@/App";
+import { API_FILES } from "@/config";
 
-const API       = "http://localhost:8000/api/files";
-const UPLOAD_URL = "http://localhost:8000/api/files/upload";
+const API        = API_FILES;
+const UPLOAD_URL = `${API_FILES}/upload`;
 
 interface FileRow {
   id:         number;

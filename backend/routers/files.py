@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from sqlalchemy import select
 from config import settings
 from memory.database import File as FileModel, User, get_db
 from routers.users import get_current_user
+from utils.parser import parse_and_index_file
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ class FileResponse(BaseModel):
 # ── Upload ───────────────────────────────────────────────────
 @router.post("/upload", response_model=FileResponse, status_code=201)
 async def upload_file(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     subject_id: int | None = Form(None),
     db: AsyncSession = Depends(get_db),
@@ -83,7 +85,15 @@ async def upload_file(
     await db.commit()
     await db.refresh(db_file)
 
-    # TODO: trigger async PDF parsing job here (BackgroundTasks in Commit 5)
+    # Trigger async parsing and indexing (runs after response is sent)
+    background_tasks.add_task(
+        parse_and_index_file,
+        file_id=db_file.id,
+        filepath=str(save_path),
+        user_id=current_user.id,
+        subject_id=subject_id,
+        content_type=file.content_type or "",
+    )
 
     return db_file
 

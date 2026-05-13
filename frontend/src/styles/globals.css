@@ -1,0 +1,374 @@
+/* ============================================================
+   MIMIR — Global Design System
+   God of War dark fantasy aesthetic
+   Forest Green + Gold on Stone backgrounds
+   ============================================================ */
+
+/* --- Google Fonts (loaded in index.html) ---
+   Cinzel:       headers, nav, rune labels, stats
+   Crimson Text: body, chat text, descriptions
+*/
+
+/* ---------------------------------------------------------- */
+/* CSS CUSTOM PROPERTIES (Design Tokens)                       */
+/* ---------------------------------------------------------- */
+:root {
+  /* Forest Green */
+  --green:        #4a8a5a;
+  --green-bright: #6ab87a;
+  --green-dim:    #2a5a38;
+  --green-dark:   #0f2e18;
+
+  /* Gold */
+  --gold:         #c9a84c;
+  --gold-bright:  #e8c96a;
+  --gold-dim:     #7a6030;
+  --gold-dark:    #3a2e18;
+
+  /* Stone Backgrounds */
+  --stone-0: #060c08;   /* void black */
+  --stone-1: #090e0a;   /* darkest */
+  --stone-2: #0d1510;   /* dark */
+  --stone-3: #111d14;   /* dark-mid */
+  --stone-4: #172418;   /* mid */
+  --stone-5: #1e2e20;   /* light */
+
+  /* Text */
+  --text-primary:   #d0e8d4;
+  --text-secondary: #7aaa84;
+  --text-dim:       #3a5a40;
+
+  /* Typography */
+  --font-header: 'Cinzel', Georgia, serif;
+  --font-body:   'Crimson Text', Georgia, serif;
+
+  /* Borders */
+  --border-green: 1px solid var(--green-dark);
+  --border-gold:  1px solid var(--gold-dim);
+
+  /* Gold engraving gradient (decorative separator) */
+  --engraving: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gold-dim) 20%,
+    var(--gold) 50%,
+    var(--gold-dim) 80%,
+    transparent 100%
+  );
+
+  /* Layout */
+  --sidebar-width:     200px;
+  --right-panel-width: 180px;
+  --app-height:        680px;
+}
+
+/* ---------------------------------------------------------- */
+/* RESET & BASE                                                */
+/* ---------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--stone-0);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------- */
+/* TYPOGRAPHY SCALE                                            */
+/* ---------------------------------------------------------- */
+h1, h2, h3, h4, .cinzel {
+  font-family: var(--font-header);
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+
+h1 { font-size: 17px; font-weight: 700; }
+h2 { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; }
+h3 { font-size: 10px; font-weight: 600; letter-spacing: 0.15em; }
+
+/* ---------------------------------------------------------- */
+/* LAYOUT — APP SHELL                                          */
+/* ---------------------------------------------------------- */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: var(--stone-1);
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------- */
+/* SCROLLBARS                                                  */
+/* ---------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--stone-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--green-dark);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--green-dim);
+}
+
+/* ---------------------------------------------------------- */
+/* GOLD ENGRAVING DIVIDER                                      */
+/* ---------------------------------------------------------- */
+.engraving {
+  height: 1px;
+  background: var(--engraving);
+  margin: 6px 0;
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------- */
+/* CORNER BRACKET ORNAMENT                                     */
+/* Applied as ::before / ::after on panels/cards              */
+/* ---------------------------------------------------------- */
+.bracketed {
+  position: relative;
+}
+.bracketed::before {
+  content: '⟪';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  color: var(--gold-dim);
+  font-size: 10px;
+  font-family: var(--font-header);
+  pointer-events: none;
+}
+.bracketed::after {
+  content: '⟫';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  color: var(--gold-dim);
+  font-size: 10px;
+  font-family: var(--font-header);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------- */
+/* ANGULAR CLIP-PATH HELPERS                                   */
+/* ---------------------------------------------------------- */
+.clip-sigil {
+  clip-path: polygon(
+    8px 0%, calc(100% - 8px) 0%,
+    100% 8px, 100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 8px 100%,
+    0% calc(100% - 8px), 0% 8px
+  );
+}
+
+/* ---------------------------------------------------------- */
+/* BUTTONS — Base                                              */
+/* ---------------------------------------------------------- */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-header);
+  letter-spacing: 0.08em;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-rune {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 8px;
+  background: var(--stone-3);
+  border: var(--border-green);
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: var(--font-header);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.btn-rune:hover {
+  background: var(--stone-4);
+  color: var(--green-bright);
+  border-color: var(--green);
+}
+.btn-rune .rune-glyph {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--green);
+}
+
+.btn-primary {
+  background: var(--green-dark);
+  border: var(--border-green);
+  color: var(--green-bright);
+  padding: 6px 16px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.btn-primary:hover {
+  background: var(--green-dim);
+  border-color: var(--green-bright);
+  color: var(--text-primary);
+}
+
+/* ---------------------------------------------------------- */
+/* INPUTS                                                      */
+/* ---------------------------------------------------------- */
+input, textarea {
+  background: var(--stone-2);
+  border: var(--border-green);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 6px 10px;
+  outline: none;
+  resize: none;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+input:focus, textarea:focus {
+  border-color: var(--green);
+}
+
+/* ---------------------------------------------------------- */
+/* RUNE ICON LABELS (nav)                                      */
+/* ---------------------------------------------------------- */
+.rune-label {
+  font-size: 8px;
+  font-family: var(--font-header);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------- */
+/* DIAMOND SUBJECT MARKER                                      */
+/* ---------------------------------------------------------- */
+.subject-diamond {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------- */
+/* STAT NUMBERS                                                */
+/* ---------------------------------------------------------- */
+.stat-number {
+  font-family: var(--font-header);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 9px;
+  font-family: var(--font-header);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------- */
+/* WEAKNESS BAR                                                */
+/* ---------------------------------------------------------- */
+.weakness-bar-track {
+  height: 3px;
+  background: var(--stone-3);
+  width: 100%;
+  margin-top: 2px;
+}
+.weakness-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+}
+
+/* ---------------------------------------------------------- */
+/* CHAT BUBBLES                                                */
+/* ---------------------------------------------------------- */
+.chat-bubble {
+  padding: 8px 12px;
+  max-width: 85%;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.chat-bubble--mimir {
+  background: var(--stone-3);
+  border: var(--border-green);
+  border-left: 2px solid var(--green);
+  align-self: flex-start;
+  color: var(--text-primary);
+}
+
+.chat-bubble--user {
+  background: var(--stone-4);
+  border: var(--border-gold);
+  border-right: 2px solid var(--gold-dim);
+  align-self: flex-end;
+  color: var(--text-primary);
+}
+
+/* ---------------------------------------------------------- */
+/* QUIZ / TRIAL CARD                                           */
+/* ---------------------------------------------------------- */
+.trial-card {
+  background: var(--stone-3);
+  border: var(--border-gold);
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.trial-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin: 3px 0;
+  background: var(--stone-2);
+  border: var(--border-green);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: left;
+  width: 100%;
+}
+.trial-option:hover {
+  background: var(--stone-4);
+  color: var(--text-primary);
+  border-color: var(--green);
+}
+.trial-option.correct  { border-color: var(--green-bright); color: var(--green-bright); }
+.trial-option.wrong    { border-color: #8a3a3a; color: #c87a7a; }
+
+/* ---------------------------------------------------------- */
+/* SCROLLABLE AREAS                                            */
+/* ---------------------------------------------------------- */
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+}

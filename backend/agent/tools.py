@@ -1,0 +1,188 @@
+"""
+Mimir — Agent Tools
+Each tool takes structured input and returns structured output.
+Tools are called by the ReAct loop when the LLM selects an action.
+"""
+
+import json
+import re
+from datetime import datetime, timedelta
+from typing import Any
+
+import ollama
+
+from config import settings
+from agent.prompts import (
+    EXPLAIN_PROMPT, QUIZ_PROMPT, SUMMARIZE_PROMPT,
+    FLASHCARD_PROMPT, SCHEDULE_PROMPT,
+)
+
+
+# ── Ollama helper ────────────────────────────────────────────
+
+def _llm(prompt: str, system: str = "") -> str:
+    """Call the local Ollama model and return the response text."""
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    response = ollama.chat(
+        model=settings.ollama_model,
+        messages=messages,
+        options={"temperature": settings.ollama_temperature},
+    )
+    return response["message"]["content"]
+
+
+def _parse_json(text: str) -> Any:
+    """Extract and parse the first JSON block from LLM output."""
+    # Try to find a JSON array or object in the text
+    match = re.search(r"(\[.*?\]|\{.*?\})", text, re.DOTALL)
+    if match:
+        return json.loads(match.group(1))
+    return json.loads(text)  # fallback: parse whole text
+
+
+# ── Tool: explain ────────────────────────────────────────────
+
+def tool_explain(concept: str, depth: str = "intermediate") -> str:
+    """
+    Explain a concept at the requested depth.
+    depth: 'beginner' | 'intermediate' | 'advanced'
+    Returns: Markdown string.
+    """
+    prompt = EXPLAIN_PROMPT.format(concept=concept, depth=depth)
+    return _llm(prompt)
+
+
+# ── Tool: quiz ───────────────────────────────────────────────
+
+def tool_quiz(topic: str, subject: str = "", n: int = 5) -> list[dict]:
+    """
+    Generate n MCQ questions about a topic.
+    Returns: list of {question, options, answer (int), explanation}
+    """
+    prompt = QUIZ_PROMPT.format(topic=topic, subject=subject, n=n)
+    raw = _llm(prompt)
+    try:
+        questions = _parse_json(raw)
+        return questions
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+
+# ── Tool: summarize ──────────────────────────────────────────
+
+def tool_summarize(content: str) -> str:
+    """
+    Summarize raw text (e.g., from a PDF) into study notes.
+    Returns: Markdown string.
+    """
+    prompt = SUMMARIZE_PROMPT.format(content=content[:8000])  # cap to context window
+    return _llm(prompt)
+
+
+# ── Tool: flashcards ─────────────────────────────────────────
+
+def tool_flashcards(topic: str, n: int = 10) -> list[dict]:
+    """
+    Generate n Q&A flashcard pairs on a topic.
+    Returns: list of {front, back}
+    """
+    prompt = FLASHCARD_PROMPT.format(topic=topic, n=n)
+    raw = _llm(prompt)
+    try:
+        return _parse_json(raw)
+    except (json.JSONDecodeError, AttributeError):
+        return []
+
+
+# ── Tool: schedule ───────────────────────────────────────────
+
+def tool_schedule(
+    subject: str,
+    topics: list[str],
+    days_until_exam: int,
+    weak_topics: list[str],
+) -> str:
+    """
+    Build a day-by-day revision schedule.
+    Returns: Markdown plan.
+    """
+    prompt = SCHEDULE_PROMPT.format(
+        subject=subject,
+        topics=", ".join(topics),
+        days=days_until_exam,
+        weak_topics=", ".join(weak_topics) if weak_topics else "none identified yet",
+    )
+    return _llm(prompt)
+
+
+# ── Tool: recall ─────────────────────────────────────────────
+
+def tool_recall(past_messages: list[dict]) -> str:
+    """
+    Summarize what the user has studied in past sessions.
+    past_messages: list of {role, content}
+    Returns: brief summary string.
+    """
+    if not past_messages:
+        return "No past sessions found."
+
+    history_text = "\n".join(
+        f"{m['role'].upper()}: {m['content'][:200]}"
+        for m in past_messages[:20]
+    )
+    prompt = f"Briefly summarize what topics this student has been studying:\n\n{history_text}"
+    return _llm(prompt)
+
+
+# ── Tool: weak_topics ────────────────────────────────────────
+
+def tool_weak_topics(topic_scores: list[dict]) -> list[dict]:
+    """
+    Given a list of {topic, confidence_score}, return topics sorted by score (ascending).
+    Scores below 60 are considered weak.
+    Returns: [{"topic": str, "score": float, "status": str}]
+    """
+    if not topic_scores:
+        return []
+
+    sorted_topics = sorted(topic_scores, key=lambda t: t.get("confidence_score", 0))
+
+    result = []
+    for t in sorted_topics:
+        score = t.get("confidence_score", 0)
+        status = (
+            "critical" if score < 40 else
+            "weak"     if score < 60 else
+            "moderate" if score < 80 else
+            "strong"
+        )
+        result.append({
+            "topic": t.get("name", "Unknown"),
+            "score": round(score, 1),
+            "status": status,
+        })
+    return result
+
+
+# ── Spaced Repetition ────────────────────────────────────────
+
+def compute_next_review(score: int, total: int) -> datetime:
+    """
+    Given quiz score, compute when topic should be reviewed next.
+    """
+    confidence = (score / total) * 100 if total > 0 else 0
+
+    if confidence >= settings.sr_high_threshold:
+        delta = timedelta(days=7)
+    elif confidence >= settings.sr_mid_threshold:
+        delta = timedelta(days=3)
+    elif confidence >= settings.sr_low_threshold:
+        delta = timedelta(days=1)
+    else:
+        delta = timedelta(hours=4)
+
+    return datetime.utcnow() + delta

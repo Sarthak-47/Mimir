@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 // ── Config ──────────────────────────────────────────────────
-const WS_URL = "ws://localhost:8000/ws/chat";
+const WS_BASE_URL = "ws://localhost:8000/ws/chat";
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -16,6 +16,7 @@ interface UseWebSocketOptions {
   onToken:    (token: string) => void;   // streaming token received
   onDone:     () => void;                // assistant turn complete
   onToolData: (data: unknown) => void;   // structured quiz / flashcard data
+  authToken?: string | null;             // JWT — appended as ?token= query param
 }
 
 interface UseWebSocketReturn {
@@ -28,6 +29,7 @@ export function useWebSocket({
   onToken,
   onDone,
   onToolData,
+  authToken,
 }: UseWebSocketOptions): UseWebSocketReturn {
   const wsRef          = useRef<WebSocket | null>(null);
   const reconnectCount = useRef(0);
@@ -43,10 +45,11 @@ export function useWebSocket({
 
   const [isConnected, setIsConnected] = useState(false);
 
-  const connect = useCallback(() => {
+  const connect = useCallback((token?: string | null) => {
     if (wsRef.current) wsRef.current.close();
 
-    const ws = new WebSocket(WS_URL);
+    const url = token ? `${WS_BASE_URL}?token=${encodeURIComponent(token)}` : WS_BASE_URL;
+    const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -88,18 +91,21 @@ export function useWebSocket({
       if (reconnectCount.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectCount.current += 1;
         const delay = RECONNECT_DELAY_MS * reconnectCount.current;
-        reconnectTimer.current = setTimeout(connect, delay);
+        reconnectTimer.current = setTimeout(() => connect(token), delay);
       }
     };
   }, []);
 
+  // Reconnect whenever the auth token changes
   useEffect(() => {
-    connect();
+    reconnectCount.current = 0;
+    connect(authToken);
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
-  }, [connect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
 
   const sendMessage = useCallback((text: string, subjectId?: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

@@ -5,7 +5,7 @@ POST /api/users/login
 GET  /api/users/me
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -88,10 +88,14 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    exam_date: date | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class ExamDateRequest(BaseModel):
+    exam_date: date | None = None
 
 
 # ── Endpoints ────────────────────────────────────────────────
@@ -128,4 +132,16 @@ async def login(
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/exam-date", response_model=UserResponse)
+async def set_exam_date(
+    req: ExamDateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.exam_date = req.exam_date
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

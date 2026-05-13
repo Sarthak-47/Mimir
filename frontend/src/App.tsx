@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import Chat from "@/components/Chat";
@@ -16,7 +16,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  quizData?: QuizQuestion[];      // set when tool returned quiz JSON
+  quizData?: QuizQuestion[];
   flashcardData?: { front: string; back: string }[];
 }
 
@@ -26,35 +26,44 @@ export interface Subject {
   color: string;
 }
 
-// ── Persist auth to localStorage ──────────────────────────
-const STORAGE_TOKEN    = "mimir_token";
-const STORAGE_USERNAME = "mimir_username";
+// ── Constants ──────────────────────────────────────────────
+const API               = "http://localhost:8000";
+const STORAGE_TOKEN     = "mimir_token";
+const STORAGE_USERNAME  = "mimir_username";
+const STORAGE_EXAM_DATE = "mimir_exam_date";
+const SUBJECT_COLORS    = ["#6ab87a", "#c9a84c", "#7aaa84", "#e8c96a", "#4a8a5a"];
 
 function readStoredAuth(): { token: string; username: string } | null {
   try {
     const token    = localStorage.getItem(STORAGE_TOKEN);
     const username = localStorage.getItem(STORAGE_USERNAME);
     if (token && username) return { token, username };
-  } catch { /* private browsing / storage disabled */ }
+  } catch { /* private browsing */ }
   return null;
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
 }
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
-  // ── State (all declared first) ─────────────────────────
+  // ── State ─────────────────────────────────────────────
   const stored = readStoredAuth();
-  const [authToken, setAuthToken]   = useState<string | null>(stored?.token ?? null);
-  const [username, setUsername]     = useState<string>(stored?.username ?? "");
-  const [view, setView]             = useState<NavView>("oracle");
-  const [messages, setMessages]     = useState<Message[]>([]);
+  const [authToken, setAuthToken]         = useState<string | null>(stored?.token ?? null);
+  const [username, setUsername]           = useState<string>(stored?.username ?? "");
+  const [view, setView]                   = useState<NavView>("oracle");
+  const [messages, setMessages]           = useState<Message[]>([]);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
-  const [subjects, setSubjects]     = useState<Subject[]>([
-    { id: "1", name: "Machine Learning", color: "#6ab87a" },
-    { id: "2", name: "DBMS",             color: "#c9a84c" },
-    { id: "3", name: "Algorithms",       color: "#7aaa84" },
-  ]);
+  const [subjects, setSubjects]           = useState<Subject[]>([]);
+  const [examDate, setExamDate]           = useState<Date | null>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_EXAM_DATE);
+      return stored ? new Date(stored) : null;
+    } catch { return null; }
+  });
 
-  // ── Auth handlers ─────────────────────────────────────
+  // ── Auth handlers ──────────────────────────────────────
   const handleAuthenticated = useCallback((token: string, user: string) => {
     try {
       localStorage.setItem(STORAGE_TOKEN,    token);
@@ -72,46 +81,110 @@ export default function App() {
     setAuthToken(null);
     setUsername("");
     setMessages([]);
+    setSubjects([]);
+    setActiveSubject(null);
   }, []);
 
-  // Track the id of the currently-streaming assistant message
+  // ── Fetch subjects on auth ─────────────────────────────
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API}/api/progress/subjects`, { headers: authHeaders(authToken) })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { id: number; name: string; color: string }[]) => {
+        setSubjects(data.map((s) => ({ id: String(s.id), name: s.name, color: s.color })));
+      })
+      .catch(() => { /* backend offline — subjects stay empty */ });
+  }, [authToken]);
+
+  // ── Fetch exam date from API on auth ───────────────────
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API}/api/users/me`, { headers: authHeaders(authToken) })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { exam_date?: string } | null) => {
+        if (data?.exam_date) {
+          const d = new Date(data.exam_date);
+          setExamDate(d);
+          try { localStorage.setItem(STORAGE_EXAM_DATE, d.toISOString()); } catch { /**/ }
+        }
+      })
+      .catch(() => { /* use localStorage value */ });
+  }, [authToken]);
+
+  // ── Subject CRUD ───────────────────────────────────────
+  const handleAddSubject = useCallback(async (name: string) => {
+    const color = SUBJECT_COLORS[subjects.length % SUBJECT_COLORS.length];
+    try {
+      const res = await fetch(`${API}/api/progress/subjects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken!) },
+        body: JSON.stringify({ name, color }),
+      });
+      if (res.ok) {
+        const s = await res.json() as { id: number; name: string; color: string };
+        setSubjects((prev) => [...prev, { id: String(s.id), name: s.name, color: s.color }]);
+        return;
+      }
+    } catch { /* fall through */ }
+    // Offline fallback — use a local id
+    setSubjects((prev) => [...prev, { id: `local-${Date.now()}`, name, color }]);
+  }, [authToken, subjects.length]);
+
+  const handleDeleteSubject = useCallback(async (id: string) => {
+    if (!id.startsWith("local-")) {
+      try {
+        await fetch(`${API}/api/progress/subjects/${id}`, {
+          method: "DELETE",
+          headers: authHeaders(authToken!),
+        });
+      } catch { /* ignore */ }
+    }
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
+    setActiveSubject((cur) => (cur === id ? null : cur));
+  }, [authToken]);
+
+  // ── Exam date handler ──────────────────────────────────
+  const handleSetExamDate = useCallback(async (d: Date | null) => {
+    setExamDate(d);
+    try {
+      if (d) localStorage.setItem(STORAGE_EXAM_DATE, d.toISOString());
+      else   localStorage.removeItem(STORAGE_EXAM_DATE);
+    } catch { /* ignore */ }
+    // Persist to backend (best-effort)
+    if (authToken) {
+      fetch(`${API}/api/users/exam-date`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+        body: JSON.stringify({ exam_date: d ? d.toISOString().split("T")[0] : null }),
+      }).catch(() => { /* ignore */ });
+    }
+  }, [authToken]);
+
+  // ── WebSocket streaming ────────────────────────────────
   const streamingId = useRef<string | null>(null);
 
-  // ── WebSocket callbacks ───────────────────────────────────
   const onToken = useCallback((token: string) => {
     setMessages((prev) => {
       if (streamingId.current) {
-        // Append token to the streaming message
         return prev.map((m) =>
-          m.id === streamingId.current
-            ? { ...m, content: m.content + token }
-            : m
+          m.id === streamingId.current ? { ...m, content: m.content + token } : m
         );
       } else {
-        // First token — create the assistant message
         const id = `assistant-${Date.now()}`;
         streamingId.current = id;
-        return [
-          ...prev,
-          { id, role: "assistant", content: token, timestamp: new Date() },
-        ];
+        return [...prev, { id, role: "assistant", content: token, timestamp: new Date() }];
       }
     });
   }, []);
 
-  const onDone = useCallback(() => {
-    streamingId.current = null;
-  }, []);
+  const onDone = useCallback(() => { streamingId.current = null; }, []);
 
   const onToolData = useCallback((data: unknown) => {
-    // Attach structured data (quiz / flashcards) to the last assistant message
     setMessages((prev) => {
       const lastIdx = prev.findLastIndex((m) => m.role === "assistant");
       if (lastIdx === -1) return prev;
-
       const updated = [...prev];
       const target  = { ...updated[lastIdx] };
-
       if (Array.isArray(data) && data.length > 0) {
         if ("question" in (data[0] as object)) {
           target.quizData = data as QuizQuestion[];
@@ -119,7 +192,6 @@ export default function App() {
           target.flashcardData = data as { front: string; back: string }[];
         }
       }
-
       updated[lastIdx] = target;
       return updated;
     });
@@ -127,62 +199,46 @@ export default function App() {
 
   const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, authToken });
 
-  // ── Handlers ──────────────────────────────────────────────
+  // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string) => {
     if (!text.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id:        `user-${Date.now()}`,
-        role:      "user",
-        content:   text.trim(),
-        timestamp: new Date(),
-      },
-    ]);
+    setMessages((prev) => [...prev, {
+      id:        `user-${Date.now()}`,
+      role:      "user",
+      content:   text.trim(),
+      timestamp: new Date(),
+    }]);
     sendMessage(text.trim(), activeSubject ? Number(activeSubject) : undefined);
   };
 
   const handleTrial = () => {
     const subj = subjects.find((s) => s.id === activeSubject);
-    const topic = subj ? `Quiz me on ${subj.name}` : "Quiz me on the topic we last discussed";
-    handleSend(topic);
+    handleSend(subj ? `Quiz me on ${subj.name}` : "Quiz me on the topic we last discussed");
   };
 
   const handleRunes = () => {
     const subj = subjects.find((s) => s.id === activeSubject);
-    const topic = subj ? subj.name : "the topic we last discussed";
-    handleSend(`Generate flashcards for ${topic}`);
+    handleSend(`Generate flashcards for ${subj ? subj.name : "the topic we last discussed"}`);
   };
 
   const handleFates = () => {
     const subj = subjects.find((s) => s.id === activeSubject);
-    const topic = subj ? subj.name : "my subjects";
-    handleSend(`Build a revision schedule for ${topic}`);
+    handleSend(`Build a revision schedule for ${subj ? subj.name : "my subjects"}`);
   };
 
-  const handleAddSubject = (name: string) => {
-    const colors = ["#6ab87a", "#c9a84c", "#7aaa84", "#e8c96a", "#4a8a5a"];
-    setSubjects((prev) => [
-      ...prev,
-      {
-        id:    Date.now().toString(),
-        name,
-        color: colors[prev.length % colors.length],
-      },
-    ]);
-  };
-
-  // ── Placeholder views ─────────────────────────────────────
+  // ── Placeholder view ───────────────────────────────────
   const Placeholder = ({ rune, label }: { rune: string; label: string }) => (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontFamily: "var(--font-header)", fontSize: 11, letterSpacing: "0.12em" }}>
-      {rune}  {label}
+      {rune}&nbsp;&nbsp;{label}
     </div>
   );
 
-  // ── Auth gate ─────────────────────────────────────────────
+  // ── Auth gate ──────────────────────────────────────────
   if (!authToken) {
     return <Auth onAuthenticated={handleAuthenticated} />;
   }
+
+  const activeSubjectObj = subjects.find((s) => s.id === activeSubject);
 
   return (
     <div className="app-shell">
@@ -193,13 +249,17 @@ export default function App() {
         activeSubject={activeSubject}
         onSubjectChange={setActiveSubject}
         onAddSubject={handleAddSubject}
+        onDeleteSubject={handleDeleteSubject}
+        username={username}
+        examDate={examDate}
+        onSetExamDate={handleSetExamDate}
       />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Topbar
           view={view}
           isConnected={isConnected}
-          activeSubjectName={subjects.find((s) => s.id === activeSubject)?.name ?? null}
+          activeSubjectName={activeSubjectObj?.name ?? null}
           username={username}
           onLogout={handleLogout}
         />
@@ -212,7 +272,7 @@ export default function App() {
               onTrial={handleTrial}
               onRunes={handleRunes}
               onFates={handleFates}
-              activeSubjectName={subjects.find((s) => s.id === activeSubject)?.name ?? null}
+              activeSubjectName={activeSubjectObj?.name ?? null}
               authToken={authToken}
             />
           </>
@@ -224,8 +284,10 @@ export default function App() {
       </main>
 
       <RightPanel
-        activeSubject={subjects.find((s) => s.id === activeSubject)}
+        activeSubject={activeSubjectObj}
         authToken={authToken}
+        examDate={examDate}
+        onSetExamDate={handleSetExamDate}
       />
     </div>
   );

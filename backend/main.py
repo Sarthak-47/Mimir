@@ -7,9 +7,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from config import settings
 from memory.database import init_db
 from routers import chat, files, quiz, users, progress
+from scheduler import review_check, streak_update
+
+
+# ── Scheduler (module-level singleton) ───────────────────────
+_scheduler = AsyncIOScheduler(timezone="UTC")
 
 
 # ── Lifespan (startup / shutdown) ───────────────────────────
@@ -18,8 +25,30 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"[Mimir] Starting {settings.app_name}…")
     await init_db()
+
+    # Register scheduled jobs
+    _scheduler.add_job(
+        review_check,
+        trigger="interval",
+        hours=1,
+        id="review_check",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        streak_update,
+        trigger="cron",
+        hour=0,
+        minute=5,       # runs 00:05 UTC daily
+        id="streak_update",
+        replace_existing=True,
+    )
+    _scheduler.start()
+    print("[Mimir] Scheduler started — review_check (hourly), streak_update (daily).")
+
     yield
+
     # Shutdown
+    _scheduler.shutdown(wait=False)
     print("[Mimir] Shutting down…")
 
 

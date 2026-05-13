@@ -153,7 +153,11 @@ export default function App() {
       />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Topbar view={view} isConnected={isConnected} />
+        <Topbar
+          view={view}
+          isConnected={isConnected}
+          activeSubjectName={subjects.find((s) => s.id === activeSubject)?.name ?? null}
+        />
 
         {view === "oracle" && (
           <>

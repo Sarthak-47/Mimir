@@ -3,6 +3,24 @@ import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 
+// ── Render **bold** as gold highlighted spans ────────────────
+function TermHighlight({ text }: { text: string }) {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} style={{ color: "var(--gold-bright)", fontWeight: 600 }}>
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 interface ChatProps {
   messages: Message[];
 }
@@ -38,7 +56,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         justifyContent: isUser ? "flex-end" : "flex-start",
       }}
     >
-      {!isUser && <div style={styles.avatar}>ᚦ</div>}
+      {!isUser && <div style={styles.avatar}>M</div>}
 
       <div style={{ maxWidth: "80%", display: "flex", flexDirection: "column", gap: 6 }}>
         {/* Text bubble */}
@@ -47,7 +65,11 @@ function MessageBubble({ msg }: { msg: Message }) {
             {isUser ? "You" : "Mimir"}
             <span style={styles.time}>{formatTime(msg.timestamp)}</span>
           </div>
-          <div style={styles.content}>{msg.content}</div>
+          <div style={styles.content}>
+            {msg.role === "assistant"
+              ? <TermHighlight text={msg.content} />
+              : msg.content}
+          </div>
         </div>
 
         {/* Inline quiz card (when tool returned MCQs) */}
@@ -156,8 +178,8 @@ function formatTime(date: Date) {
 const styles: Record<string, React.CSSProperties> = {
   chatArea: { flex: 1, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", background: "var(--stone-1)" },
   row:      { display: "flex", alignItems: "flex-end", gap: 8 },
-  avatar:   { width: 24, height: 24, background: "var(--stone-3)", border: "1px solid var(--green-dark)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 13, color: "var(--green)", flexShrink: 0 },
-  avatarUser: { width: 24, height: 24, background: "var(--stone-4)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 11, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
+  avatar:   { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
+  avatarUser: { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
   bubble:   { padding: "8px 12px" },
   mimirBubble: { background: "var(--stone-3)", border: "1px solid var(--green-dark)", borderLeft: "2px solid var(--green)" },
   userBubble:  { background: "var(--stone-4)", border: "1px solid var(--gold-dim)", borderRight: "2px solid var(--gold-dim)" },

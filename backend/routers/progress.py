@@ -3,20 +3,21 @@ Mimir — Progress Router
 GET /api/progress/stats      — overall stats (days, accuracy, streak)
 GET /api/progress/topics     — topic confidence scores
 GET /api/progress/weaknesses — topics below threshold, sorted
-GET /api/progress/subjects   — CRUD for subjects
+GET/POST/DELETE /api/progress/subjects — CRUD for subjects
 """
 
-from datetime import datetime, date
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from memory.database import (
-    Subject, Topic, QuizSession, Conversation, User, get_db,
+    Subject, Topic, QuizSession, User, get_db,
 )
 from agent.tools import tool_weak_topics
+from routers.users import get_current_user
 
 router = APIRouter()
 
@@ -65,13 +66,14 @@ class TopicCreate(BaseModel):
 
 # ── Stats ────────────────────────────────────────────────────
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(db: AsyncSession = Depends(get_db)):
-    user_id = 1  # TODO: use auth
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
 
     # Days at well: days since account creation
-    user_result = await db.execute(select(User).where(User.id == user_id))
-    user = user_result.scalar_one_or_none()
-    days = (datetime.utcnow() - user.created_at).days if user else 0
+    days = (datetime.utcnow() - current_user.created_at).days
 
     # Trial accuracy: avg score across all quiz sessions
     sessions_result = await db.execute(
@@ -94,8 +96,12 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
 # ── Topics ───────────────────────────────────────────────────
 @router.get("/topics", response_model=list[TopicResponse])
-async def get_topics(subject_id: int | None = None, db: AsyncSession = Depends(get_db)):
-    user_id = 1
+async def get_topics(
+    subject_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
     query = select(Topic).where(Topic.user_id == user_id)
     if subject_id:
         query = query.where(Topic.subject_id == subject_id)
@@ -104,9 +110,12 @@ async def get_topics(subject_id: int | None = None, db: AsyncSession = Depends(g
 
 
 @router.post("/topics", response_model=TopicResponse, status_code=201)
-async def create_topic(req: TopicCreate, db: AsyncSession = Depends(get_db)):
-    user_id = 1
-    topic = Topic(user_id=user_id, subject_id=req.subject_id, name=req.name)
+async def create_topic(
+    req: TopicCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    topic = Topic(user_id=current_user.id, subject_id=req.subject_id, name=req.name)
     db.add(topic)
     await db.commit()
     await db.refresh(topic)
@@ -115,8 +124,12 @@ async def create_topic(req: TopicCreate, db: AsyncSession = Depends(get_db)):
 
 # ── Weaknesses ───────────────────────────────────────────────
 @router.get("/weaknesses", response_model=list[WeaknessResponse])
-async def get_weaknesses(subject_id: int | None = None, db: AsyncSession = Depends(get_db)):
-    user_id = 1
+async def get_weaknesses(
+    subject_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = current_user.id
     query = select(Topic).where(Topic.user_id == user_id)
     if subject_id:
         query = query.where(Topic.subject_id == subject_id)
@@ -129,16 +142,23 @@ async def get_weaknesses(subject_id: int | None = None, db: AsyncSession = Depen
 
 # ── Subjects ─────────────────────────────────────────────────
 @router.get("/subjects", response_model=list[SubjectResponse])
-async def list_subjects(db: AsyncSession = Depends(get_db)):
-    user_id = 1
-    result = await db.execute(select(Subject).where(Subject.user_id == user_id))
+async def list_subjects(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Subject).where(Subject.user_id == current_user.id)
+    )
     return result.scalars().all()
 
 
 @router.post("/subjects", response_model=SubjectResponse, status_code=201)
-async def create_subject(req: SubjectCreate, db: AsyncSession = Depends(get_db)):
-    user_id = 1
-    subject = Subject(user_id=user_id, name=req.name, color=req.color)
+async def create_subject(
+    req: SubjectCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    subject = Subject(user_id=current_user.id, name=req.name, color=req.color)
     db.add(subject)
     await db.commit()
     await db.refresh(subject)
@@ -146,10 +166,16 @@ async def create_subject(req: SubjectCreate, db: AsyncSession = Depends(get_db))
 
 
 @router.delete("/subjects/{subject_id}", status_code=204)
-async def delete_subject(subject_id: int, db: AsyncSession = Depends(get_db)):
-    user_id = 1
+async def delete_subject(
+    subject_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
-        select(Subject).where(Subject.id == subject_id, Subject.user_id == user_id)
+        select(Subject).where(
+            Subject.id == subject_id,
+            Subject.user_id == current_user.id,
+        )
     )
     subject = result.scalar_one_or_none()
     if not subject:

@@ -6,13 +6,14 @@ interface InputZoneProps {
   onRunes:   () => void;
   onFates:   () => void;
   activeSubjectName: string | null;
+  authToken?: string | null;
 }
 
 // ── Backend upload URL ───────────────────────────────────────
 const UPLOAD_URL = "http://localhost:8000/api/files/upload";
 
 export default function InputZone({
-  onSend, onTrial, onRunes, onFates, activeSubjectName,
+  onSend, onTrial, onRunes, onFates, activeSubjectName, authToken,
 }: InputZoneProps) {
   const [text, setText]         = useState("");
   const [uploading, setUploading] = useState(false);
@@ -56,7 +57,10 @@ export default function InputZone({
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch(UPLOAD_URL, { method: "POST", body: form });
+      const headers: Record<string, string> = {};
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+      const res = await fetch(UPLOAD_URL, { method: "POST", body: form, headers });
       if (res.ok) {
         onSend(`I just uploaded "${file.name}". Please summarise it for me.`);
       } else {

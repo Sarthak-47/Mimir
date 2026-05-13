@@ -1,40 +1,62 @@
 """
 Mimir — Chat WebSocket Router
-WS /ws/chat
+WS /ws/chat?token=<jwt>
 
 Accepts: {"message": str, "subject_id": int | null}
 Streams: {"type": "token", "content": str}
          {"type": "done"}
          {"type": "tool_data", "tool": str, "data": any}
+         {"type": "error", "content": str}
 """
 
 import json
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from memory.database import (
-    AsyncSessionLocal, Conversation, Topic, Subject,
+    AsyncSessionLocal, Conversation, Topic, Subject, User,
 )
-from memory.vector import add_memory, query_memory
+from memory.vector import add_memory
 from agent.loop import run_agent
+from routers.users import decode_jwt
 
 router = APIRouter()
 
 
-@router.websocket("/chat")
-async def ws_chat(websocket: WebSocket):
-    await websocket.accept()
-    user_id = 1  # TODO: parse JWT from query param once auth is wired
+async def _resolve_user(token: str | None, db: AsyncSession) -> User | None:
+    """Return the User for the given JWT, or None if invalid / missing."""
+    if not token:
+        return None
+    username = decode_jwt(token)
+    if not username:
+        return None
+    result = await db.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
 
+
+@router.websocket("/chat")
+async def ws_chat(
+    websocket: WebSocket,
+    token: str | None = Query(None),
+):
     async with AsyncSessionLocal() as db:
+        user = await _resolve_user(token, db)
+        if user is None:
+            # Reject before accepting — client sees a failed upgrade
+            await websocket.close(code=4001)
+            return
+
+        await websocket.accept()
+        user_id = user.id
+
         try:
             while True:
                 raw = await websocket.receive_text()
                 payload: dict = json.loads(raw)
-                user_message: str  = payload.get("message", "").strip()
-                subject_id: int | None = payload.get("subject_id")
+                user_message: str       = payload.get("message", "").strip()
+                subject_id: int | None  = payload.get("subject_id")
 
                 if not user_message:
                     continue
@@ -155,6 +177,9 @@ async def ws_chat(websocket: WebSocket):
         except WebSocketDisconnect:
             pass
         except Exception as e:
-            await websocket.send_text(
-                json.dumps({"type": "error", "content": str(e)})
-            )
+            try:
+                await websocket.send_text(
+                    json.dumps({"type": "error", "content": str(e)})
+                )
+            except Exception:
+                pass

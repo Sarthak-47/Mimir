@@ -18,10 +18,13 @@ interface Weakness {
 
 interface RightPanelProps {
   activeSubject?: Subject;
+  authToken?: string | null;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function fetchJson<T>(url: string, token?: string | null): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -39,7 +42,7 @@ function CornerMark({ children, style }: { children: React.ReactNode; style?: Re
   );
 }
 
-export default function RightPanel({ activeSubject }: RightPanelProps) {
+export default function RightPanel({ activeSubject, authToken }: RightPanelProps) {
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [weaknesses, setWeaknesses] = useState<Weakness[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -50,17 +53,17 @@ export default function RightPanel({ activeSubject }: RightPanelProps) {
       setLoading(true);
       try {
         const [s, w] = await Promise.all([
-          fetchJson<Stats>(`${API}/stats`),
-          fetchJson<Weakness[]>(`${API}/weaknesses`),
+          fetchJson<Stats>(`${API}/stats`, authToken),
+          fetchJson<Weakness[]>(`${API}/weaknesses`, authToken),
         ]);
         if (!cancelled) { setStats(s); setWeaknesses(w); }
-      } catch { /* backend offline — show dashes */ }
+      } catch { /* backend offline or unauthorized — show dashes */ }
       finally { if (!cancelled) setLoading(false); }
     };
     load();
     const timer = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, []);
+  }, [authToken]);
 
   const weakList = weaknesses.slice(0, 4);
   const examDays = 14;

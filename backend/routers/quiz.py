@@ -12,8 +12,9 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from memory.database import QuizSession, Topic, get_db
+from memory.database import QuizSession, Topic, User, get_db
 from agent.tools import tool_quiz, compute_next_review
+from routers.users import get_current_user
 
 router = APIRouter()
 
@@ -54,7 +55,10 @@ class SessionResponse(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────
 
 @router.post("/generate", response_model=list[QuizQuestion])
-async def generate_quiz(req: GenerateRequest):
+async def generate_quiz(
+    req: GenerateRequest,
+    _: User = Depends(get_current_user),   # auth guard only
+):
     questions = tool_quiz(topic=req.topic, subject=req.subject, n=req.n)
     if not questions:
         raise HTTPException(status_code=500, detail="Failed to generate quiz questions")
@@ -62,12 +66,17 @@ async def generate_quiz(req: GenerateRequest):
 
 
 @router.post("/submit", response_model=SubmitResponse)
-async def submit_quiz(req: SubmitRequest, db: AsyncSession = Depends(get_db)):
-    user_id = 1  # TODO: use auth
-
-    # Fetch or validate topic
+async def submit_quiz(
+    req: SubmitRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Fetch and verify topic belongs to this user
     result = await db.execute(
-        select(Topic).where(Topic.id == req.topic_id, Topic.user_id == user_id)
+        select(Topic).where(
+            Topic.id == req.topic_id,
+            Topic.user_id == current_user.id,
+        )
     )
     topic = result.scalar_one_or_none()
     if not topic:
@@ -84,7 +93,7 @@ async def submit_quiz(req: SubmitRequest, db: AsyncSession = Depends(get_db)):
 
     # Save quiz session
     session = QuizSession(
-        user_id=user_id,
+        user_id=current_user.id,
         topic_id=topic.id,
         score=req.score,
         total=req.total,
@@ -110,11 +119,14 @@ async def submit_quiz(req: SubmitRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/history", response_model=list[SessionResponse])
-async def quiz_history(limit: int = 20, db: AsyncSession = Depends(get_db)):
-    user_id = 1  # TODO: use auth
+async def quiz_history(
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     result = await db.execute(
         select(QuizSession)
-        .where(QuizSession.user_id == user_id)
+        .where(QuizSession.user_id == current_user.id)
         .order_by(QuizSession.timestamp.desc())
         .limit(limit)
     )

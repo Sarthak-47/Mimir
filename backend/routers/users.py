@@ -42,6 +42,16 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
+def decode_jwt(token: str) -> str | None:
+    """Decode a JWT and return the username (sub), or None if invalid."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        sub: str = payload.get("sub", "")
+        return sub if sub else None
+    except JWTError:
+        return None
+
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_db),

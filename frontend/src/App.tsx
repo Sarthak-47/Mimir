@@ -4,6 +4,7 @@ import Topbar from "@/components/Topbar";
 import Chat from "@/components/Chat";
 import InputZone from "@/components/InputZone";
 import RightPanel from "@/components/RightPanel";
+import Auth from "@/components/Auth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 
@@ -25,16 +26,53 @@ export interface Subject {
   color: string;
 }
 
+// ── Persist auth to localStorage ──────────────────────────
+const STORAGE_TOKEN    = "mimir_token";
+const STORAGE_USERNAME = "mimir_username";
+
+function readStoredAuth(): { token: string; username: string } | null {
+  try {
+    const token    = localStorage.getItem(STORAGE_TOKEN);
+    const username = localStorage.getItem(STORAGE_USERNAME);
+    if (token && username) return { token, username };
+  } catch { /* private browsing / storage disabled */ }
+  return null;
+}
+
 // ── App ────────────────────────────────────────────────────
 export default function App() {
-  const [view, setView]           = useState<NavView>("oracle");
-  const [messages, setMessages]   = useState<Message[]>([]);
+  // ── State (all declared first) ─────────────────────────
+  const stored = readStoredAuth();
+  const [authToken, setAuthToken]   = useState<string | null>(stored?.token ?? null);
+  const [username, setUsername]     = useState<string>(stored?.username ?? "");
+  const [view, setView]             = useState<NavView>("oracle");
+  const [messages, setMessages]     = useState<Message[]>([]);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
-  const [subjects, setSubjects]   = useState<Subject[]>([
+  const [subjects, setSubjects]     = useState<Subject[]>([
     { id: "1", name: "Machine Learning", color: "#6ab87a" },
     { id: "2", name: "DBMS",             color: "#c9a84c" },
     { id: "3", name: "Algorithms",       color: "#7aaa84" },
   ]);
+
+  // ── Auth handlers ─────────────────────────────────────
+  const handleAuthenticated = useCallback((token: string, user: string) => {
+    try {
+      localStorage.setItem(STORAGE_TOKEN,    token);
+      localStorage.setItem(STORAGE_USERNAME, user);
+    } catch { /* ignore */ }
+    setAuthToken(token);
+    setUsername(user);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_TOKEN);
+      localStorage.removeItem(STORAGE_USERNAME);
+    } catch { /* ignore */ }
+    setAuthToken(null);
+    setUsername("");
+    setMessages([]);
+  }, []);
 
   // Track the id of the currently-streaming assistant message
   const streamingId = useRef<string | null>(null);
@@ -87,7 +125,7 @@ export default function App() {
     });
   }, []);
 
-  const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData });
+  const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, authToken });
 
   // ── Handlers ──────────────────────────────────────────────
   const handleSend = (text: string) => {
@@ -141,6 +179,11 @@ export default function App() {
     </div>
   );
 
+  // ── Auth gate ─────────────────────────────────────────────
+  if (!authToken) {
+    return <Auth onAuthenticated={handleAuthenticated} />;
+  }
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -157,6 +200,8 @@ export default function App() {
           view={view}
           isConnected={isConnected}
           activeSubjectName={subjects.find((s) => s.id === activeSubject)?.name ?? null}
+          username={username}
+          onLogout={handleLogout}
         />
 
         {view === "oracle" && (

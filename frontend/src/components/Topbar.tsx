@@ -14,9 +14,11 @@ interface TopbarProps {
   view: NavView;
   isConnected: boolean;
   activeSubjectName?: string | null;
+  username?: string;
+  onLogout?: () => void;
 }
 
-export default function Topbar({ view, isConnected, activeSubjectName }: TopbarProps) {
+export default function Topbar({ view, isConnected, activeSubjectName, username, onLogout }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -32,8 +34,19 @@ export default function Topbar({ view, isConnected, activeSubjectName }: TopbarP
         <div style={styles.subtitle}>{subtitle}</div>
       </div>
 
-      {/* ── Right: model badge + status pill ── */}
+      {/* ── Right: username + model badge + status pill ── */}
       <div style={styles.right}>
+        {username && (
+          <div style={styles.userRow}>
+            <span style={styles.userName}>{username}</span>
+            {onLogout && (
+              <button style={styles.logoutBtn} onClick={onLogout} title="Leave the Well">
+                ᛚ
+              </button>
+            )}
+          </div>
+        )}
+
         <div style={styles.modelBadge}>{MODEL_NAME}</div>
 
         <div style={styles.statusPill}>
@@ -90,6 +103,32 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 8,
+  },
+  userRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    border: "1px solid var(--green-dark)",
+    background: "var(--stone-3)",
+    padding: "3px 8px",
+  },
+  userName: {
+    fontFamily: "var(--font-header)",
+    fontSize: 8,
+    letterSpacing: "0.1em",
+    color: "var(--text-secondary)",
+    textTransform: "uppercase" as const,
+  },
+  logoutBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    fontFamily: "var(--font-header)",
+    fontSize: 10,
+    cursor: "pointer",
+    padding: "0 0 0 4px",
+    lineHeight: 1,
+    transition: "color 0.15s",
   },
   modelBadge: {
     fontFamily: "var(--font-header)",

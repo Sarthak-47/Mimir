@@ -213,6 +213,7 @@ export default function App() {
               onRunes={handleRunes}
               onFates={handleFates}
               activeSubjectName={subjects.find((s) => s.id === activeSubject)?.name ?? null}
+              authToken={authToken}
             />
           </>
         )}
@@ -222,7 +223,10 @@ export default function App() {
         {view === "scrolls"   && <Placeholder rune="ᚱ" label="SCROLLS — Uploaded files coming soon" />}
       </main>
 
-      <RightPanel activeSubject={subjects.find((s) => s.id === activeSubject)} />
+      <RightPanel
+        activeSubject={subjects.find((s) => s.id === activeSubject)}
+        authToken={authToken}
+      />
     </div>
   );
 }

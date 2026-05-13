@@ -18,6 +18,7 @@ from memory.database import (
 )
 from agent.tools import tool_weak_topics
 from routers.users import get_current_user
+from scheduler import compute_streak
 
 router = APIRouter()
 
@@ -75,21 +76,27 @@ async def get_stats(
     # Days at well: days since account creation
     days = (datetime.utcnow() - current_user.created_at).days
 
-    # Trial accuracy: avg score across all quiz sessions
+    # Trial accuracy + streak from quiz sessions
     sessions_result = await db.execute(
-        select(QuizSession).where(QuizSession.user_id == user_id)
+        select(QuizSession)
+        .where(QuizSession.user_id == user_id)
+        .order_by(QuizSession.timestamp.desc())
     )
     sessions = sessions_result.scalars().all()
     total_quizzes = len(sessions)
+
     if sessions:
         accuracy = sum(s.score / s.total * 100 for s in sessions if s.total > 0) / total_quizzes
     else:
         accuracy = 0.0
 
+    session_dates = [s.timestamp.date() for s in sessions]
+    streak = compute_streak(session_dates)
+
     return StatsResponse(
         days_at_well=days,
         trial_accuracy=round(accuracy, 1),
-        streak=0,         # TODO: compute daily streak from quiz timestamps
+        streak=streak,
         total_quizzes=total_quizzes,
     )
 

@@ -3,29 +3,24 @@ import type { NavView, Subject } from "@/App";
 
 // ── Nav items ───────────────────────────────────────────────
 const NAV_ITEMS: { view: NavView; rune: string; label: string }[] = [
-  { view: "oracle",     rune: "ᚦ", label: "The Oracle"    },
-  { view: "trials",    rune: "ᛏ", label: "Trials"         },
-  { view: "reckoning", rune: "ᚢ", label: "The Reckoning"  },
-  { view: "chronicle", rune: "ᛊ", label: "Chronicle"      },
-  { view: "scrolls",   rune: "ᚱ", label: "Scrolls"        },
+  { view: "oracle",     rune: "ᚦ", label: "The Oracle"   },
+  { view: "trials",    rune: "ᛏ", label: "Trials"        },
+  { view: "reckoning", rune: "ᚢ", label: "The Reckoning" },
+  { view: "chronicle", rune: "ᛊ", label: "Chronicle"     },
+  { view: "scrolls",   rune: "ᚱ", label: "Scrolls"       },
 ];
 
 // ── Logo mark — eye inside a diamond ────────────────────────
 function LogoMark() {
   return (
     <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-      {/* Outer diamond */}
       <path d="M18 2 L34 18 L18 34 L2 18 Z" stroke="#c9a84c" strokeWidth="1" fill="none" />
-      {/* Corner tick marks */}
       <line x1="18" y1="2"  x2="18" y2="6"  stroke="#c9a84c" strokeWidth="1" />
       <line x1="34" y1="18" x2="30" y2="18" stroke="#c9a84c" strokeWidth="1" />
       <line x1="18" y1="34" x2="18" y2="30" stroke="#c9a84c" strokeWidth="1" />
       <line x1="2"  y1="18" x2="6"  y2="18" stroke="#c9a84c" strokeWidth="1" />
-      {/* Eye outline — almond shape */}
       <path d="M10 18 Q18 11 26 18 Q18 25 10 18 Z" stroke="#c9a84c" strokeWidth="1" fill="none" />
-      {/* Iris */}
       <circle cx="18" cy="18" r="3.5" stroke="#c9a84c" strokeWidth="1" fill="none" />
-      {/* Pupil */}
       <circle cx="18" cy="18" r="1.5" fill="#c9a84c" />
     </svg>
   );
@@ -34,20 +29,27 @@ function LogoMark() {
 // ── Props ───────────────────────────────────────────────────
 interface SidebarProps {
   view: NavView;
-  onViewChange: (v: NavView) => void;
-  subjects: Subject[];
-  activeSubject: string | null;
+  onViewChange:    (v: NavView) => void;
+  subjects:        Subject[];
+  activeSubject:   string | null;
   onSubjectChange: (id: string) => void;
-  onAddSubject: (name: string) => void;
+  onAddSubject:    (name: string) => void;
+  onDeleteSubject: (id: string) => void;
+  username:        string;
+  examDate:        Date | null;
+  onSetExamDate:   (d: Date | null) => void;
 }
 
 // ── Component ───────────────────────────────────────────────
 export default function Sidebar({
   view, onViewChange,
-  subjects, activeSubject, onSubjectChange, onAddSubject,
+  subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,
+  username, examDate, onSetExamDate,
 }: SidebarProps) {
   const [addingSubject, setAddingSubject]   = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
+  const [hoveredSubject, setHoveredSubject] = useState<string | null>(null);
+  const [editingExamDate, setEditingExamDate] = useState(false);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +59,25 @@ export default function Sidebar({
       setAddingSubject(false);
     }
   };
+
+  const handleExamDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    onSetExamDate(val ? new Date(val + "T00:00:00") : null);
+    setEditingExamDate(false);
+  };
+
+  // Format exam date for display
+  const examDateStr = examDate
+    ? examDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  // Format for date input value (YYYY-MM-DD)
+  const examDateInputVal = examDate
+    ? examDate.toISOString().split("T")[0]
+    : "";
+
+  // Avatar initial from username
+  const avatarChar = username ? username[0].toUpperCase() : "?";
 
   return (
     <aside style={styles.sidebar}>
@@ -77,10 +98,7 @@ export default function Sidebar({
         {NAV_ITEMS.map(({ view: v, rune, label }) => (
           <button
             key={v}
-            style={{
-              ...styles.navItem,
-              ...(view === v ? styles.navItemActive : {}),
-            }}
+            style={{ ...styles.navItem, ...(view === v ? styles.navItemActive : {}) }}
             onClick={() => onViewChange(v)}
           >
             <span style={{ ...styles.navRune, ...(view === v ? styles.navRuneActive : {}) }}>
@@ -99,22 +117,37 @@ export default function Sidebar({
       <div style={styles.sectionLabel}>Disciplines</div>
       <div style={styles.subjectList}>
         {subjects.map((s) => (
-          <button
+          <div
             key={s.id}
-            style={{
-              ...styles.subjectItem,
-              ...(activeSubject === s.id ? styles.subjectItemActive : {}),
-            }}
-            onClick={() => onSubjectChange(s.id)}
+            style={styles.subjectRow}
+            onMouseEnter={() => setHoveredSubject(s.id)}
+            onMouseLeave={() => setHoveredSubject(null)}
           >
-            <span style={{ ...styles.diamond, background: s.color }} />
-            <span style={{
-              ...styles.subjectName,
-              ...(activeSubject === s.id ? styles.subjectNameActive : {}),
-            }}>
-              {s.name}
-            </span>
-          </button>
+            <button
+              style={{
+                ...styles.subjectItem,
+                ...(activeSubject === s.id ? styles.subjectItemActive : {}),
+              }}
+              onClick={() => onSubjectChange(s.id)}
+            >
+              <span style={{ ...styles.diamond, background: s.color }} />
+              <span style={{
+                ...styles.subjectName,
+                ...(activeSubject === s.id ? styles.subjectNameActive : {}),
+              }}>
+                {s.name}
+              </span>
+            </button>
+            {hoveredSubject === s.id && (
+              <button
+                style={styles.deleteBtn}
+                title="Remove discipline"
+                onClick={(e) => { e.stopPropagation(); onDeleteSubject(s.id); }}
+              >
+                ×
+              </button>
+            )}
+          </div>
         ))}
 
         {addingSubject ? (
@@ -135,13 +168,35 @@ export default function Sidebar({
         )}
       </div>
 
+      {/* ── Exam Date ── */}
+      <div style={styles.examSection}>
+        <div style={styles.engraving} />
+        <div style={styles.examRow}>
+          <span style={styles.examLabel}>Ragnarök</span>
+          {editingExamDate ? (
+            <input
+              type="date"
+              autoFocus
+              defaultValue={examDateInputVal}
+              onChange={handleExamDateChange}
+              onBlur={() => setEditingExamDate(false)}
+              style={styles.examInput}
+            />
+          ) : (
+            <button style={styles.examValue} onClick={() => setEditingExamDate(true)}>
+              {examDateStr ?? "set date"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ── User Profile ── */}
       <div style={styles.profile}>
         <div style={styles.engraving} />
         <div style={styles.profileContent}>
-          <div style={styles.profileAvatar}>S</div>
+          <div style={styles.profileAvatar}>{avatarChar}</div>
           <div>
-            <div style={styles.profileName}>Sarthak</div>
+            <div style={styles.profileName}>{username || "Seeker"}</div>
             <div style={styles.profileTitle}>Seeker of wisdom</div>
           </div>
         </div>
@@ -197,9 +252,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "var(--gold-dim)",
     padding: "6px 12px 3px",
   },
-  nav: {
-    padding: "2px 0",
-  },
+  nav: { padding: "2px 0" },
   navItem: {
     display: "flex",
     alignItems: "center",
@@ -226,9 +279,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1,
     flexShrink: 0,
   },
-  navRuneActive: {
-    color: "var(--green-bright)",
-  },
+  navRuneActive: { color: "var(--green-bright)" },
   navLabel: {
     fontFamily: "var(--font-header)",
     fontSize: 9,
@@ -236,19 +287,22 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase" as const,
     color: "var(--text-dim)",
   },
-  navLabelActive: {
-    color: "var(--text-primary)",
-  },
+  navLabelActive: { color: "var(--text-primary)" },
   subjectList: {
     flex: 1,
     padding: "0 8px",
     overflowY: "auto" as const,
   },
+  subjectRow: {
+    display: "flex",
+    alignItems: "center",
+    position: "relative" as const,
+  },
   subjectItem: {
     display: "flex",
     alignItems: "center",
     gap: 7,
-    width: "100%",
+    flex: 1,
     padding: "5px 6px",
     background: "none",
     border: "none",
@@ -257,9 +311,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "left" as const,
     transition: "all 0.12s",
   },
-  subjectItemActive: {
-    borderLeftColor: "var(--green-bright)",
-  },
+  subjectItemActive: { borderLeftColor: "var(--green-bright)" },
   diamond: {
     display: "inline-block",
     width: 6,
@@ -275,8 +327,17 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  subjectNameActive: {
-    color: "var(--text-primary)",
+  subjectNameActive: { color: "var(--text-primary)" },
+  deleteBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    fontSize: 13,
+    lineHeight: 1,
+    cursor: "pointer",
+    padding: "2px 4px",
+    flexShrink: 0,
+    transition: "color 0.1s",
   },
   subjectInput: {
     width: "100%",
@@ -301,9 +362,47 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "left" as const,
     marginTop: 2,
   },
+  examSection: {
+    padding: "0 8px 4px",
+  },
+  examRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "4px 4px",
+  },
+  examLabel: {
+    fontFamily: "var(--font-header)",
+    fontSize: 7,
+    letterSpacing: "0.16em",
+    color: "var(--gold-dim)",
+    textTransform: "uppercase" as const,
+  },
+  examValue: {
+    background: "none",
+    border: "none",
+    fontFamily: "var(--font-body)",
+    fontSize: 9,
+    color: "var(--text-dim)",
+    fontStyle: "italic",
+    cursor: "pointer",
+    padding: 0,
+    textDecoration: "underline",
+    textDecorationStyle: "dotted" as const,
+    textDecorationColor: "var(--green-dark)",
+  },
+  examInput: {
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--text-primary)",
+    fontFamily: "var(--font-body)",
+    fontSize: 9,
+    padding: "2px 4px",
+    outline: "none",
+    width: 100,
+  },
   profile: {
     padding: "0 0 8px",
-    marginTop: "auto",
   },
   profileContent: {
     display: "flex",

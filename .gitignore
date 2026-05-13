@@ -1,0 +1,60 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+
+# ── Backend data (never commit) ───────────────────────────
+backend/data/
+backend/.env
+
+# ── Node / frontend ───────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+.npm
+
+# ── Rust / Cargo ──────────────────────────────────────────
+target/
+Cargo.lock
+**/*.rs.bk
+
+# ── Tauri build output ────────────────────────────────────
+src-tauri/target/
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+
+# ── Env files (keep .example, never keep real) ────────────
+.env
+.env.*
+!.env.example

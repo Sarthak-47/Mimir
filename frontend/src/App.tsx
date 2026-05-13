@@ -5,6 +5,10 @@ import Chat from "@/components/Chat";
 import InputZone from "@/components/InputZone";
 import RightPanel from "@/components/RightPanel";
 import Auth from "@/components/Auth";
+import TrialsView from "@/views/TrialsView";
+import ReckoningView from "@/views/ReckoningView";
+import ChronicleView from "@/views/ChronicleView";
+import ScrollsView from "@/views/ScrollsView";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 
@@ -226,13 +230,6 @@ export default function App() {
     handleSend(`Build a revision schedule for ${subj ? subj.name : "my subjects"}`);
   };
 
-  // ── Placeholder view ───────────────────────────────────
-  const Placeholder = ({ rune, label }: { rune: string; label: string }) => (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontFamily: "var(--font-header)", fontSize: 11, letterSpacing: "0.12em" }}>
-      {rune}&nbsp;&nbsp;{label}
-    </div>
-  );
-
   // ── Auth gate ──────────────────────────────────────────
   if (!authToken) {
     return <Auth onAuthenticated={handleAuthenticated} />;
@@ -277,10 +274,32 @@ export default function App() {
             />
           </>
         )}
-        {view === "trials"    && <Placeholder rune="ᛏ" label="TRIALS — Select a discipline and begin your trial" />}
-        {view === "reckoning" && <Placeholder rune="ᚢ" label="THE RECKONING — Progress dashboard coming soon" />}
-        {view === "chronicle" && <Placeholder rune="ᛊ" label="CHRONICLE — Conversation history coming soon" />}
-        {view === "scrolls"   && <Placeholder rune="ᚱ" label="SCROLLS — Uploaded files coming soon" />}
+
+        {view === "trials" && (
+          <TrialsView
+            subjects={subjects}
+            activeSubject={activeSubject}
+            authToken={authToken}
+          />
+        )}
+
+        {view === "reckoning" && (
+          <ReckoningView
+            subjects={subjects}
+            authToken={authToken}
+          />
+        )}
+
+        {view === "chronicle" && (
+          <ChronicleView authToken={authToken} />
+        )}
+
+        {view === "scrolls" && (
+          <ScrollsView
+            subjects={subjects}
+            authToken={authToken}
+          />
+        )}
       </main>
 
       <RightPanel

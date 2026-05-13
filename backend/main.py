@@ -11,7 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from memory.database import init_db
-from routers import chat, files, quiz, users, progress
+from routers import chat, chronicle, files, quiz, users, progress
 from scheduler import review_check, streak_update
 
 
@@ -70,11 +70,12 @@ app.add_middleware(
 )
 
 # ── Routers ──────────────────────────────────────────────────
-app.include_router(users.router,    prefix="/api/users",    tags=["Users"])
-app.include_router(chat.router,     prefix="/ws",           tags=["Chat"])
-app.include_router(files.router,    prefix="/api/files",    tags=["Files"])
-app.include_router(quiz.router,     prefix="/api/quiz",     tags=["Quiz"])
-app.include_router(progress.router, prefix="/api/progress", tags=["Progress"])
+app.include_router(users.router,     prefix="/api/users",     tags=["Users"])
+app.include_router(chat.router,      prefix="/ws",            tags=["Chat"])
+app.include_router(files.router,     prefix="/api/files",     tags=["Files"])
+app.include_router(quiz.router,      prefix="/api/quiz",      tags=["Quiz"])
+app.include_router(progress.router,  prefix="/api/progress",  tags=["Progress"])
+app.include_router(chronicle.router, prefix="/api/chronicle", tags=["Chronicle"])
 
 
 # ── Health check ─────────────────────────────────────────────

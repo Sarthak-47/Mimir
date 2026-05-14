@@ -185,7 +185,7 @@ export default function App() {
 
   const onToolData = useCallback((data: unknown) => {
     setMessages((prev) => {
-      const lastIdx = prev.findLastIndex((m) => m.role === "assistant");
+      const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
       if (lastIdx === -1) return prev;
       const updated = [...prev];
       const target  = { ...updated[lastIdx] };

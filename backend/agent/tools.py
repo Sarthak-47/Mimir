@@ -35,6 +35,7 @@ def _llm(prompt: str, system: str = "") -> str:
         model=settings.ollama_model,
         messages=messages,
         options={"temperature": settings.ollama_temperature},
+        think=False,
     )
     return response["message"]["content"]
 

@@ -146,6 +146,7 @@ async def run_agent(
         model=settings.ollama_model,
         messages=messages,
         options=_ollama_opts(),
+        think=False,
     )
     raw: str = _strip_think(first["message"]["content"])
 
@@ -194,6 +195,7 @@ async def run_agent(
                 messages=messages,
                 options=_ollama_opts(),
                 stream=True,
+                think=False,
             ):
                 yield chunk["message"]["content"]
 
@@ -217,5 +219,6 @@ async def run_agent(
             messages=direct,
             options=_ollama_opts(),
             stream=True,
+            think=False,
         ):
             yield chunk["message"]["content"]

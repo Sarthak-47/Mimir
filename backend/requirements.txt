@@ -10,7 +10,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1          # passlib 1.7.4 breaks with bcrypt>=4.1 (72-byte test vector)
 
 # ── LLM / Ollama ───────────────────────────────────────────
-ollama==0.2.1
+ollama==0.6.2
 
 # ── Vector memory ──────────────────────────────────────────
 chromadb==0.5.0

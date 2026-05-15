@@ -22,7 +22,7 @@ interface UseWebSocketOptions {
 }
 
 interface UseWebSocketReturn {
-  sendMessage: (text: string, subjectId?: number) => void;
+  sendMessage: (text: string, subjectId?: number, mode?: string) => void;
   isConnected: boolean;
 }
 
@@ -130,10 +130,10 @@ export function useWebSocket({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
-  const sendMessage = useCallback((text: string, subjectId?: number) => {
+  const sendMessage = useCallback((text: string, subjectId?: number, mode: string = "detailed") => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ message: text, subject_id: subjectId ?? null })
+        JSON.stringify({ message: text, subject_id: subjectId ?? null, mode })
       );
     } else {
       console.warn("[Mimir WS] Cannot send — not connected");

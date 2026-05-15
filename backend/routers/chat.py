@@ -83,6 +83,7 @@ async def ws_chat(
                 payload: dict = json.loads(raw)
                 user_message: str       = payload.get("message", "").strip()
                 subject_id: int | None  = payload.get("subject_id")
+                mode: str               = payload.get("mode", "detailed")
 
                 if not user_message:
                     continue
@@ -154,6 +155,7 @@ async def ws_chat(
                         topic_scores=topic_scores,
                         subject_id=subject_id,
                         subject_name=subject_name,
+                        mode=mode,
                     ):
                         # Detect embedded tool data marker
                         if "__TOOL_DATA__:" in chunk:

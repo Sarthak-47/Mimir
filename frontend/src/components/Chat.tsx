@@ -2,27 +2,71 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 /**
- * Render a string with `**bold**` markdown replaced by gold-coloured `<span>` elements.
- *
- * Used for assistant messages to highlight key terms without a full markdown parser.
+ * Render a text segment that may contain `**bold**` spans.
+ * Returns an array of React nodes.
  */
-function TermHighlight({ text }: { text: string }) {
-  const parts = text.split(/\*\*(.+?)\*\*/g);
-  return (
-    <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <span key={i} style={{ color: "var(--gold-bright)", fontWeight: 600 }}>
-            {part}
-          </span>
-        ) : (
-          part
-        )
-      )}
-    </>
+function renderBold(text: string, keyPrefix: string): React.ReactNode[] {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1
+      ? <span key={`${keyPrefix}-b${i}`} style={{ color: "var(--gold-bright)", fontWeight: 600 }}>{part}</span>
+      : <span key={`${keyPrefix}-t${i}`}>{part}</span>
   );
+}
+
+/**
+ * Render a KaTeX formula safely. Returns a span with dangerouslySetInnerHTML
+ * on success, or the raw source wrapped in backticks on parse failure.
+ */
+function KatexSpan({ latex, display, keyVal }: { latex: string; display: boolean; keyVal: string }) {
+  try {
+    const html = katex.renderToString(latex, { displayMode: display, throwOnError: true });
+    return (
+      <span
+        key={keyVal}
+        dangerouslySetInnerHTML={{ __html: html }}
+        style={display ? { display: "block", textAlign: "center", margin: "6px 0" } : undefined}
+      />
+    );
+  } catch {
+    return <span key={keyVal}>{display ? `$$${latex}$$` : `$${latex}$`}</span>;
+  }
+}
+
+/**
+ * Render assistant message text with LaTeX math and **bold** support.
+ *
+ * Parse order:
+ *   1. Split on $$...$$ (display math blocks)
+ *   2. Within each text segment, split on $...$ (inline math)
+ *   3. Within each inline text segment, apply **bold** rendering
+ */
+function MessageRenderer({ text }: { text: string }) {
+  const nodes: React.ReactNode[] = [];
+
+  // Split on display math $$...$$
+  const displayParts = text.split(/\$\$([\s\S]+?)\$\$/g);
+  displayParts.forEach((part, di) => {
+    if (di % 2 === 1) {
+      // display math block
+      nodes.push(<KatexSpan key={`d${di}`} latex={part} display={true} keyVal={`d${di}`} />);
+    } else {
+      // Split on inline math $...$
+      const inlineParts = part.split(/\$([^$\n]+?)\$/g);
+      inlineParts.forEach((seg, ii) => {
+        if (ii % 2 === 1) {
+          nodes.push(<KatexSpan key={`d${di}i${ii}`} latex={seg} display={false} keyVal={`d${di}i${ii}`} />);
+        } else {
+          nodes.push(...renderBold(seg, `d${di}i${ii}`));
+        }
+      });
+    }
+  });
+
+  return <>{nodes}</>;
 }
 
 const THINKING_PHRASES = [
@@ -151,7 +195,7 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
           </div>
           <div style={styles.content}>
             {msg.role === "assistant"
-              ? <TermHighlight text={msg.content} />
+              ? <MessageRenderer text={msg.content} />
               : msg.content}
           </div>
         </div>

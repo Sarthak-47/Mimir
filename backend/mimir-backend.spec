@@ -4,7 +4,7 @@ PyInstaller spec for the Mimir backend.
 Produces a one-directory bundle: dist/mimir-backend/mimir-backend.exe
 """
 
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
 
 # ── Collect packages with dynamic imports ──────────────────────
 chroma_d,   chroma_b,   chroma_h   = collect_all("chromadb")
@@ -14,10 +14,29 @@ onnx_d,     onnx_b,     onnx_h     = collect_all("onnxruntime")
 anyio_d,    anyio_b,    anyio_h    = collect_all("anyio")
 pydantic_d, pydantic_b, pydantic_h = collect_all("pydantic")
 pydcore_d,  pydcore_b,  pydcore_h  = collect_all("pydantic_core")
+starlette_d, starlette_b, starlette_h = collect_all("starlette")
+
+# ── Package metadata needed at runtime (importlib.metadata) ────
+metadata = (
+    copy_metadata("pydantic")
+    + copy_metadata("pydantic-core")
+    + copy_metadata("fastapi")
+    + copy_metadata("starlette")
+    + copy_metadata("uvicorn")
+    + copy_metadata("anyio")
+    + copy_metadata("email-validator")
+    + copy_metadata("SQLAlchemy")
+    + copy_metadata("aiosqlite")
+    + copy_metadata("python-multipart")
+    + copy_metadata("passlib")
+    + copy_metadata("python-jose")
+    + copy_metadata("chromadb")
+    + copy_metadata("pydantic-settings")
+)
 
 hidden = (
     chroma_h + uvicorn_h + fastapi_h + onnx_h + anyio_h
-    + pydantic_h + pydcore_h
+    + pydantic_h + pydcore_h + starlette_h
     + collect_submodules("sqlalchemy")
     + collect_submodules("apscheduler")
     + [
@@ -51,12 +70,16 @@ hidden = (
     ]
 )
 
-datas = chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d + pydantic_d + pydcore_d
+datas = (
+    chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
+    + pydantic_d + pydcore_d + starlette_d
+    + metadata
+)
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],

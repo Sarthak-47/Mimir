@@ -13,11 +13,12 @@ interface TrialsViewProps {
   subjects:      Subject[];
   activeSubject: string | null;
   authToken:     string;
+  modelName?:    string;
 }
 
 type Phase = "setup" | "loading" | "quiz" | "result" | "error";
 
-export default function TrialsView({ subjects, activeSubject, authToken }: TrialsViewProps) {
+export default function TrialsView({ subjects, activeSubject, authToken, modelName = "qwen2.5:14b" }: TrialsViewProps) {
   const [phase,     setPhase]     = useState<Phase>("setup");
   const [subjectId, setSubjectId] = useState<string>(activeSubject ?? subjects[0]?.id ?? "");
   const [topic,     setTopic]     = useState<string>("");
@@ -217,7 +218,7 @@ export default function TrialsView({ subjects, activeSubject, authToken }: Trial
           Enter the Trial — ᛏ
         </button>
         <div style={styles.hint}>
-          Requires Ollama to be running with {"{model}"} loaded.
+          Requires Ollama running with <em>{modelName}</em> loaded.
         </div>
       </div>
     </div>

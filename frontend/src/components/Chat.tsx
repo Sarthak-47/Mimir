@@ -3,7 +3,11 @@ import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 
-// ── Render **bold** as gold highlighted spans ────────────────
+/**
+ * Render a string with `**bold**` markdown replaced by gold-coloured `<span>` elements.
+ *
+ * Used for assistant messages to highlight key terms without a full markdown parser.
+ */
 function TermHighlight({ text }: { text: string }) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return (
@@ -39,6 +43,18 @@ interface ChatProps {
   isWaiting?: boolean;
 }
 
+/**
+ * Scrollable chat transcript.
+ *
+ * Renders user and assistant message bubbles, inline quizzes and flashcard
+ * decks (when tool data is attached to a message), and a thinking animation
+ * while waiting for the first token. Auto-scrolls to the bottom on new content.
+ *
+ * @param messages     - Ordered list of messages to display.
+ * @param onSuggestion - Called when the user clicks an empty-state suggestion chip.
+ * @param username     - Used to derive the user's avatar initial.
+ * @param isWaiting    - When true, show the `ThinkingBubble` indicator.
+ */
 export default function Chat({ messages, onSuggestion, username, isWaiting }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +77,12 @@ export default function Chat({ messages, onSuggestion, username, isWaiting }: Ch
   );
 }
 
-// ── Thinking bubble ──────────────────────────────────────────
+/**
+ * Animated "thinking" indicator shown while waiting for the first streaming token.
+ *
+ * Cycles through Norse-flavoured loading phrases every 2.8 s with a
+ * fade-in/out transition between them.
+ */
 function ThinkingBubble() {
   const [phraseIdx, setPhraseIdx] = useState(0);
   const [visible, setVisible]     = useState(true);
@@ -101,7 +122,13 @@ function ThinkingBubble() {
   );
 }
 
-// ── Single message bubble ────────────────────────────────────
+/**
+ * Render one chat message bubble with optional inline quiz or flashcard deck.
+ *
+ * User messages align right; assistant messages align left with the Mimir avatar.
+ * If the message carries `quizData` or `flashcardData`, the interactive component
+ * is rendered below the text bubble.
+ */
 function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
   const isUser = msg.role === "user";
   const userInitial = (username?.[0] ?? "?").toUpperCase();
@@ -145,7 +172,13 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
   );
 }
 
-// ── Inline quiz ──────────────────────────────────────────────
+/**
+ * Inline quiz runner embedded inside a chat message bubble.
+ *
+ * Wraps the `Quiz` component and replaces it with a score summary card once
+ * the user completes all questions. Does not persist the result to the backend
+ * (that is handled by `TrialsView` for explicitly started quizzes).
+ */
 function InlineQuiz({ questions }: { questions: QuizQuestion[] }) {
   const [score, setScore]       = useState<number | null>(null);
   const [total, setTotal]       = useState<number | null>(null);
@@ -177,7 +210,12 @@ function InlineQuiz({ questions }: { questions: QuizQuestion[] }) {
   );
 }
 
-// ── Inline flashcard deck ────────────────────────────────────
+/**
+ * Flip-card deck embedded inside a chat message bubble.
+ *
+ * Shows one card at a time. Clicking the card face toggles between question
+ * (front) and answer (back). Navigation arrows advance through the deck.
+ */
 function FlashcardDeck({ cards }: { cards: { front: string; back: string }[] }) {
   const [idx, setIdx]       = useState(0);
   const [flipped, setFlip]  = useState(false);
@@ -208,7 +246,12 @@ function FlashcardDeck({ cards }: { cards: { front: string; back: string }[] }) 
   );
 }
 
-// ── Empty state ──────────────────────────────────────────────
+/**
+ * Placeholder shown when the message list is empty.
+ *
+ * Displays a rune, tagline, and four clickable suggestion chips that the user
+ * can tap to pre-fill the input with a common starting query.
+ */
 function EmptyState({ onSuggestion }: { onSuggestion?: (text: string) => void }) {
   return (
     <div style={styles.emptyState}>
@@ -232,7 +275,7 @@ function EmptyState({ onSuggestion }: { onSuggestion?: (text: string) => void })
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+/** Format a Date as a locale-aware HH:MM string for message timestamps. */
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }

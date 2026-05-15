@@ -22,6 +22,7 @@ interface RightPanelProps {
   onSetExamDate?:  (d: Date | null) => void;
 }
 
+/** Fetch JSON from `url` with an optional Bearer token, throwing on non-2xx responses. */
 async function fetchJson<T>(url: string, token?: string | null): Promise<T> {
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -30,6 +31,7 @@ async function fetchJson<T>(url: string, token?: string | null): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Return the number of whole days from today (midnight) until `target` (clamped to 0). */
 function daysUntil(target: Date): number {
   const now   = new Date();
   now.setHours(0, 0, 0, 0);
@@ -38,7 +40,10 @@ function daysUntil(target: Date): number {
   return Math.max(0, Math.round((t.getTime() - now.getTime()) / 86_400_000));
 }
 
-// ── Corner mark ornament (L-brackets at top-left and bottom-right) ──
+/**
+ * Decorative wrapper that adds L-bracket corner marks (top-left and bottom-right)
+ * around its children using absolute-positioned spans.
+ */
 function CornerMark({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{ position: "relative", ...style }}>
@@ -49,6 +54,18 @@ function CornerMark({ children, style }: { children: React.ReactNode; style?: Re
   );
 }
 
+/**
+ * Right statistics sidebar.
+ *
+ * Fetches and auto-refreshes (every 30 s) the user's overall stats and top-4
+ * weakest topics from the backend. Also shows an exam countdown derived from
+ * the stored exam date.
+ *
+ * @param activeSubject  - Currently selected discipline shown as an indicator.
+ * @param authToken      - JWT for authenticated API requests.
+ * @param examDate       - Optional exam date driving the countdown.
+ * @param onSetExamDate  - Called with null to clear the exam date.
+ */
 export default function RightPanel({ activeSubject, authToken, examDate, onSetExamDate }: RightPanelProps) {
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [weaknesses, setWeaknesses] = useState<Weakness[]>([]);

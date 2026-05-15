@@ -1,6 +1,12 @@
 """
-Mimir — Chronicle Router
-GET /api/chronicle     — paginated conversation history for the current user
+Mimir — Chronicle Router.
+
+Endpoint:
+    GET /api/chronicle  — return paginated conversation history for the current
+                          user in chronological order (oldest first).
+
+Used by the Chronicle view to replay past study sessions. Supports ``limit``
+(max 500) and ``offset`` for pagination.
 """
 
 from datetime import datetime
@@ -17,8 +23,9 @@ router = APIRouter()
 
 
 class ConversationRow(BaseModel):
+    """One conversation turn as surfaced by the Chronicle endpoint."""
     id:         int
-    role:       str
+    role:       str            # 'user' | 'assistant'
     content:    str
     subject_id: int | None
     timestamp:  datetime
@@ -34,6 +41,7 @@ async def list_conversations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Return a paginated slice of conversation history ordered chronologically."""
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)

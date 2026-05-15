@@ -1,6 +1,16 @@
 """
-Mimir — SQLite Database Layer (SQLAlchemy async)
-Defines all ORM models and provides init_db / get_db helpers.
+Mimir — SQLite Database Layer (SQLAlchemy async).
+
+Defines the full ORM schema and async session infrastructure. All models
+use ``DeclarativeBase`` with ``mapped_column`` typing for mypy compatibility.
+
+Schema overview:
+- ``User``         — account record; owns subjects, conversations, and files.
+- ``Subject``      — a named study discipline (e.g. "Machine Learning").
+- ``Topic``        — a trackable concept within a subject with SR fields.
+- ``QuizSession``  — one completed quiz attempt; drives SR and streak logic.
+- ``File``         — uploaded PDF/image metadata; content lives on disk + ChromaDB.
+- ``Conversation`` — one turn of chat history (role = 'user' | 'assistant').
 """
 
 from datetime import datetime
@@ -31,6 +41,11 @@ class Base(DeclarativeBase):
 # ── Models ───────────────────────────────────────────────────
 
 class User(Base):
+    """Registered user account.
+
+    Owns all study data via cascading relationships. ``exam_date`` is
+    optional and drives the countdown widget in the UI.
+    """
     __tablename__ = "users"
 
     id:            Mapped[int]            = mapped_column(Integer, primary_key=True)
@@ -45,6 +60,7 @@ class User(Base):
 
 
 class Subject(Base):
+    """A named study discipline (e.g. "Algorithms") owned by one user."""
     __tablename__ = "subjects"
 
     id:         Mapped[int]      = mapped_column(Integer, primary_key=True)
@@ -59,6 +75,11 @@ class Subject(Base):
 
 
 class Topic(Base):
+    """A trackable concept within a subject.
+
+    ``confidence_score`` (0–100) is updated after every quiz submission.
+    ``next_review`` is set by the spaced-repetition algorithm in ``tools.py``.
+    """
     __tablename__ = "topics"
 
     id:               Mapped[int]            = mapped_column(Integer, primary_key=True)
@@ -75,6 +96,7 @@ class Topic(Base):
 
 
 class QuizSession(Base):
+    """A completed quiz attempt used for spaced repetition and streak calculation."""
     __tablename__ = "quiz_sessions"
 
     id:         Mapped[int]      = mapped_column(Integer, primary_key=True)
@@ -88,6 +110,12 @@ class QuizSession(Base):
 
 
 class File(Base):
+    """Metadata for an uploaded PDF or image.
+
+    The actual bytes live on disk (``filepath``). Text is extracted and stored
+    in ChromaDB for semantic search. ``processed`` flips to ``True`` once the
+    background indexing task completes.
+    """
     __tablename__ = "files"
 
     id:         Mapped[int]          = mapped_column(Integer, primary_key=True)
@@ -103,6 +131,11 @@ class File(Base):
 
 
 class Conversation(Base):
+    """One turn of chat history (role = ``'user'`` or ``'assistant'``).
+
+    Also mirrored into ChromaDB for semantic recall. ``subject_id`` allows
+    filtering memory queries to the active study discipline.
+    """
     __tablename__ = "conversations"
 
     id:         Mapped[int]      = mapped_column(Integer, primary_key=True)

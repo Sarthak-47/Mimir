@@ -15,6 +15,7 @@ from typing import AsyncGenerator
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 def _strip_think(text: str) -> str:
+    """Remove ``<think>…</think>`` blocks emitted by reasoning-capable models."""
     return _THINK_RE.sub("", text).lstrip()
 
 import ollama
@@ -31,7 +32,11 @@ from memory.vector import query_memory
 _client = ollama.AsyncClient(host=settings.ollama_base_url)
 
 def _ollama_opts(**extra) -> dict:
-    """Build Ollama options dict, including num_gpu when explicitly set."""
+    """Build an Ollama ``options`` dict, appending ``num_gpu`` only when explicitly configured.
+
+    Passing ``num_gpu`` when it is -1 (auto) would override Ollama's own GPU
+    detection, so we omit it in that case.
+    """
     opts = {"temperature": settings.ollama_temperature, **extra}
     if settings.ollama_num_gpu >= 0:
         opts["num_gpu"] = settings.ollama_num_gpu
@@ -75,9 +80,33 @@ async def run_agent(
     subject_id: int | None = None,
     subject_name: str = "",
 ) -> AsyncGenerator[str, None]:
-    """
-    Async generator yielding response tokens to the WebSocket handler.
-    Single ReAct iteration: Reason → (Act → Observe)? → Stream response.
+    """Run one ReAct iteration and stream response tokens.
+
+    Execution flow:
+        1. Retrieve semantically relevant past sessions from ChromaDB.
+        2. Build a context prompt combining memory, recent history, and weak topics.
+        3. First LLM call (non-streaming) decides whether a tool is needed.
+        4. If the model outputs ``ACTION``/``ARGS``, dispatch the tool off the
+           event loop via ``asyncio.to_thread``.
+        5. Second LLM call (streaming) synthesises the tool result into prose.
+        6. If no tool is needed, skip steps 4–5 and stream a direct reply.
+
+    Tool results that are dicts or lists are appended as a special
+    ``__TOOL_DATA__:<json>`` sentinel so the WebSocket handler can send them
+    as a separate ``tool_data`` frame without mixing them into the text stream.
+
+    Args:
+        user_message: The raw message typed by the student.
+        user_id: Authenticated user's database ID (for memory scoping).
+        conversation_history: Up to 20 recent messages as ``{role, content}`` dicts.
+        topic_scores: Optional list of ``{name, confidence_score}`` dicts for the
+            active subject, used to surface weak areas in the context prompt.
+        subject_id: Active subject's DB ID for memory filtering.
+        subject_name: Display name of the active subject.
+
+    Yields:
+        Text tokens from the streaming LLM response, then optionally a
+        ``__TOOL_DATA__:<json>`` sentinel string.
     """
 
     # ── 1. Semantic memory recall ────────────────────────────

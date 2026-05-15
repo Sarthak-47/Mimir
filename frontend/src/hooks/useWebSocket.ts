@@ -26,7 +26,24 @@ interface UseWebSocketReturn {
   isConnected: boolean;
 }
 
-// ── Hook ────────────────────────────────────────────────────
+/**
+ * Manage a persistent WebSocket connection to the Mimir chat endpoint.
+ *
+ * Opens the socket immediately using `authToken` as a `?token=` query param.
+ * Reconnects automatically on close using exponential backoff (up to
+ * `MAX_RECONNECT_ATTEMPTS`). Re-connects whenever `authToken` changes.
+ *
+ * Callback refs are kept fresh so callers can pass inline functions without
+ * triggering reconnects.
+ *
+ * @param options.onToken           - Called with each streamed LLM token.
+ * @param options.onDone            - Called when the assistant turn completes.
+ * @param options.onToolData        - Called with structured quiz/flashcard data.
+ * @param options.onReviewReminder  - Called when the server pushes overdue topics.
+ * @param options.authToken         - JWT for authentication; null to skip auth.
+ *
+ * @returns `sendMessage` to dispatch a chat message and `isConnected` status flag.
+ */
 export function useWebSocket({
   onToken,
   onDone,

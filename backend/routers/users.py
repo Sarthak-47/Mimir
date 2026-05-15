@@ -27,14 +27,21 @@ oauth2_scheme  = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
 def hash_password(password: str) -> str:
+    """Return a bcrypt hash of ``password``."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Return True if ``plain`` matches the stored ``hashed`` bcrypt digest."""
     return pwd_context.verify(plain, hashed)
 
 
 def create_access_token(data: dict) -> str:
+    """Encode ``data`` as a signed JWT with an expiry claim.
+
+    The token is valid for ``settings.access_token_expire_minutes`` minutes
+    (default 1 week). The ``sub`` claim should be the username.
+    """
     payload = data.copy()
     payload["exp"] = datetime.utcnow() + timedelta(
         minutes=settings.access_token_expire_minutes
@@ -56,6 +63,11 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    """FastAPI dependency: validate Bearer token and return the authenticated User.
+
+    Raises ``HTTP 401`` if the token is missing, expired, or the username does
+    not exist in the database.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -78,14 +90,17 @@ async def get_current_user(
 
 # ── Schemas ──────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
+    """Payload for ``POST /api/users/register``."""
     username: str
     password: str
 
 class TokenResponse(BaseModel):
+    """JWT response returned after successful register or login."""
     access_token: str
     token_type: str = "bearer"
 
 class UserResponse(BaseModel):
+    """Public user profile returned by ``GET /api/users/me``."""
     id: int
     username: str
     exam_date: date | None = None
@@ -95,6 +110,7 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 class ExamDateRequest(BaseModel):
+    """Payload for ``PATCH /api/users/exam-date``."""
     exam_date: date | None = None
 
 
@@ -102,6 +118,7 @@ class ExamDateRequest(BaseModel):
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Create a new user account and return a JWT. Raises 400 if username is taken."""
     # Check username taken
     result = await db.execute(select(User).where(User.username == req.username))
     if result.scalar_one_or_none():
@@ -121,6 +138,7 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
+    """Authenticate with username + password and return a JWT. Raises 401 on failure."""
     result = await db.execute(select(User).where(User.username == form.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(form.password, user.password_hash):
@@ -132,6 +150,7 @@ async def login(
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: User = Depends(get_current_user)):
+    """Return the profile of the currently authenticated user."""
     return current_user
 
 
@@ -141,6 +160,7 @@ async def set_exam_date(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Update (or clear) the user's exam date, which drives the Ragnarök countdown."""
     current_user.exam_date = req.exam_date
     await db.commit()
     await db.refresh(current_user)

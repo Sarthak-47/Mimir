@@ -1,6 +1,9 @@
 /**
  * Reckoning View — full progress dashboard.
- * Shows stats, per-subject topic bars, recent quiz history.
+ *
+ * Fetches stats, topics, and quiz history in parallel on mount. Renders four
+ * stat boxes (days, accuracy, streak, quiz count), a filterable topic mastery
+ * list with colour-coded confidence bars, and a recent-trials history table.
  */
 
 import { useEffect, useState } from "react";
@@ -39,17 +42,23 @@ interface ReckoningViewProps {
   authToken: string;
 }
 
+/** Build an Authorization Bearer header object for fetch calls. */
 function authH(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** Fetch JSON from `url` with a Bearer token, throwing on non-2xx responses. */
 async function getJson<T>(url: string, token: string): Promise<T> {
   const res = await fetch(url, { headers: authH(token) });
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json() as Promise<T>;
 }
 
-// ── Score bar ────────────────────────────────────────────────
+/**
+ * Horizontal progress bar coloured by confidence level.
+ *
+ * Green ≥ 80%, gold ≥ 60%, dark-gold ≥ 40%, red below 40%.
+ */
 function ScoreBar({ score, max = 100 }: { score: number; max?: number }) {
   const pct = Math.min(100, (score / max) * 100);
   const color =
@@ -64,6 +73,12 @@ function ScoreBar({ score, max = 100 }: { score: number; max?: number }) {
   );
 }
 
+/**
+ * Full progress dashboard.
+ *
+ * @param subjects   - Used to resolve subject names from topic `subject_id` values.
+ * @param authToken  - JWT for authenticated API calls.
+ */
 export default function ReckoningView({ subjects, authToken }: ReckoningViewProps) {
   const [stats,   setStats]   = useState<Stats | null>(null);
   const [topics,  setTopics]  = useState<TopicRow[]>([]);

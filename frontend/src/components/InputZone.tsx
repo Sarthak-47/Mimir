@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Chat input bar with quick-action rune buttons.
+ *
+ * Renders a self-resizing textarea (Enter to send, Shift+Enter for newline),
+ * a send button, and four rune action buttons: SCROLL (file upload), TRIAL
+ * (quiz), RUNES (flashcards), and FATES (revision schedule). An active-subject
+ * badge is shown when a discipline is selected.
+ */
+
 import { useState, useRef } from "react";
 
 interface InputZoneProps {
@@ -12,6 +21,16 @@ interface InputZoneProps {
 import { API_FILES } from "@/config";
 const UPLOAD_URL = `${API_FILES}/upload`;
 
+/**
+ * Bottom chat input zone with quick-action buttons.
+ *
+ * @param onSend             - Called with the trimmed message text on submit.
+ * @param onTrial            - Called when the TRIAL (quiz) button is clicked.
+ * @param onRunes            - Called when the RUNES (flashcards) button is clicked.
+ * @param onFates            - Called when the FATES (schedule) button is clicked.
+ * @param activeSubjectName  - Displayed as a badge; null hides the badge.
+ * @param authToken          - JWT forwarded with file upload requests.
+ */
 export default function InputZone({
   onSend, onTrial, onRunes, onFates, activeSubjectName, authToken,
 }: InputZoneProps) {

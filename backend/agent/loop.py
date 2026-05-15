@@ -202,8 +202,9 @@ async def run_agent(
                 yield f"\n\n__TOOL_DATA__:{json.dumps(observation)}"
 
         else:
-            # Unknown tool name — fall back to raw LLM text
-            yield raw
+            # "ACTION: None" or unknown tool — strip the ACTION/ARGS header and yield the rest.
+            cleaned = re.sub(r"^(ACTION|ARGS):.*$", "", raw, flags=re.MULTILINE).strip()
+            yield cleaned if cleaned else raw
 
     else:
         # ── Direct response — no tool needed ─────────────────

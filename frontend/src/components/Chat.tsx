@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -21,18 +21,30 @@ function TermHighlight({ text }: { text: string }) {
   );
 }
 
+const THINKING_PHRASES = [
+  "Consulting the Well of Urd",
+  "Mimir drinks deep",
+  "The runes stir in the dark",
+  "Seeking wisdom beneath Yggdrasil",
+  "The waters of knowledge churn",
+  "The Norns weave their answer",
+  "Listening to the world tree",
+  "Drawing from the Well's depths",
+];
+
 interface ChatProps {
   messages: Message[];
   onSuggestion?: (text: string) => void;
   username?: string;
+  isWaiting?: boolean;
 }
 
-export default function Chat({ messages, onSuggestion, username }: ChatProps) {
+export default function Chat({ messages, onSuggestion, username, isWaiting }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isWaiting]);
 
   return (
     <div style={styles.chatArea} className="scroll-area">
@@ -42,7 +54,49 @@ export default function Chat({ messages, onSuggestion, username }: ChatProps) {
         <MessageBubble key={msg.id} msg={msg} username={username} />
       ))}
 
+      {isWaiting && <ThinkingBubble />}
+
       <div ref={bottomRef} />
+    </div>
+  );
+}
+
+// ── Thinking bubble ──────────────────────────────────────────
+function ThinkingBubble() {
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const [visible, setVisible]     = useState(true);
+
+  const advance = useCallback(() => {
+    setVisible(false);
+    setTimeout(() => {
+      setPhraseIdx((i) => (i + 1) % THINKING_PHRASES.length);
+      setVisible(true);
+    }, 350);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(advance, 2800);
+    return () => clearInterval(id);
+  }, [advance]);
+
+  return (
+    <div style={{ ...styles.row, justifyContent: "flex-start" }}>
+      <div style={styles.avatar}>M</div>
+      <div style={{ ...styles.bubble, ...styles.mimirBubble }}>
+        <div style={styles.sender}>Mimir</div>
+        <div style={{
+          fontFamily:    "var(--font-body)",
+          fontSize:      13,
+          fontStyle:     "italic",
+          color:         "var(--gold-dim)",
+          letterSpacing: "0.03em",
+          opacity:       visible ? 1 : 0,
+          transition:    "opacity 0.35s ease",
+          whiteSpace:    "nowrap",
+        }}>
+          {THINKING_PHRASES[phraseIdx]}…
+        </div>
+      </div>
     </div>
   );
 }

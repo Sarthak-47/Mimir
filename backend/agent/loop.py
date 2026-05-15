@@ -25,6 +25,13 @@ from memory.vector import query_memory
 # ── Async Ollama client (singleton) ─────────────────────────
 _client = ollama.AsyncClient(host=settings.ollama_base_url)
 
+def _ollama_opts(**extra) -> dict:
+    """Build Ollama options dict, including num_gpu when explicitly set."""
+    opts = {"temperature": settings.ollama_temperature, **extra}
+    if settings.ollama_num_gpu >= 0:
+        opts["num_gpu"] = settings.ollama_num_gpu
+    return opts
+
 # ── Tool registry ────────────────────────────────────────────
 TOOLS = {
     "explain":     tool_explain,
@@ -104,7 +111,7 @@ async def run_agent(
     first = await _client.chat(
         model=settings.ollama_model,
         messages=messages,
-        options={"temperature": settings.ollama_temperature},
+        options=_ollama_opts(),
     )
     raw: str = first["message"]["content"]
 
@@ -151,7 +158,7 @@ async def run_agent(
             async for chunk in await _client.chat(
                 model=settings.ollama_model,
                 messages=messages,
-                options={"temperature": settings.ollama_temperature},
+                options=_ollama_opts(),
                 stream=True,
             ):
                 yield chunk["message"]["content"]
@@ -173,7 +180,7 @@ async def run_agent(
         async for chunk in await _client.chat(
             model=settings.ollama_model,
             messages=direct,
-            options={"temperature": settings.ollama_temperature},
+            options=_ollama_opts(),
             stream=True,
         ):
             yield chunk["message"]["content"]

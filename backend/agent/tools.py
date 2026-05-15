@@ -37,11 +37,35 @@ def _llm(prompt: str, system: str = "") -> str:
 
 def _parse_json(text: str) -> Any:
     """Extract and parse the first JSON block from LLM output."""
-    # Try to find a JSON array or object in the text
-    match = re.search(r"(\[.*?\]|\{.*?\})", text, re.DOTALL)
+    # Fast path: the model returned clean JSON directly
+    stripped = text.strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        pass
+
+    # Depth-aware extraction: find the first complete [...] or {...} block
+    for open_ch, close_ch in (("[", "]"), ("{", "}")):
+        start = stripped.find(open_ch)
+        if start == -1:
+            continue
+        depth = 0
+        for i, ch in enumerate(stripped[start:], start):
+            if ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(stripped[start : i + 1])
+                    except json.JSONDecodeError:
+                        break
+
+    # Last resort: greedy regex (handles text with preamble/postamble)
+    match = re.search(r"(\[.*\]|\{.*\})", stripped, re.DOTALL)
     if match:
         return json.loads(match.group(1))
-    return json.loads(text)  # fallback: parse whole text
+    return json.loads(stripped)
 
 
 # ── Tool: explain ────────────────────────────────────────────
@@ -63,12 +87,12 @@ def tool_quiz(topic: str, subject: str = "", n: int = 5) -> list[dict]:
     Generate n MCQ questions about a topic.
     Returns: list of {question, options, answer (int), explanation}
     """
-    prompt = QUIZ_PROMPT.format(topic=topic, subject=subject, n=n)
-    raw = _llm(prompt)
     try:
+        prompt = QUIZ_PROMPT.format(topic=topic, subject=subject, n=n)
+        raw = _llm(prompt)
         questions = _parse_json(raw)
         return questions
-    except (json.JSONDecodeError, AttributeError):
+    except Exception:
         return []
 
 

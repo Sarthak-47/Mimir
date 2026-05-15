@@ -1,6 +1,10 @@
 /**
  * Scrolls View — uploaded file library.
- * Lists files from /api/files/ with processed status.
+ *
+ * Lists the user's uploaded PDFs and images from `/api/files/`. Supports
+ * uploading new files (optionally assigned to a discipline) and deleting
+ * existing ones. A rune icon distinguishes PDFs from images. The `processed`
+ * flag shows whether ChromaDB indexing has completed.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +26,12 @@ interface ScrollsViewProps {
   authToken: string;
 }
 
+/**
+ * File library view with upload and delete capabilities.
+ *
+ * @param subjects   - Used to populate the discipline selector for new uploads.
+ * @param authToken  - JWT forwarded with all API requests.
+ */
 export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
   const [files,          setFiles]          = useState<FileRow[]>([]);
   const [loading,        setLoading]        = useState(true);
@@ -78,6 +88,7 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
   const subjectName = (id: number | null) =>
     id ? subjects.find((s) => s.id === String(id))?.name ?? `Subject ${id}` : "—";
 
+  /** Return a Norse rune character representing the file type (PDF / image / other). */
   const extRune = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     if (ext === "pdf") return "ᚱ";

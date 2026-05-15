@@ -1,7 +1,14 @@
 """
-Mimir — Files Router (PDF / Image Upload)
-POST /api/files/upload
-GET  /api/files/
+Mimir — Files Router (PDF / Image Upload).
+
+Endpoints:
+    POST   /api/files/upload  — validate, save to disk, enqueue background parsing.
+    DELETE /api/files/{id}    — remove from disk, ChromaDB, and SQLite.
+    GET    /api/files/        — list files for the current user, optionally filtered.
+
+Parsing and indexing happen in a ``BackgroundTask`` so the upload response
+is returned immediately without waiting for OCR or PDF extraction to finish.
+The ``processed`` flag on the ``File`` record flips to ``True`` when complete.
 """
 
 import os
@@ -33,6 +40,7 @@ ALLOWED_TYPES = {
 
 # ── Schema ───────────────────────────────────────────────────
 class FileResponse(BaseModel):
+    """Public representation of an uploaded file record."""
     id: int
     filename: str
     subject_id: int | None
@@ -51,6 +59,12 @@ async def upload_file(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Accept a PDF or image upload, save it, and enqueue background indexing.
+
+    Raises 400 for unsupported MIME types and 413 when the file exceeds
+    ``settings.max_upload_size_mb``. The file is saved with a UUID filename
+    to avoid collisions.
+    """
     # Validate type
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -107,6 +121,7 @@ async def delete_file(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Delete a file record, its disk bytes, and all ChromaDB chunks. Raises 404 if not found."""
     result = await db.execute(
         select(FileModel).where(
             FileModel.id == file_id,
@@ -140,6 +155,7 @@ async def list_files(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """List files owned by the current user, newest first, optionally filtered by subject."""
     query = select(FileModel).where(FileModel.user_id == current_user.id)
     if subject_id is not None:
         query = query.where(FileModel.subject_id == subject_id)

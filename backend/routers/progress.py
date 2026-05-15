@@ -25,12 +25,14 @@ router = APIRouter()
 
 # ── Schemas ──────────────────────────────────────────────────
 class StatsResponse(BaseModel):
-    days_at_well: int
-    trial_accuracy: float
-    streak: int
+    """Overall progress summary for the stats widget and Reckoning view."""
+    days_at_well: int       # days since account creation
+    trial_accuracy: float   # average quiz score across all sessions (0–100)
+    streak: int             # current consecutive-day study streak
     total_quizzes: int
 
 class TopicResponse(BaseModel):
+    """Full topic record including spaced-repetition fields."""
     id: int
     name: str
     subject_id: int
@@ -43,15 +45,18 @@ class TopicResponse(BaseModel):
         from_attributes = True
 
 class WeaknessResponse(BaseModel):
+    """One entry in the weakness analysis: topic name, score, and severity label."""
     topic: str
     score: float
-    status: str
+    status: str   # 'critical' | 'weak' | 'moderate' | 'strong'
 
 class SubjectCreate(BaseModel):
+    """Payload for creating a new study discipline."""
     name: str
     color: str = "#6ab87a"
 
 class SubjectResponse(BaseModel):
+    """Public representation of a subject."""
     id: int
     name: str
     color: str
@@ -61,6 +66,7 @@ class SubjectResponse(BaseModel):
         from_attributes = True
 
 class TopicCreate(BaseModel):
+    """Payload for creating a new topic under a subject."""
     name: str
     subject_id: int
 
@@ -71,6 +77,7 @@ async def get_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Compute and return the user's overall progress statistics in one query."""
     user_id = current_user.id
 
     # Days at well: days since account creation
@@ -108,6 +115,7 @@ async def get_topics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """List topics for the current user, sorted by confidence ascending (weakest first)."""
     user_id = current_user.id
     query = select(Topic).where(Topic.user_id == user_id)
     if subject_id:
@@ -122,6 +130,7 @@ async def create_topic(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Create a new topic under the specified subject for the current user."""
     topic = Topic(user_id=current_user.id, subject_id=req.subject_id, name=req.name)
     db.add(topic)
     await db.commit()
@@ -136,6 +145,7 @@ async def get_weaknesses(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Return all topics sorted by confidence score ascending, each labelled by severity."""
     user_id = current_user.id
     query = select(Topic).where(Topic.user_id == user_id)
     if subject_id:
@@ -153,6 +163,7 @@ async def list_subjects(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Return all subjects owned by the current user."""
     result = await db.execute(
         select(Subject).where(Subject.user_id == current_user.id)
     )
@@ -165,6 +176,7 @@ async def create_subject(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Create a new study discipline for the current user."""
     subject = Subject(user_id=current_user.id, name=req.name, color=req.color)
     db.add(subject)
     await db.commit()
@@ -178,6 +190,7 @@ async def delete_subject(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Delete a subject and all its topics (cascade). Raises 404 if not found."""
     result = await db.execute(
         select(Subject).where(
             Subject.id == subject_id,

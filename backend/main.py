@@ -1,6 +1,9 @@
 """
-Mimir — FastAPI Application Entry Point
-Starts the API server + WebSocket endpoint + schedules spaced repetition jobs.
+Mimir — FastAPI Application Entry Point.
+
+Composes the full API surface from individual routers, configures CORS for both
+the Vite dev server and Tauri WebView origins, and registers two APScheduler
+background jobs (hourly review reminder + daily streak recalculation).
 """
 
 from fastapi import FastAPI
@@ -22,6 +25,7 @@ _scheduler = AsyncIOScheduler(timezone="UTC")
 # ── Lifespan (startup / shutdown) ───────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """FastAPI lifespan context: initialise DB and scheduler on startup, shut down cleanly."""
     # Startup
     print(f"[Mimir] Starting {settings.app_name}…")
     await init_db()
@@ -88,4 +92,5 @@ app.include_router(chronicle.router, prefix="/api/chronicle", tags=["Chronicle"]
 # ── Health check ─────────────────────────────────────────────
 @app.get("/health")
 async def health():
+    """Return a simple liveness probe used by the frontend boot-splash to wait for uvicorn."""
     return {"status": "ok", "model": settings.ollama_model}

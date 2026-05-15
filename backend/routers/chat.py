@@ -1,12 +1,21 @@
 """
-Mimir — Chat WebSocket Router
-WS /ws/chat?token=<jwt>
+Mimir — Chat WebSocket Router.
 
-Accepts: {"message": str, "subject_id": int | null}
-Streams: {"type": "token", "content": str}
-         {"type": "done"}
-         {"type": "tool_data", "tool": str, "data": any}
-         {"type": "error", "content": str}
+Endpoint: ``WS /ws/chat?token=<jwt>``
+
+Client sends:
+    ``{"message": str, "subject_id": int | null}``
+
+Server streams (one JSON frame per message):
+    ``{"type": "token",     "content": str}``      — streaming LLM token
+    ``{"type": "done"}``                            — turn complete
+    ``{"type": "tool_data", "data": any}``          — structured quiz/flashcard data
+    ``{"type": "error",     "content": str}``       — agent error (socket stays open)
+
+The WebSocket loop persists for the lifetime of the connection; multiple
+messages can be sent on the same socket without re-authenticating. Errors
+inside the agent are caught and reported as ``error`` frames rather than
+closing the socket, so the user can retry.
 """
 
 import json
@@ -30,7 +39,11 @@ router = APIRouter()
 
 
 async def _resolve_user(token: str | None, db: AsyncSession) -> User | None:
-    """Return the User for the given JWT, or None if invalid / missing."""
+    """Decode a JWT query-param token and return the matching User, or None.
+
+    Used by the WebSocket endpoint where standard OAuth2 Bearer headers are
+    unavailable; the token is passed as a ``?token=`` query parameter instead.
+    """
     if not token:
         return None
     username = decode_jwt(token)
@@ -45,6 +58,14 @@ async def ws_chat(
     websocket: WebSocket,
     token: str | None = Query(None),
 ):
+    """Persistent WebSocket chat endpoint.
+
+    Validates the JWT before accepting the upgrade. On each incoming message:
+    saves the user turn to SQLite + ChromaDB, runs the ReAct agent, streams
+    tokens back as ``token`` frames, sends tool data as a ``tool_data`` frame,
+    and saves the completed assistant turn. Agent errors are sent as ``error``
+    frames without closing the socket.
+    """
     async with AsyncSessionLocal() as db:
         user = await _resolve_user(token, db)
         if user is None:

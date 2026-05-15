@@ -16,6 +16,19 @@ interface TopbarProps {
   onLogout?: () => void;
 }
 
+/**
+ * Top navigation bar showing the current view title and connection status.
+ *
+ * Renders a breadcrumb (`"The Oracle"` or `"The Oracle · Machine Learning"`),
+ * a subtitle, the signed-in username with a logout rune button, and a live
+ * WebSocket status pill (green = connected, red = offline).
+ *
+ * @param view               - Current active view for title/subtitle lookup.
+ * @param isConnected        - WebSocket connection state from `useWebSocket`.
+ * @param activeSubjectName  - Optional subject name appended to the breadcrumb.
+ * @param username           - Display name shown in the user badge.
+ * @param onLogout           - Called when the user clicks the logout rune.
+ */
 export default function Topbar({ view, isConnected, activeSubjectName, username, onLogout }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 

@@ -45,7 +45,19 @@ except ImportError:
 
 # ── Text chunking ────────────────────────────────────────────
 def _chunk_text(text: str, size: int = 512, overlap: int = 64) -> list[str]:
-    """Split normalised text into overlapping fixed-size chunks."""
+    """Split normalised text into overlapping character-based chunks.
+
+    Whitespace is first collapsed to single spaces. The default 64-character
+    overlap helps ChromaDB maintain context across chunk boundaries.
+
+    Args:
+        text: Raw extracted text (may contain newlines and multiple spaces).
+        size: Target chunk size in characters.
+        overlap: Number of characters shared between adjacent chunks.
+
+    Returns:
+        List of non-empty chunk strings, or an empty list if ``text`` is blank.
+    """
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         return []
@@ -59,6 +71,7 @@ def _chunk_text(text: str, size: int = 512, overlap: int = 64) -> list[str]:
 
 # ── Extractors ───────────────────────────────────────────────
 def _extract_pdf(filepath: str) -> str:
+    """Extract all text from a PDF using PyMuPDF. Returns empty string if unavailable."""
     if not _HAS_PYMUPDF:
         return ""
     try:
@@ -72,6 +85,7 @@ def _extract_pdf(filepath: str) -> str:
 
 
 def _extract_image(filepath: str) -> str:
+    """Run Tesseract OCR on an image file. Returns empty string if unavailable."""
     if not _HAS_OCR:
         return ""
     try:

@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Authentication gate: login / register form shown before the main UI.
+ *
+ * Provides two tab modes — "Drink from the Well" (login) and "Engrave your
+ * Name" (register). Login uses `application/x-www-form-urlencoded` because
+ * the backend uses FastAPI's `OAuth2PasswordRequestForm`. Registration uses
+ * JSON. On success, the JWT and username are passed to `onAuthenticated`.
+ */
+
 import { useState } from "react";
 
 import { API_USERS as API } from "@/config";
@@ -24,6 +33,11 @@ interface AuthProps {
 
 type Mode = "login" | "register";
 
+/**
+ * Full-screen login and registration form.
+ *
+ * @param onAuthenticated - Called with the JWT and username on successful auth.
+ */
 export default function Auth({ onAuthenticated }: AuthProps) {
   const [mode, setMode]         = useState<Mode>("login");
   const [username, setUsername] = useState("");

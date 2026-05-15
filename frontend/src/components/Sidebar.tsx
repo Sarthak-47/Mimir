@@ -10,7 +10,7 @@ const NAV_ITEMS: { view: NavView; rune: string; label: string }[] = [
   { view: "scrolls",   rune: "ᚱ", label: "Scrolls"       },
 ];
 
-// ── Logo mark — eye inside a diamond ────────────────────────
+/** SVG eye-in-diamond logo mark rendered in gold. */
 function LogoMark() {
   return (
     <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
@@ -40,7 +40,24 @@ interface SidebarProps {
   onSetExamDate:   (d: Date | null) => void;
 }
 
-// ── Component ───────────────────────────────────────────────
+/**
+ * Left navigation sidebar.
+ *
+ * Contains the logo, five navigation buttons (view switcher), a list of study
+ * disciplines with add/delete, an exam date picker (labelled "Ragnarök"), and
+ * the user profile strip at the bottom.
+ *
+ * @param view             - Currently active view name.
+ * @param onViewChange     - Called when the user clicks a nav button.
+ * @param subjects         - List of study disciplines owned by the user.
+ * @param activeSubject    - ID of the currently selected discipline, or null.
+ * @param onSubjectChange  - Called with the new subject ID on selection.
+ * @param onAddSubject     - Called with the name string when a discipline is added.
+ * @param onDeleteSubject  - Called with the ID when a discipline is removed.
+ * @param username         - Display name for the profile strip.
+ * @param examDate         - Optional exam deadline shown as the Ragnarök date.
+ * @param onSetExamDate    - Called with a Date or null when the date is edited.
+ */
 export default function Sidebar({
   view, onViewChange,
   subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,

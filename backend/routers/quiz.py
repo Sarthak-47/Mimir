@@ -22,27 +22,32 @@ router = APIRouter()
 
 # ── Schemas ──────────────────────────────────────────────────
 class GenerateRequest(BaseModel):
+    """Payload for ``POST /api/quiz/generate``."""
     topic: str
     subject: str = ""
     n: int = 5
 
 class QuizQuestion(BaseModel):
+    """A single MCQ question as returned by the quiz generator."""
     question: str
     options: list[str]
-    answer: int
+    answer: int        # 0-based index of the correct option
     explanation: str = ""
 
 class SubmitRequest(BaseModel):
+    """Payload for ``POST /api/quiz/submit``."""
     topic_id: int
     score: int
     total: int
 
 class SubmitResponse(BaseModel):
+    """Result of a quiz submission, including the new spaced-repetition schedule."""
     confidence_score: float
     next_review: datetime
     message: str
 
 class SessionResponse(BaseModel):
+    """One row in the quiz history response."""
     id: int
     topic_id: int
     topic_name: str = "Unknown"
@@ -58,6 +63,11 @@ async def generate_quiz(
     req: GenerateRequest,
     _: User = Depends(get_current_user),   # auth guard only
 ):
+    """Generate MCQ questions by calling the Ollama model via ``tool_quiz``.
+
+    Runs the synchronous LLM call in a thread pool to avoid blocking the event
+    loop. Returns 503 if Ollama is unavailable or returns no questions.
+    """
     try:
         questions = await asyncio.to_thread(tool_quiz, topic=req.topic, subject=req.subject, n=req.n)
     except Exception as exc:
@@ -73,6 +83,11 @@ async def submit_quiz(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Record a quiz result and update the topic's confidence score and next review date.
+
+    Raises 404 if the topic does not exist or belongs to a different user.
+    Returns a motivational message scaled to the percentage score.
+    """
     # Fetch and verify topic belongs to this user
     result = await db.execute(
         select(Topic).where(
@@ -126,6 +141,10 @@ async def quiz_history(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Return the most recent quiz sessions for the current user, newest first.
+
+    Topic names are batch-fetched in a single query to avoid N+1 round trips.
+    """
     result = await db.execute(
         select(QuizSession)
         .where(QuizSession.user_id == current_user.id)

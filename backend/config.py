@@ -1,6 +1,14 @@
 """
-Mimir — Application Configuration
-All settings are read from environment variables or .env file.
+Mimir — Application Configuration.
+
+All settings are read from environment variables or a .env file placed next to
+this module. Pydantic-settings handles coercion and validation.
+
+Notable behaviour:
+- When running as a PyInstaller frozen bundle, DATA_DIR is redirected to
+  ``%LOCALAPPDATA%/Mimir/data`` so data survives app updates.
+- The singleton ``settings`` object is imported everywhere; never instantiate
+  ``Settings`` directly.
 """
 
 import sys
@@ -22,6 +30,28 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment / .env.
+
+    Attributes:
+        app_name: Human-readable name, used in logs and API title.
+        debug: Enable SQLAlchemy echo and verbose logging.
+        secret_key: HMAC key for JWT signing — change in production.
+        algorithm: JWT algorithm (default HS256).
+        access_token_expire_minutes: Token TTL (default 1 week).
+        database_url: Async SQLite URL for SQLAlchemy.
+        chroma_persist_dir: Directory where ChromaDB persists its index.
+        ollama_base_url: Base URL of the local Ollama HTTP API.
+        ollama_model: Model tag to use for all LLM calls.
+        ollama_num_gpu: GPU layers to offload; -1 means Ollama decides.
+        ollama_temperature: Sampling temperature for generation.
+        ollama_context_length: Context window size passed to Ollama.
+        upload_dir: Disk location for uploaded PDFs and images.
+        max_upload_size_mb: Hard cap on upload file size.
+        sr_high_threshold: Quiz score% at or above which review is in 7 days.
+        sr_mid_threshold: Quiz score% for a 3-day review interval.
+        sr_low_threshold: Quiz score% for a 1-day review interval.
+    """
+
     # ── App ──────────────────────────────────────────────────
     app_name: str = "Mimir"
     debug: bool = False

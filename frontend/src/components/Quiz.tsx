@@ -33,7 +33,8 @@ export default function Quiz({ questions, onComplete }: QuizProps) {
 
   const handleNext = () => {
     if (isLast) {
-      const score = [...answers, selected === q.answer].filter(Boolean).length;
+      // answers already contains the last question's result (appended in handleSelect)
+      const score = answers.filter(Boolean).length;
       onComplete(score, questions.length);
     } else {
       setCurrent((c) => c + 1);

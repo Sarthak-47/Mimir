@@ -60,9 +60,12 @@ async def generate_quiz(
     req: GenerateRequest,
     _: User = Depends(get_current_user),   # auth guard only
 ):
-    questions = await asyncio.to_thread(tool_quiz, topic=req.topic, subject=req.subject, n=req.n)
+    try:
+        questions = await asyncio.to_thread(tool_quiz, topic=req.topic, subject=req.subject, n=req.n)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
     if not questions:
-        raise HTTPException(status_code=500, detail="Failed to generate quiz questions")
+        raise HTTPException(status_code=503, detail="Quiz generation failed — is Ollama running with the model loaded?")
     return questions
 
 

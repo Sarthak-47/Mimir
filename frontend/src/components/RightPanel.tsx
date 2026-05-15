@@ -102,7 +102,7 @@ export default function RightPanel({ activeSubject, authToken, examDate, onSetEx
           <div style={styles.statNumber}>
             {loading ? "—" : stats?.trial_accuracy != null ? `${stats.trial_accuracy}%` : "—"}
           </div>
-          <div style={styles.statSub}>last seven suns</div>
+          <div style={styles.statSub}>all time</div>
         </CornerMark>
       </div>
 

@@ -26,11 +26,12 @@ interface TopicRow {
 }
 
 interface QuizHistoryRow {
-  id:        number;
-  topic_id:  number;
-  score:     number;
-  total:     number;
-  timestamp: string;
+  id:         number;
+  topic_id:   number;
+  topic_name: string;
+  score:      number;
+  total:      number;
+  timestamp:  string;
 }
 
 interface ReckoningViewProps {
@@ -174,6 +175,7 @@ export default function ReckoningView({ subjects, authToken }: ReckoningViewProp
                   return (
                     <div key={h.id} style={styles.historyRow}>
                       <span style={styles.historyDate}>{ts}</span>
+                      <span style={styles.historyTopic}>{h.topic_name}</span>
                       <span style={styles.historyScore}>{h.score}/{h.total}</span>
                       <span style={{
                         ...styles.historyPct,
@@ -218,7 +220,8 @@ const styles: Record<string, React.CSSProperties> = {
   topicStudied: { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-dim)", width: 20, textAlign: "right" as const, flexShrink: 0 },
   historyList:  { display: "flex", flexDirection: "column" as const, gap: 3 },
   historyRow:   { display: "flex", alignItems: "center", gap: 10, padding: "4px 8px", background: "var(--stone-2)", border: "1px solid var(--green-dark)" },
-  historyDate:  { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-dim)", width: 55 },
-  historyScore: { fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-secondary)", flex: 1 },
-  historyPct:   { fontFamily: "var(--font-header)", fontSize: 11, fontWeight: 700 },
+  historyDate:  { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-dim)", width: 50, flexShrink: 0 },
+  historyTopic: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-secondary)", flex: 1, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" },
+  historyScore: { fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-secondary)", width: 40, flexShrink: 0, textAlign: "right" as const },
+  historyPct:   { fontFamily: "var(--font-header)", fontSize: 11, fontWeight: 700, width: 38, flexShrink: 0, textAlign: "right" as const },
 };

@@ -24,9 +24,10 @@ function TermHighlight({ text }: { text: string }) {
 interface ChatProps {
   messages: Message[];
   onSuggestion?: (text: string) => void;
+  username?: string;
 }
 
-export default function Chat({ messages, onSuggestion }: ChatProps) {
+export default function Chat({ messages, onSuggestion, username }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function Chat({ messages, onSuggestion }: ChatProps) {
       {messages.length === 0 && <EmptyState onSuggestion={onSuggestion} />}
 
       {messages.map((msg) => (
-        <MessageBubble key={msg.id} msg={msg} />
+        <MessageBubble key={msg.id} msg={msg} username={username} />
       ))}
 
       <div ref={bottomRef} />
@@ -47,8 +48,9 @@ export default function Chat({ messages, onSuggestion }: ChatProps) {
 }
 
 // ── Single message bubble ────────────────────────────────────
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
   const isUser = msg.role === "user";
+  const userInitial = (username?.[0] ?? "?").toUpperCase();
 
   return (
     <div
@@ -84,7 +86,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         )}
       </div>
 
-      {isUser && <div style={styles.avatarUser}>S</div>}
+      {isUser && <div style={styles.avatarUser}>{userInitial}</div>}
     </div>
   );
 }

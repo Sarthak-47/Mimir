@@ -4,6 +4,7 @@ POST /api/files/upload
 GET  /api/files/
 """
 
+import os
 import uuid
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from sqlalchemy import select
 
 from config import settings
 from memory.database import File as FileModel, User, get_db
+from memory.vector import delete_document_memory
 from routers.users import get_current_user
 from utils.parser import parse_and_index_file
 
@@ -96,6 +98,39 @@ async def upload_file(
     )
 
     return db_file
+
+
+# ── Delete file ──────────────────────────────────────────────
+@router.delete("/{file_id}", status_code=204)
+async def delete_file(
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    file_row = result.scalar_one_or_none()
+    if not file_row:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Remove from disk (best-effort)
+    try:
+        fp = Path(file_row.filepath)
+        if fp.exists():
+            fp.unlink()
+    except Exception:
+        pass
+
+    # Remove indexed chunks from ChromaDB
+    delete_document_memory(user_id=current_user.id, file_id=file_id)
+
+    # Remove from DB
+    await db.delete(file_row)
+    await db.commit()
 
 
 # ── List files ───────────────────────────────────────────────

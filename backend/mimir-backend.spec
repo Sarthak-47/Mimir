@@ -12,9 +12,12 @@ uvicorn_d,  uvicorn_b,  uvicorn_h  = collect_all("uvicorn")
 fastapi_d,  fastapi_b,  fastapi_h  = collect_all("fastapi")
 onnx_d,     onnx_b,     onnx_h     = collect_all("onnxruntime")
 anyio_d,    anyio_b,    anyio_h    = collect_all("anyio")
+pydantic_d, pydantic_b, pydantic_h = collect_all("pydantic")
+pydcore_d,  pydcore_b,  pydcore_h  = collect_all("pydantic_core")
 
 hidden = (
     chroma_h + uvicorn_h + fastapi_h + onnx_h + anyio_h
+    + pydantic_h + pydcore_h
     + collect_submodules("sqlalchemy")
     + collect_submodules("apscheduler")
     + [
@@ -48,12 +51,12 @@ hidden = (
     ]
 )
 
-datas = chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
+datas = chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d + pydantic_d + pydcore_d
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],

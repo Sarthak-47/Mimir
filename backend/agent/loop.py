@@ -21,7 +21,7 @@ def _strip_think(text: str) -> str:
 import ollama
 
 from config import settings
-from agent.prompts import SYSTEM_PROMPT
+from agent.prompts import SYSTEM_PROMPT, FAST_SYSTEM_PROMPT
 from agent.tools import (
     tool_explain, tool_quiz, tool_summarize,
     tool_flashcards, tool_schedule, tool_recall, tool_weak_topics,
@@ -53,24 +53,6 @@ TOOLS = {
     "weak_topics": tool_weak_topics,
 }
 
-REACT_SYSTEM = SYSTEM_PROMPT + """
-
-You have access to the following tools. To use one, output EXACTLY:
-ACTION: <tool_name>
-ARGS: <JSON object>
-
-Available tools:
-- explain(concept, depth)                                     — explain a concept
-- quiz(topic, subject, n)                                     — generate MCQ questions (returns JSON)
-- summarize(content)                                          — summarize text / notes
-- flashcards(topic, n)                                        — generate flashcard pairs (returns JSON)
-- schedule(subject, topics, days_until_exam, weak_topics)     — build revision plan
-- recall(past_messages)                                       — summarize past study sessions
-- weak_topics(topic_scores)                                   — identify weak areas
-
-If no tool is needed, respond directly without ACTION/ARGS lines.
-"""
-
 
 async def run_agent(
     user_message: str,
@@ -79,6 +61,7 @@ async def run_agent(
     topic_scores: list[dict] | None = None,
     subject_id: int | None = None,
     subject_name: str = "",
+    mode: str = "detailed",
 ) -> AsyncGenerator[str, None]:
     """Run one ReAct iteration and stream response tokens.
 
@@ -137,8 +120,26 @@ async def run_agent(
     )
 
     # ── 3. First LLM call — reason / decide ──────────────────
+    active_prompt = FAST_SYSTEM_PROMPT if mode == "fast" else SYSTEM_PROMPT
+    react_system  = active_prompt + """
+
+You have access to the following tools. To use one, output EXACTLY:
+ACTION: <tool_name>
+ARGS: <JSON object>
+
+Available tools:
+- explain(concept, depth)                                     — explain a concept
+- quiz(topic, subject, n)                                     — generate MCQ questions (returns JSON)
+- summarize(content)                                          — summarize text / notes
+- flashcards(topic, n)                                        — generate flashcard pairs (returns JSON)
+- schedule(subject, topics, days_until_exam, weak_topics)     — build revision plan
+- recall(past_messages)                                       — summarize past study sessions
+- weak_topics(topic_scores)                                   — identify weak areas
+
+If no tool is needed, respond directly without ACTION/ARGS lines.
+"""
     messages: list[dict] = [
-        {"role": "system", "content": REACT_SYSTEM},
+        {"role": "system", "content": react_system},
         {"role": "user",   "content": context_prompt},
     ]
 
@@ -211,7 +212,7 @@ async def run_agent(
     else:
         # ── Direct response — no tool needed ─────────────────
         direct: list[dict] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": active_prompt},
             {"role": "user",   "content": context_prompt},
         ]
         async for chunk in await _client.chat(

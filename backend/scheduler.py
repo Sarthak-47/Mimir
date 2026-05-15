@@ -8,12 +8,14 @@ Jobs:
 """
 
 import logging
+from collections import defaultdict
 from datetime import datetime, date, timedelta
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from memory.database import AsyncSessionLocal, Topic, QuizSession, User
+from ws_manager import manager
 
 logger = logging.getLogger("mimir.scheduler")
 
@@ -66,10 +68,21 @@ async def review_check() -> None:
         overdue = result.scalars().all()
 
     if overdue:
+        # Group by user and send a WS push to each connected user
+        by_user: dict[int, list[str]] = defaultdict(list)
+        for t in overdue:
+            by_user[t.user_id].append(t.name)
+
+        for uid, topic_names in by_user.items():
+            await manager.send_to_user(uid, {
+                "type":   "review_reminder",
+                "topics": topic_names[:5],
+                "count":  len(topic_names),
+            })
+
         logger.info(
-            "[review_check] %d topic(s) overdue for review: %s",
-            len(overdue),
-            [t.name for t in overdue[:5]],  # log first 5
+            "[review_check] %d topic(s) overdue — notified %d user(s)",
+            len(overdue), len(by_user),
         )
     else:
         logger.debug("[review_check] No topics overdue.")

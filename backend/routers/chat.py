@@ -21,6 +21,7 @@ from memory.database import (
 from memory.vector import add_memory
 from agent.loop import run_agent
 from routers.users import decode_jwt
+from ws_manager import manager
 
 router = APIRouter()
 
@@ -50,6 +51,7 @@ async def ws_chat(
 
         await websocket.accept()
         user_id = user.id
+        manager.connect(user_id, websocket)
 
         try:
             while True:
@@ -183,3 +185,5 @@ async def ws_chat(
                 )
             except Exception:
                 pass
+        finally:
+            manager.disconnect(user_id, websocket)

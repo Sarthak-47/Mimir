@@ -10,12 +10,14 @@
 import { useState, useRef } from "react";
 
 interface InputZoneProps {
-  onSend:    (text: string) => void;
+  onSend:    (text: string, mode: string) => void;
   onTrial:   () => void;
   onRunes:   () => void;
   onFates:   () => void;
   activeSubjectName: string | null;
   authToken?: string | null;
+  mode: string;
+  onModeChange: (mode: string) => void;
 }
 
 import { API_FILES } from "@/config";
@@ -32,7 +34,7 @@ const UPLOAD_URL = `${API_FILES}/upload`;
  * @param authToken          - JWT forwarded with file upload requests.
  */
 export default function InputZone({
-  onSend, onTrial, onRunes, onFates, activeSubjectName, authToken,
+  onSend, onTrial, onRunes, onFates, activeSubjectName, authToken, mode, onModeChange,
 }: InputZoneProps) {
   const [text, setText]         = useState("");
   const [uploading, setUploading] = useState(false);
@@ -49,7 +51,7 @@ export default function InputZone({
 
   const handleSend = () => {
     if (!text.trim()) return;
-    onSend(text);
+    onSend(text, mode);
     setText("");
     // Reset textarea height after clearing
     if (textareaRef.current) textareaRef.current.style.height = "34px";
@@ -81,12 +83,12 @@ export default function InputZone({
 
       const res = await fetch(UPLOAD_URL, { method: "POST", body: form, headers });
       if (res.ok) {
-        onSend(`I just uploaded "${file.name}". Please summarise it for me.`);
+        onSend(`I just uploaded "${file.name}". Please summarise it for me.`, mode);
       } else {
-        onSend(`Failed to upload "${file.name}" — server returned ${res.status}.`);
+        onSend(`Failed to upload "${file.name}" — server returned ${res.status}.`, mode);
       }
     } catch {
-      onSend(`Upload failed — make sure the backend is running.`);
+      onSend(`Upload failed — make sure the backend is running.`, mode);
     } finally {
       setUploading(false);
       // Reset so the same file can be re-selected
@@ -134,6 +136,20 @@ export default function InputZone({
           </button>
         ))}
 
+        {/* Mode toggle — DEEP / SWIFT */}
+        <button
+          style={{
+            ...styles.runeBtn,
+            ...(mode === "fast" ? styles.runeBtnActive : {}),
+            marginLeft: 4,
+          }}
+          title={mode === "detailed" ? "Switch to Swift mode (brief answers)" : "Switch to Deep mode (thorough answers)"}
+          onClick={() => onModeChange(mode === "detailed" ? "fast" : "detailed")}
+        >
+          <span style={styles.runeBtnIcon}>{mode === "detailed" ? "ᛞ" : "ᛊ"}</span>
+          <span style={styles.runeBtnLabel}>{mode === "detailed" ? "DEEP" : "SWIFT"}</span>
+        </button>
+
         {activeSubjectName && (
           <div style={styles.activeSubjectBadge}>
             <span style={styles.diamond} />
@@ -177,6 +193,7 @@ const styles: Record<string, React.CSSProperties> = {
   engravingTop: { height: 1, background: "linear-gradient(90deg, transparent, var(--gold-dim) 30%, var(--gold-dim) 70%, transparent)", opacity: 0.3, marginBottom: 8 },
   runeStrip: { display: "flex", alignItems: "center", gap: 4, marginBottom: 6 },
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "3px 7px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },
+  runeBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)" },
   runeBtnDisabled: { opacity: 0.5, cursor: "not-allowed" },
   runeBtnIcon:  { fontSize: 15, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green)" },
   runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 7, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" as const },

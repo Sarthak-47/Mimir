@@ -153,6 +153,7 @@ export default function App() {
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [subjects, setSubjects]           = useState<Subject[]>([]);
   const [reviewAlert, setReviewAlert]     = useState<{ topics: string[]; count: number } | null>(null);
+  const [mode, setMode]                   = useState<string>("detailed");
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -302,7 +303,7 @@ export default function App() {
   const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, onReviewReminder, authToken });
 
   // ── Chat handlers ──────────────────────────────────────
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, sendMode?: string) => {
     if (!text.trim()) return;
     setIsWaiting(true);
     setMessages((prev) => [...prev, {
@@ -311,7 +312,7 @@ export default function App() {
       content:   text.trim(),
       timestamp: new Date(),
     }]);
-    sendMessage(text.trim(), activeSubject ? Number(activeSubject) : undefined);
+    sendMessage(text.trim(), activeSubject ? Number(activeSubject) : undefined, sendMode ?? mode);
   };
 
   const handleTrial = () => {
@@ -393,6 +394,8 @@ export default function App() {
               onFates={handleFates}
               activeSubjectName={activeSubjectObj?.name ?? null}
               authToken={authToken}
+              mode={mode}
+              onModeChange={setMode}
             />
           </>
         )}

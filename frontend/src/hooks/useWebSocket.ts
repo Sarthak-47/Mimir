@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 import { WS_CHAT as WS_BASE_URL } from "@/config";
 const RECONNECT_DELAY_MS = 2000;
-const MAX_RECONNECT_ATTEMPTS = 5;
+const MAX_RECONNECT_DELAY_MS = 15000;
 
 // ── Types ───────────────────────────────────────────────────
 export interface WsMessage {
@@ -113,11 +113,9 @@ export function useWebSocket({
       setIsConnected(false);
       console.log("[Mimir WS] Disconnected");
 
-      if (reconnectCount.current < MAX_RECONNECT_ATTEMPTS) {
-        reconnectCount.current += 1;
-        const delay = RECONNECT_DELAY_MS * reconnectCount.current;
-        reconnectTimer.current = setTimeout(() => connect(token), delay);
-      }
+      reconnectCount.current += 1;
+      const delay = Math.min(RECONNECT_DELAY_MS * reconnectCount.current, MAX_RECONNECT_DELAY_MS);
+      reconnectTimer.current = setTimeout(() => connect(token), delay);
     };
   }, []);
 

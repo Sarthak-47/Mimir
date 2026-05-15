@@ -36,7 +36,7 @@
   /* Text */
   --text-primary:   #d0e8d4;
   --text-secondary: #7aaa84;
-  --text-dim:       #3a5a40;
+  --text-dim:       #5c8c68;
 
   /* Typography */
   --font-header: 'Cinzel', Georgia, serif;
@@ -81,7 +81,7 @@ body {
   background: var(--stone-0);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -95,9 +95,9 @@ h1, h2, h3, h4, .cinzel {
   color: var(--text-primary);
 }
 
-h1 { font-size: 17px; font-weight: 700; }
-h2 { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; }
-h3 { font-size: 10px; font-weight: 600; letter-spacing: 0.15em; }
+h1 { font-size: 19px; font-weight: 700; }
+h2 { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; }
+h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.15em; }
 
 /* ---------------------------------------------------------- */
 /* LAYOUT — APP SHELL                                          */
@@ -200,7 +200,7 @@ button {
   background: var(--stone-3);
   border: var(--border-green);
   color: var(--text-secondary);
-  font-size: 9px;
+  font-size: 11px;
   font-family: var(--font-header);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -211,7 +211,7 @@ button {
   border-color: var(--green);
 }
 .btn-rune .rune-glyph {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   color: var(--green);
 }
@@ -221,7 +221,7 @@ button {
   border: var(--border-green);
   color: var(--green-bright);
   padding: 6px 16px;
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
@@ -256,7 +256,7 @@ input:focus, textarea:focus {
 /* RUNE ICON LABELS (nav)                                      */
 /* ---------------------------------------------------------- */
 .rune-label {
-  font-size: 8px;
+  font-size: 10px;
   font-family: var(--font-header);
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -279,14 +279,14 @@ input:focus, textarea:focus {
 /* ---------------------------------------------------------- */
 .stat-number {
   font-family: var(--font-header);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--gold-bright);
   line-height: 1;
 }
 
 .stat-label {
-  font-size: 9px;
+  font-size: 11px;
   font-family: var(--font-header);
   text-transform: uppercase;
   letter-spacing: 0.12em;

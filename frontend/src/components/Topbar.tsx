@@ -96,14 +96,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   breadcrumb: {
     fontFamily: "var(--font-header)",
-    fontSize: 9,
+    fontSize: 11,
     letterSpacing: "0.14em",
     textTransform: "uppercase" as const,
     color: "var(--text-dim)",
   },
   subtitle: {
     fontFamily: "var(--font-header)",
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: 600,
     letterSpacing: "0.08em",
     color: "var(--text-primary)",
@@ -123,7 +123,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   userName: {
     fontFamily: "var(--font-header)",
-    fontSize: 8,
+    fontSize: 11,
     letterSpacing: "0.1em",
     color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
@@ -133,7 +133,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     color: "var(--text-dim)",
     fontFamily: "var(--font-header)",
-    fontSize: 10,
+    fontSize: 13,
     cursor: "pointer",
     padding: "0 0 0 4px",
     lineHeight: 1,
@@ -156,7 +156,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusText: {
     fontFamily: "var(--font-header)",
-    fontSize: 8,
+    fontSize: 11,
     letterSpacing: "0.12em",
     color: "var(--text-secondary)",
     textTransform: "lowercase" as const,

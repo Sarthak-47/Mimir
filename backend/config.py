@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # ── Ollama ───────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:14b"
+    ollama_model: str = "qwen2.5:7b"
     ollama_temperature: float = 0.7
     ollama_context_length: int = 8192
 

@@ -10,8 +10,11 @@ Streams: {"type": "token", "content": str}
 """
 
 import json
+import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
+logger = logging.getLogger("mimir.chat")
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -117,73 +120,83 @@ async def ws_chat(
                 )
 
                 # ── Run agent, stream response ────────────────
+                # Inner try: agent/LLM errors send an error message but keep
+                # the WebSocket open so the user can try again without re-login.
                 full_response = ""
                 tool_data_raw: str | None = None
 
-                async for chunk in run_agent(
-                    user_message=user_message,
-                    user_id=user_id,
-                    conversation_history=history,
-                    topic_scores=topic_scores,
-                    subject_id=subject_id,
-                    subject_name=subject_name,
-                ):
-                    # Detect embedded tool data marker
-                    if "__TOOL_DATA__:" in chunk:
-                        parts = chunk.split("__TOOL_DATA__:", 1)
-                        text_part = parts[0]
-                        tool_data_raw = parts[1] if len(parts) > 1 else None
-                        if text_part:
-                            full_response += text_part
+                try:
+                    async for chunk in run_agent(
+                        user_message=user_message,
+                        user_id=user_id,
+                        conversation_history=history,
+                        topic_scores=topic_scores,
+                        subject_id=subject_id,
+                        subject_name=subject_name,
+                    ):
+                        # Detect embedded tool data marker
+                        if "__TOOL_DATA__:" in chunk:
+                            parts = chunk.split("__TOOL_DATA__:", 1)
+                            text_part = parts[0]
+                            tool_data_raw = parts[1] if len(parts) > 1 else None
+                            if text_part:
+                                full_response += text_part
+                                await websocket.send_text(
+                                    json.dumps({"type": "token", "content": text_part})
+                                )
+                        else:
+                            full_response += chunk
                             await websocket.send_text(
-                                json.dumps({"type": "token", "content": text_part})
+                                json.dumps({"type": "token", "content": chunk})
                             )
-                    else:
-                        full_response += chunk
-                        await websocket.send_text(
-                            json.dumps({"type": "token", "content": chunk})
+
+                    # Send tool data separately if present
+                    if tool_data_raw:
+                        try:
+                            tool_data = json.loads(tool_data_raw)
+                            await websocket.send_text(
+                                json.dumps({"type": "tool_data", "data": tool_data})
+                            )
+                        except json.JSONDecodeError:
+                            pass
+
+                    await websocket.send_text(json.dumps({"type": "done"}))
+
+                    # ── Save assistant response ───────────────
+                    if full_response.strip():
+                        assistant_conv = Conversation(
+                            user_id=user_id,
+                            role="assistant",
+                            content=full_response.strip(),
+                            subject_id=subject_id,
+                        )
+                        db.add(assistant_conv)
+                        await db.commit()
+                        await db.refresh(assistant_conv)
+
+                        add_memory(
+                            user_id=user_id,
+                            content=full_response.strip(),
+                            role="assistant",
+                            conversation_id=assistant_conv.id,
+                            subject_id=subject_id,
                         )
 
-                # Send tool data separately if present
-                if tool_data_raw:
+                except Exception as agent_err:
+                    # Agent / Ollama error: show in chat, keep socket alive
+                    err_msg = str(agent_err)
+                    logger.error("Agent error for user %d: %s", user_id, err_msg)
                     try:
-                        tool_data = json.loads(tool_data_raw)
                         await websocket.send_text(
-                            json.dumps({"type": "tool_data", "data": tool_data})
+                            json.dumps({"type": "error", "content": err_msg})
                         )
-                    except json.JSONDecodeError:
+                        await websocket.send_text(json.dumps({"type": "done"}))
+                    except Exception:
                         pass
-
-                await websocket.send_text(json.dumps({"type": "done"}))
-
-                # ── Save assistant response ───────────────────
-                if full_response.strip():
-                    assistant_conv = Conversation(
-                        user_id=user_id,
-                        role="assistant",
-                        content=full_response.strip(),
-                        subject_id=subject_id,
-                    )
-                    db.add(assistant_conv)
-                    await db.commit()
-                    await db.refresh(assistant_conv)
-
-                    add_memory(
-                        user_id=user_id,
-                        content=full_response.strip(),
-                        role="assistant",
-                        conversation_id=assistant_conv.id,
-                        subject_id=subject_id,
-                    )
 
         except WebSocketDisconnect:
             pass
-        except Exception as e:
-            try:
-                await websocket.send_text(
-                    json.dumps({"type": "error", "content": str(e)})
-                )
-            except Exception:
-                pass
+        except Exception:
+            pass
         finally:
             manager.disconnect(user_id, websocket)

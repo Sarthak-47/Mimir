@@ -45,12 +45,10 @@ class SubmitResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     topic_id: int
+    topic_name: str = "Unknown"
     score: int
     total: int
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ── Endpoints ────────────────────────────────────────────────
@@ -134,4 +132,26 @@ async def quiz_history(
         .order_by(QuizSession.timestamp.desc())
         .limit(limit)
     )
-    return result.scalars().all()
+    sessions = result.scalars().all()
+
+    # Batch-fetch topic names
+    topic_ids = list({s.topic_id for s in sessions if s.topic_id is not None})
+    topics_map: dict[int, str] = {}
+    if topic_ids:
+        t_result = await db.execute(
+            select(Topic).where(Topic.id.in_(topic_ids))
+        )
+        for t in t_result.scalars().all():
+            topics_map[t.id] = t.name
+
+    return [
+        SessionResponse(
+            id=s.id,
+            topic_id=s.topic_id,
+            topic_name=topics_map.get(s.topic_id, "Unknown"),
+            score=s.score,
+            total=s.total,
+            timestamp=s.timestamp,
+        )
+        for s in sessions
+    ]

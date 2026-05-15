@@ -16,6 +16,7 @@ interface ConvRow {
 
 interface ChronicleViewProps {
   authToken: string;
+  username?: string;
 }
 
 // ── Render **bold** → gold highlight ────────────────────────
@@ -32,7 +33,8 @@ function TermHighlight({ text }: { text: string }) {
   );
 }
 
-export default function ChronicleView({ authToken }: ChronicleViewProps) {
+export default function ChronicleView({ authToken, username }: ChronicleViewProps) {
+  const userInitial = (username?.[0] ?? "?").toUpperCase();
   const [rows,    setRows]    = useState<ConvRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
@@ -103,7 +105,7 @@ export default function ChronicleView({ authToken }: ChronicleViewProps) {
                   </div>
                 </div>
               </div>
-              {isUser && <div style={styles.avatarUser}>S</div>}
+              {isUser && <div style={styles.avatarUser}>{userInitial}</div>}
             </div>
           );
         })}

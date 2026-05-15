@@ -109,6 +109,15 @@ def add_document_memory(
     )
 
 
+def delete_document_memory(user_id: int, file_id: int) -> None:
+    """Remove all chunks for a specific uploaded file from ChromaDB."""
+    collection = get_collection()
+    try:
+        collection.delete(where={"file_id": str(file_id)})
+    except Exception:
+        pass  # collection may be empty or chunk never indexed
+
+
 def delete_user_memory(user_id: int) -> None:
     """Remove all memory for a user (e.g., on account deletion)."""
     collection = get_collection()

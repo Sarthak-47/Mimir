@@ -285,7 +285,7 @@ export default function App() {
 
         {view === "oracle" && (
           <>
-            <Chat messages={messages} onSuggestion={handleSend} />
+            <Chat messages={messages} onSuggestion={handleSend} username={username} />
             <InputZone
               onSend={handleSend}
               onTrial={handleTrial}
@@ -313,7 +313,7 @@ export default function App() {
         )}
 
         {view === "chronicle" && (
-          <ChronicleView authToken={authToken} />
+          <ChronicleView authToken={authToken} username={username} />
         )}
 
         {view === "scrolls" && (

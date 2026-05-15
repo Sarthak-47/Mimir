@@ -60,6 +60,7 @@ export default function App() {
   const [messages, setMessages]           = useState<Message[]>([]);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [subjects, setSubjects]           = useState<Subject[]>([]);
+  const [reviewAlert, setReviewAlert]     = useState<{ topics: string[]; count: number } | null>(null);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -182,6 +183,10 @@ export default function App() {
 
   const onDone = useCallback(() => { streamingId.current = null; }, []);
 
+  const onReviewReminder = useCallback((topics: string[], count: number) => {
+    setReviewAlert({ topics, count });
+  }, []);
+
   const onToolData = useCallback((data: unknown) => {
     setMessages((prev) => {
       const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
@@ -200,7 +205,7 @@ export default function App() {
     });
   }, []);
 
-  const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, authToken });
+  const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, onReviewReminder, authToken });
 
   // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string) => {
@@ -260,9 +265,27 @@ export default function App() {
           onLogout={handleLogout}
         />
 
+        {/* ── Review reminder banner ── */}
+        {reviewAlert && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "6px 16px", background: "var(--stone-4)",
+            borderBottom: "1px solid var(--gold-dim)", flexShrink: 0,
+          }}>
+            <span style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.1em", color: "var(--gold-bright)" }}>
+              ᚾ &nbsp;{reviewAlert.count} topic{reviewAlert.count !== 1 ? "s" : ""} overdue for review
+              {reviewAlert.topics.length > 0 && ` — ${reviewAlert.topics.slice(0, 3).join(", ")}`}
+            </span>
+            <button
+              onClick={() => setReviewAlert(null)}
+              style={{ background: "none", border: "none", color: "var(--gold-dim)", fontFamily: "var(--font-header)", fontSize: 13, cursor: "pointer", lineHeight: 1, padding: "0 0 0 12px" }}
+            >×</button>
+          </div>
+        )}
+
         {view === "oracle" && (
           <>
-            <Chat messages={messages} />
+            <Chat messages={messages} onSuggestion={handleSend} />
             <InputZone
               onSend={handleSend}
               onTrial={handleTrial}

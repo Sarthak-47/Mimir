@@ -6,16 +6,19 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 
 // ── Types ───────────────────────────────────────────────────
 export interface WsMessage {
-  type: "token" | "done" | "tool_data" | "error";
+  type: "token" | "done" | "tool_data" | "error" | "review_reminder";
   content?: string;
   data?: unknown;
+  topics?: string[];
+  count?: number;
 }
 
 interface UseWebSocketOptions {
-  onToken:    (token: string) => void;   // streaming token received
-  onDone:     () => void;                // assistant turn complete
-  onToolData: (data: unknown) => void;   // structured quiz / flashcard data
-  authToken?: string | null;             // JWT — appended as ?token= query param
+  onToken:            (token: string) => void;   // streaming token received
+  onDone:             () => void;                // assistant turn complete
+  onToolData:         (data: unknown) => void;   // structured quiz / flashcard data
+  onReviewReminder?:  (topics: string[], count: number) => void; // overdue topics
+  authToken?: string | null;                     // JWT — appended as ?token= query param
 }
 
 interface UseWebSocketReturn {
@@ -28,6 +31,7 @@ export function useWebSocket({
   onToken,
   onDone,
   onToolData,
+  onReviewReminder,
   authToken,
 }: UseWebSocketOptions): UseWebSocketReturn {
   const wsRef          = useRef<WebSocket | null>(null);
@@ -35,12 +39,14 @@ export function useWebSocket({
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep callbacks fresh without recreating the socket
-  const onTokenRef    = useRef(onToken);
-  const onDoneRef     = useRef(onDone);
-  const onToolDataRef = useRef(onToolData);
-  useEffect(() => { onTokenRef.current    = onToken;    }, [onToken]);
-  useEffect(() => { onDoneRef.current     = onDone;     }, [onDone]);
-  useEffect(() => { onToolDataRef.current = onToolData; }, [onToolData]);
+  const onTokenRef           = useRef(onToken);
+  const onDoneRef            = useRef(onDone);
+  const onToolDataRef        = useRef(onToolData);
+  const onReviewReminderRef  = useRef(onReviewReminder);
+  useEffect(() => { onTokenRef.current          = onToken;          }, [onToken]);
+  useEffect(() => { onDoneRef.current           = onDone;           }, [onDone]);
+  useEffect(() => { onToolDataRef.current       = onToolData;       }, [onToolData]);
+  useEffect(() => { onReviewReminderRef.current = onReviewReminder; }, [onReviewReminder]);
 
   const [isConnected, setIsConnected] = useState(false);
 
@@ -70,6 +76,9 @@ export function useWebSocket({
             break;
           case "tool_data":
             if (msg.data !== undefined) onToolDataRef.current(msg.data);
+            break;
+          case "review_reminder":
+            onReviewReminderRef.current?.(msg.topics ?? [], msg.count ?? 0);
             break;
           case "error":
             console.error("[Mimir WS] Server error:", msg.content);

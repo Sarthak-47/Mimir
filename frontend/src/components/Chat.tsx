@@ -23,9 +23,10 @@ function TermHighlight({ text }: { text: string }) {
 
 interface ChatProps {
   messages: Message[];
+  onSuggestion?: (text: string) => void;
 }
 
-export default function Chat({ messages }: ChatProps) {
+export default function Chat({ messages, onSuggestion }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export default function Chat({ messages }: ChatProps) {
 
   return (
     <div style={styles.chatArea} className="scroll-area">
-      {messages.length === 0 && <EmptyState />}
+      {messages.length === 0 && <EmptyState onSuggestion={onSuggestion} />}
 
       {messages.map((msg) => (
         <MessageBubble key={msg.id} msg={msg} />
@@ -152,7 +153,7 @@ function FlashcardDeck({ cards }: { cards: { front: string; back: string }[] }) 
 }
 
 // ── Empty state ──────────────────────────────────────────────
-function EmptyState() {
+function EmptyState({ onSuggestion }: { onSuggestion?: (text: string) => void }) {
   return (
     <div style={styles.emptyState}>
       <div style={styles.emptyRune}>ᚦ</div>
@@ -162,7 +163,13 @@ function EmptyState() {
       </div>
       <div style={styles.emptySuggestions}>
         {["Explain cross-entropy loss", "Quiz me on B+ Trees", "What should I study today?", "Summarize my uploaded notes"].map((s) => (
-          <div key={s} style={styles.suggestion}>"{s}"</div>
+          <button
+            key={s}
+            style={styles.suggestion}
+            onClick={() => onSuggestion?.(s)}
+          >
+            "{s}"
+          </button>
         ))}
       </div>
     </div>
@@ -202,5 +209,5 @@ const styles: Record<string, React.CSSProperties> = {
   emptyTitle:      { fontFamily: "var(--font-header)", fontSize: 13, fontWeight: 600, letterSpacing: "0.15em", color: "var(--text-secondary)" },
   emptySubtitle:   { fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-secondary)", maxWidth: 280 },
   emptySuggestions:{ marginTop: 12, display: "flex", flexDirection: "column" as const, gap: 4, width: "100%", maxWidth: 320 },
-  suggestion:      { padding: "5px 12px", background: "var(--stone-2)", border: "1px solid var(--green-dim)", fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-primary)" },
+  suggestion:      { padding: "5px 12px", background: "var(--stone-2)", border: "1px solid var(--green-dim)", fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-primary)", cursor: "pointer", width: "100%", textAlign: "left" as const, transition: "border-color 0.15s, background 0.15s" },
 };

@@ -7,7 +7,7 @@ import { useState } from "react";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { Subject } from "@/App";
-import { API_QUIZ as API } from "@/config";
+import { API_QUIZ, API_PROGRESS } from "@/config";
 
 interface TrialsViewProps {
   subjects:      Subject[];
@@ -35,7 +35,7 @@ export default function TrialsView({ subjects, activeSubject, authToken }: Trial
     setErrMsg("");
 
     try {
-      const res = await fetch(`${API}/generate`, {
+      const res = await fetch(`${API_QUIZ}/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -76,9 +76,55 @@ export default function TrialsView({ subjects, activeSubject, authToken }: Trial
     }
   };
 
-  const handleComplete = (got: number, total: number) => {
+  const handleComplete = async (got: number, total: number) => {
     setScore({ got, total });
     setPhase("result");
+
+    // Best-effort: persist to backend so spaced repetition tracks the result
+    if (!subjectId || !authToken) return;
+    const subjectIdNum = parseInt(subjectId, 10);
+    if (isNaN(subjectIdNum)) return;
+
+    try {
+      const topicName = topic.trim() || subjectName || "General";
+
+      // Find or create the topic under this subject
+      const topicsRes = await fetch(
+        `${API_PROGRESS}/topics?subject_id=${subjectIdNum}`,
+        { headers: { Authorization: `Bearer ${authToken}` } },
+      );
+      if (!topicsRes.ok) return;
+
+      const existingTopics = await topicsRes.json() as { id: number; name: string }[];
+      let topicId: number | undefined = existingTopics.find(
+        (t) => t.name.toLowerCase() === topicName.toLowerCase(),
+      )?.id;
+
+      if (topicId === undefined) {
+        const createRes = await fetch(`${API_PROGRESS}/topics`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ name: topicName, subject_id: subjectIdNum }),
+        });
+        if (!createRes.ok) return;
+        const created = await createRes.json() as { id: number };
+        topicId = created.id;
+      }
+
+      await fetch(`${API_QUIZ}/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ topic_id: topicId, score: got, total }),
+      });
+    } catch {
+      // Silent — result card shows regardless of backend availability
+    }
   };
 
   const handleReset = () => {
@@ -272,7 +318,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "var(--font-header)",
     fontSize: 7,
     letterSpacing: "0.16em",
-    color: "var(--text-dim)",
+    color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
   },
   select: {
@@ -345,7 +391,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "var(--font-body)",
     fontSize: 13,
     fontStyle: "italic",
-    color: "var(--text-dim)",
+    color: "var(--text-secondary)",
   },
   quizWrap: {
     width: "100%",

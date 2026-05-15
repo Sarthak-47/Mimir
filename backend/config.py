@@ -3,13 +3,22 @@ Mimir — Application Configuration
 All settings are read from environment variables or .env file.
 """
 
+import sys
+import os
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
 # ── Base paths ───────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR  = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+
+# When running as a PyInstaller bundle, store data in %LOCALAPPDATA%\Mimir
+# so it survives app updates and lives outside the install directory.
+if getattr(sys, "frozen", False):
+    DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Mimir" / "data"
+else:
+    DATA_DIR = BASE_DIR / "data"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseSettings):

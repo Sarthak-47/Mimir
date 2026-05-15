@@ -21,7 +21,11 @@ from agent.prompts import (
 # ── Ollama helper ────────────────────────────────────────────
 
 def _llm(prompt: str, system: str = "") -> str:
-    """Call the local Ollama model and return the response text."""
+    """Call the local Ollama model synchronously and return the response text.
+
+    Intended for use inside ``asyncio.to_thread`` so it does not block the
+    FastAPI event loop.
+    """
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -36,7 +40,15 @@ def _llm(prompt: str, system: str = "") -> str:
 
 
 def _parse_json(text: str) -> Any:
-    """Extract and parse the first JSON block from LLM output."""
+    """Extract and parse the first complete JSON object or array from LLM output.
+
+    Tries three strategies in order:
+    1. Direct ``json.loads`` on the stripped text (fast path for clean output).
+    2. Depth-aware bracket scan to find the first balanced ``[…]`` or ``{…}`` block.
+    3. Greedy regex as a last resort.
+
+    Raises ``json.JSONDecodeError`` if all strategies fail.
+    """
     # Fast path: the model returned clean JSON directly
     stripped = text.strip()
     try:
@@ -195,8 +207,20 @@ def tool_weak_topics(topic_scores: list[dict]) -> list[dict]:
 # ── Spaced Repetition ────────────────────────────────────────
 
 def compute_next_review(score: int, total: int) -> datetime:
-    """
-    Given quiz score, compute when topic should be reviewed next.
+    """Compute the next spaced-repetition review datetime from a quiz result.
+
+    Applies SM-2-inspired intervals based on the percentage score:
+    - ≥ sr_high_threshold%  → 7 days
+    - ≥ sr_mid_threshold%   → 3 days
+    - ≥ sr_low_threshold%   → 1 day
+    - below threshold        → 4 hours
+
+    Args:
+        score: Number of correct answers.
+        total: Total number of questions.
+
+    Returns:
+        UTC datetime when the topic should next be reviewed.
     """
     confidence = (score / total) * 100 if total > 0 else 0
 

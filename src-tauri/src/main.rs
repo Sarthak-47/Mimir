@@ -1,3 +1,15 @@
+//! Mimir — Tauri host process.
+//!
+//! Spawns the FastAPI backend (either as a PyInstaller bundle or via the
+//! Python dev server) and starts `ollama serve` before opening the Tauri
+//! window. On application exit all spawned child processes are killed.
+//!
+//! Backend discovery order:
+//! 1. PyInstaller bundle (`<exe dir>/mimir-backend/mimir-backend.exe`)
+//! 2. `MIMIR_BACKEND` environment variable (override path)
+//! 3. Compile-time `MIMIR_BACKEND_PATH` (baked in by `build.rs`)
+//! 4. Relative path `../../../../backend` from the executable
+
 // Prevents a console window appearing in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -15,16 +27,24 @@ struct Processes(Mutex<Vec<Child>>);
 
 // ── Backend discovery ─────────────────────────────────────────
 
-/// In production: find the PyInstaller-bundled mimir-backend.exe
-/// that Tauri copied into the install directory as a resource.
+/// Locate the PyInstaller-bundled `mimir-backend.exe` in the install directory.
+///
+/// Tauri copies external binaries into the same directory as the main executable.
+/// Returns `None` if the bundle does not exist (e.g. in dev mode).
 fn find_bundled_backend() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     let candidate = exe_dir.join("mimir-backend").join("mimir-backend.exe");
     if candidate.exists() { Some(candidate) } else { None }
 }
 
-/// In dev mode: find the Python backend source directory.
-/// Tries (in order): MIMIR_BACKEND env var → baked compile-time path → relative to exe.
+/// Locate the Python backend source directory in dev mode.
+///
+/// Tries three candidates in order:
+/// 1. `MIMIR_BACKEND` environment variable.
+/// 2. Compile-time `MIMIR_BACKEND_PATH` constant baked in by `build.rs`.
+/// 3. `../../../../backend` relative to the current executable (workspace layout).
+///
+/// Returns the first path that contains a `main.py` file.
 fn find_backend() -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = [
         std::env::var("MIMIR_BACKEND").ok().map(PathBuf::from),
@@ -41,7 +61,10 @@ fn find_backend() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.join("main.py").exists())
 }
 
-/// Prefer the project's own venv interpreter; fall back to system Python.
+/// Resolve the Python interpreter to use for the backend.
+///
+/// Prefers `<backend>/.venv/Scripts/python.exe` so the correct virtual
+/// environment is activated automatically. Falls back to `"python"` (system PATH).
 fn find_python(backend: &PathBuf) -> String {
     let venv = backend
         .join(".venv")
@@ -53,7 +76,10 @@ fn find_python(backend: &PathBuf) -> String {
     "python".to_string()
 }
 
-/// Spawn a command with no visible console window on Windows.
+/// Spawn `cmd` without a visible console window on Windows.
+///
+/// Uses the `CREATE_NO_WINDOW` process-creation flag on Windows; on other
+/// platforms this is a plain `cmd.spawn()`. Returns `None` if spawning fails.
 fn spawn_hidden(cmd: &mut Command) -> Option<Child> {
     #[cfg(windows)]
     {

@@ -1,5 +1,14 @@
 """
-Mimir — System Prompts & Prompt Templates
+Mimir — System Prompts and Prompt Templates.
+
+Contains the main ``SYSTEM_PROMPT`` that defines the Mimir persona, plus
+one format-string template per agent tool. Templates use ``str.format()``
+placeholders (``{concept}``, ``{n}``, etc.) and are filled in by the
+corresponding ``tool_*`` functions in ``agent/tools.py``.
+
+The ``/no_think`` directive at the top of ``SYSTEM_PROMPT`` suppresses the
+internal chain-of-thought scratchpad on models that support it (e.g. Qwen3),
+which reduces latency and avoids leaking reasoning tokens to the user.
 """
 
 SYSTEM_PROMPT = """\

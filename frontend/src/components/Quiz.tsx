@@ -14,7 +14,19 @@ interface QuizProps {
   onComplete: (score: number, total: number) => void;
 }
 
-// ── Component ────────────────────────────────────────────────
+/**
+ * Multiple-choice quiz runner.
+ *
+ * Displays one question at a time. The user clicks an option to reveal the
+ * correct answer and explanation, then advances to the next question. When the
+ * last question is answered `onComplete` is called with the final score.
+ *
+ * Used both inline inside chat bubbles (`InlineQuiz`) and standalone inside
+ * the Trials view (`TrialsView`).
+ *
+ * @param questions  - Array of MCQ questions to step through.
+ * @param onComplete - Called with `(score, total)` when all questions are answered.
+ */
 export default function Quiz({ questions, onComplete }: QuizProps) {
   const [current, setCurrent]   = useState(0);
   const [selected, setSelected] = useState<number | null>(null);

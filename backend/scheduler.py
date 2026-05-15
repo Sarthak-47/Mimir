@@ -23,9 +23,16 @@ logger = logging.getLogger("mimir.scheduler")
 # ── Helpers ──────────────────────────────────────────────────
 
 def compute_streak(session_dates: list[date]) -> int:
-    """
-    Given a sorted list of unique dates on which the user studied,
-    return the length of the current consecutive-day streak ending today.
+    """Return the length of the current consecutive-day study streak.
+
+    Args:
+        session_dates: Dates (possibly with duplicates) on which the user had
+            quiz activity. Order does not matter.
+
+    Returns:
+        Number of consecutive days ending today (or yesterday) with activity.
+        Returns 0 if there is no activity or if the most recent session was
+        more than one day ago.
     """
     if not session_dates:
         return 0
@@ -52,10 +59,12 @@ def compute_streak(session_dates: list[date]) -> int:
 # ── Jobs ─────────────────────────────────────────────────────
 
 async def review_check() -> None:
-    """
-    Hourly: find topics past their next_review date.
-    Currently logs a summary; future work — push WS notification to
-    connected clients.
+    """Hourly job: push WebSocket review reminders for overdue topics.
+
+    Queries all topics whose ``next_review`` timestamp is in the past, groups
+    them by ``user_id``, and sends a ``review_reminder`` WebSocket message to
+    each user who is currently connected. Capped at 5 topic names per message
+    to keep the payload small.
     """
     now = datetime.utcnow()
     async with AsyncSessionLocal() as db:
@@ -89,10 +98,12 @@ async def review_check() -> None:
 
 
 async def streak_update() -> None:
-    """
-    Daily: recompute and log streak lengths for every user who has had
-    quiz activity. Streak computation is kept live in the /stats endpoint
-    for accuracy, but this job can be extended to cache or notify.
+    """Daily job: recompute study streaks for all users with quiz history.
+
+    Iterates every user who has at least one ``QuizSession`` and logs their
+    current streak. The authoritative streak is also computed live in the
+    ``/api/progress/stats`` endpoint; this job exists as a hook for future
+    caching or push notifications.
     """
     async with AsyncSessionLocal() as db:
         # Get distinct user IDs that have at least one quiz session

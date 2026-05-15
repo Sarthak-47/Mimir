@@ -1,6 +1,13 @@
 /**
  * Trials View — dedicated quiz runner.
- * Subject/topic selector → generate MCQ via /api/quiz/generate → show Quiz.
+ *
+ * Manages a multi-phase flow: setup form → loading spinner → `Quiz` component
+ * → result card (or error card on failure). After the user completes a quiz the
+ * result is persisted to the backend via `/api/quiz/submit` (best-effort: the
+ * result card is shown regardless of network availability).
+ *
+ * The topic is looked up or created under the selected subject so that spaced
+ * repetition can track confidence over time.
  */
 
 import { useState } from "react";
@@ -17,6 +24,13 @@ interface TrialsViewProps {
 
 type Phase = "setup" | "loading" | "quiz" | "result" | "error";
 
+/**
+ * Standalone quiz view with subject/topic selection and question-count picker.
+ *
+ * @param subjects      - Available disciplines for the subject dropdown.
+ * @param activeSubject - Pre-selects the active subject on mount if set.
+ * @param authToken     - JWT for authenticated API calls.
+ */
 export default function TrialsView({ subjects, activeSubject, authToken }: TrialsViewProps) {
   const [phase,     setPhase]     = useState<Phase>("setup");
   const [subjectId, setSubjectId] = useState<string>(activeSubject ?? subjects[0]?.id ?? "");

@@ -1,11 +1,22 @@
 /**
  * Mimir — Frontend runtime configuration.
  *
- * VITE_API_URL can be set in a .env file at the repo root:
- *   VITE_API_URL=http://localhost:8000
+ * `VITE_API_URL` can be set in a `.env` file at the repo root:
+ * ```
+ * VITE_API_URL=http://localhost:8000
+ * ```
+ * Defaults to `http://localhost:8000` for local development.
+ * In a production Tauri build the embedded FastAPI server listens on the same host.
  *
- * Defaults to localhost:8000 for local development.
- * In a production Tauri build the backend runs on the same host.
+ * Exports:
+ * - `API_BASE`    — base HTTP URL (e.g. `http://localhost:8000`)
+ * - `WS_BASE`     — base WebSocket URL (scheme swapped to `ws://`)
+ * - `API_USERS`   — auth endpoints prefix
+ * - `API_PROGRESS`— progress/subjects/topics endpoints prefix
+ * - `API_QUIZ`    — quiz generate/submit/history endpoints prefix
+ * - `API_FILES`   — file upload/list/delete endpoints prefix
+ * - `API_CHRONICLE` — conversation history endpoint prefix
+ * - `WS_CHAT`     — full WebSocket chat URL
  */
 const BASE = (import.meta.env.VITE_API_URL as string | undefined)
   ?? "http://localhost:8000";

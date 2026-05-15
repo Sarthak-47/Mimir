@@ -1,6 +1,10 @@
 /**
  * Chronicle View — conversation history browser.
- * Fetches past conversations from /api/chronicle and renders them.
+ *
+ * Fetches the most recent 100 conversation turns from `/api/chronicle` and
+ * renders them in a chat-bubble layout identical to the Oracle view. Bold
+ * markdown is highlighted in gold via `TermHighlight`. The fetch is
+ * cancelled on unmount to prevent state updates on stale components.
  */
 
 import { useEffect, useState } from "react";
@@ -19,7 +23,11 @@ interface ChronicleViewProps {
   username?: string;
 }
 
-// ── Render **bold** → gold highlight ────────────────────────
+/**
+ * Render a string with `**bold**` markdown replaced by gold-coloured `<span>` elements.
+ *
+ * Duplicated from `Chat.tsx` to keep the Chronicle view self-contained.
+ */
 function TermHighlight({ text }: { text: string }) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return (
@@ -33,6 +41,12 @@ function TermHighlight({ text }: { text: string }) {
   );
 }
 
+/**
+ * Paginated read-only view of past conversations.
+ *
+ * @param authToken - JWT for authenticated API calls.
+ * @param username  - Used to derive the user avatar initial in message bubbles.
+ */
 export default function ChronicleView({ authToken, username }: ChronicleViewProps) {
   const userInitial = (username?.[0] ?? "?").toUpperCase();
   const [rows,    setRows]    = useState<ConvRow[]>([]);

@@ -13,7 +13,15 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
 
-// ── Boot splash — shown while uvicorn is starting up ───────
+/**
+ * Full-screen loading screen displayed while the FastAPI backend is starting up.
+ *
+ * Shows the eye-in-diamond logo and an animated dot ellipsis. The parent
+ * polls `/health` every 500 ms for up to 20 s; once the backend responds the
+ * splash unmounts and the auth gate renders.
+ *
+ * @param dots - Number of elapsed half-second ticks, used to cycle the ellipsis.
+ */
 function BootSplash({ dots }: { dots: number }) {
   const d = ".".repeat((dots % 3) + 1).padEnd(3, " ");
   return (
@@ -72,6 +80,7 @@ const STORAGE_USERNAME  = "mimir_username";
 const STORAGE_EXAM_DATE = "mimir_exam_date";
 const SUBJECT_COLORS    = ["#6ab87a", "#c9a84c", "#7aaa84", "#e8c96a", "#4a8a5a"];
 
+/** Read persisted JWT and username from localStorage, or return null if absent. */
 function readStoredAuth(): { token: string; username: string } | null {
   try {
     const token    = localStorage.getItem(STORAGE_TOKEN);
@@ -81,11 +90,23 @@ function readStoredAuth(): { token: string; username: string } | null {
   return null;
 }
 
+/** Build an Authorization Bearer header object from a JWT string. */
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-// ── App ────────────────────────────────────────────────────
+/**
+ * Root application component.
+ *
+ * Renders one of three top-level states:
+ * 1. `BootSplash` — while polling the backend health endpoint on startup.
+ * 2. `Auth`       — when no valid JWT is present in localStorage.
+ * 3. Main shell   — `Sidebar`, `Topbar`, active view, and `RightPanel`.
+ *
+ * Manages all shared state: auth token, active view/subject, chat messages,
+ * subject list, exam date, and WebSocket callbacks. Passes data and handlers
+ * down to child components via props.
+ */
 export default function App() {
   // ── Backend readiness ─────────────────────────────────
   // Uvicorn takes ~2-4 s to start. Poll /health before rendering the

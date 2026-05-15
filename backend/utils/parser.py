@@ -31,6 +31,12 @@ except ImportError:
 try:
     import pytesseract
     from PIL import Image
+    # Point pytesseract at the standard Windows install path if not in PATH
+    import shutil, os
+    if not shutil.which("tesseract"):
+        _DEFAULT_TESS = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if os.path.exists(_DEFAULT_TESS):
+            pytesseract.pytesseract.tesseract_cmd = _DEFAULT_TESS
     _HAS_OCR = True
 except ImportError:
     _HAS_OCR = False

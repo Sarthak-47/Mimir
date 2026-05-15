@@ -23,8 +23,8 @@ import ollama
 from config import settings
 from agent.prompts import SYSTEM_PROMPT, FAST_SYSTEM_PROMPT
 from agent.tools import (
-    tool_explain, tool_quiz, tool_summarize,
-    tool_flashcards, tool_schedule, tool_recall, tool_weak_topics,
+    tool_quiz, tool_summarize,
+    tool_flashcards, tool_weak_topics,
 )
 from memory.vector import query_memory
 
@@ -43,13 +43,14 @@ def _ollama_opts(**extra) -> dict:
     return opts
 
 # ── Tool registry ────────────────────────────────────────────
+# Only tools that return structured data (JSON) or process external content.
+# explain/schedule/recall were removed — they called _llm() internally,
+# adding a redundant 2nd Ollama call before the agent's own synthesis call.
+# The direct-response path handles these with a single streaming call instead.
 TOOLS = {
-    "explain":     tool_explain,
     "quiz":        tool_quiz,
     "summarize":   tool_summarize,
     "flashcards":  tool_flashcards,
-    "schedule":    tool_schedule,
-    "recall":      tool_recall,
     "weak_topics": tool_weak_topics,
 }
 
@@ -128,15 +129,12 @@ ACTION: <tool_name>
 ARGS: <JSON object>
 
 Available tools:
-- explain(concept, depth)                                     — explain a concept
-- quiz(topic, subject, n)                                     — generate MCQ questions (returns JSON)
-- summarize(content)                                          — summarize text / notes
-- flashcards(topic, n)                                        — generate flashcard pairs (returns JSON)
-- schedule(subject, topics, days_until_exam, weak_topics)     — build revision plan
-- recall(past_messages)                                       — summarize past study sessions
-- weak_topics(topic_scores)                                   — identify weak areas
+- quiz(topic, subject, n)       — generate MCQ questions (returns JSON)
+- flashcards(topic, n)          — generate flashcard pairs (returns JSON)
+- summarize(content)            — summarize uploaded text / notes
+- weak_topics(topic_scores)     — identify weak areas from scores
 
-If no tool is needed, respond directly without ACTION/ARGS lines.
+For everything else — explanations, revision schedules, recalling past sessions, answering questions — respond directly without ACTION/ARGS lines.
 """
     messages: list[dict] = [
         {"role": "system", "content": react_system},

@@ -13,10 +13,13 @@
 // Prevents a console window appearing in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::fs;
+use std::io;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use tauri::Manager;
+use zip::ZipArchive;
 
 // Absolute backend path baked in at compile time by build.rs.
 // Override at runtime with the MIMIR_BACKEND environment variable.
@@ -35,6 +38,84 @@ fn find_bundled_backend() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
     let candidate = exe_dir.join("mimir-backend").join("mimir-backend.exe");
     if candidate.exists() { Some(candidate) } else { None }
+}
+
+/// Ensure the `_internal` directory is present next to the backend exe.
+///
+/// On first launch (or after a fresh install) the NSIS installer only drops
+/// `mimir-backend.exe` and `backend-internal.zip` into the install directory.
+/// This function detects a missing `_internal` tree via a sentinel file and
+/// extracts the zip in-place, creating the full directory structure required
+/// by PyInstaller before we try to launch the exe.
+///
+/// The zip is expected to contain paths like `pydantic_core/__init__.py`
+/// (i.e. no `_internal/` prefix), and they are extracted relative to
+/// `<exe_dir>/mimir-backend/_internal/`.
+///
+/// This is idempotent — if the sentinel file already exists the function
+/// returns immediately without touching the filesystem.
+fn ensure_internal_dir() {
+    // Only meaningful in production (bundled) mode.
+    let exe_dir = match std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+        Some(d) => d,
+        None => return,
+    };
+
+    // Sentinel: a small file that is always present inside a valid _internal tree.
+    let sentinel = exe_dir
+        .join("mimir-backend")
+        .join("_internal")
+        .join("pydantic_core")
+        .join("__init__.py");
+
+    if sentinel.exists() {
+        // Already extracted — nothing to do.
+        return;
+    }
+
+    let zip_path = exe_dir.join("backend-internal.zip");
+    if !zip_path.exists() {
+        // No zip present (dev mode or unexpected layout) — skip silently.
+        return;
+    }
+
+    let dest_dir = exe_dir.join("mimir-backend").join("_internal");
+
+    let result = (|| -> io::Result<()> {
+        let zip_file = fs::File::open(&zip_path)?;
+        let mut archive = ZipArchive::new(zip_file)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        for i in 0..archive.len() {
+            let mut entry = archive
+                .by_index(i)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+            // Skip directory entries — we create them on demand below.
+            if entry.is_dir() {
+                continue;
+            }
+
+            let out_path: PathBuf = dest_dir.join(
+                entry
+                    .enclosed_name()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "bad zip path"))?,
+            );
+
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+
+            let mut out_file = fs::File::create(&out_path)?;
+            io::copy(&mut entry, &mut out_file)?;
+        }
+
+        Ok(())
+    })();
+
+    if let Err(e) = result {
+        eprintln!("[mimir] warn: failed to extract backend-internal.zip: {e}");
+    }
 }
 
 /// Locate the Python backend source directory in dev mode.
@@ -95,6 +176,9 @@ fn main() {
     let mut procs: Vec<Child> = Vec::new();
 
     // 1. FastAPI backend ───────────────────────────────────────
+    // Unpack _internal from zip on first launch (production only).
+    ensure_internal_dir();
+
     // Production: use the PyInstaller bundle copied in by Tauri.
     // Dev mode: fall back to spawning Python directly.
     if let Some(backend_exe) = find_bundled_backend() {

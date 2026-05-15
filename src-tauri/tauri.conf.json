@@ -37,7 +37,7 @@
     ],
     "resources": {
       "binaries/mimir-backend/mimir-backend.exe": "mimir-backend/mimir-backend.exe",
-      "binaries/mimir-backend/_internal/**/*": "mimir-backend/_internal/"
+      "resources/backend-internal.zip": "backend-internal.zip"
     }
   }
 }

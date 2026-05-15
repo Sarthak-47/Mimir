@@ -1,17 +1,4 @@
-import { useEffect, useState } from "react";
 import type { NavView } from "@/App";
-import { API_BASE } from "@/config";
-
-function useModelName(): string {
-  const [model, setModel] = useState("qwen2.5:14b"); // sensible default
-  useEffect(() => {
-    fetch(`${API_BASE}/health`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: { model?: string } | null) => { if (d?.model) setModel(d.model); })
-      .catch(() => { /* offline — keep default */ });
-  }, []);
-  return model;
-}
 
 const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string }> = {
   oracle:    { rune: "ᚦ", title: "The Oracle",    subtitle: "Speak your question into the well" },
@@ -30,7 +17,6 @@ interface TopbarProps {
 }
 
 export default function Topbar({ view, isConnected, activeSubjectName, username, onLogout }: TopbarProps) {
-  const MODEL_NAME = useModelName();
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -58,8 +44,6 @@ export default function Topbar({ view, isConnected, activeSubjectName, username,
             )}
           </div>
         )}
-
-        <div style={styles.modelBadge}>{MODEL_NAME}</div>
 
         <div style={styles.statusPill}>
           <span
@@ -141,15 +125,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "0 0 0 4px",
     lineHeight: 1,
     transition: "color 0.15s",
-  },
-  modelBadge: {
-    fontFamily: "var(--font-header)",
-    fontSize: 8,
-    letterSpacing: "0.1em",
-    color: "var(--text-dim)",
-    border: "1px solid var(--green-dark)",
-    background: "var(--stone-3)",
-    padding: "3px 7px",
   },
   statusPill: {
     display: "flex",

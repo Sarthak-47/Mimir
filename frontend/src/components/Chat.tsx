@@ -131,7 +131,7 @@ function FlashcardDeck({ cards }: { cards: { front: string; back: string }[] }) 
     <div style={styles.flashcard}>
       <div style={styles.flashcardHeader}>
         <span style={{ fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.15em", color: "var(--gold-dim)" }}>
-          🃏 RUNES — {idx + 1}/{cards.length}
+          ᚠ RUNES — {idx + 1}/{cards.length}
         </span>
       </div>
       <div
@@ -183,7 +183,7 @@ const styles: Record<string, React.CSSProperties> = {
   bubble:   { padding: "8px 12px" },
   mimirBubble: { background: "var(--stone-3)", border: "1px solid var(--green-dark)", borderLeft: "2px solid var(--green)" },
   userBubble:  { background: "var(--stone-4)", border: "1px solid var(--gold-dim)", borderRight: "2px solid var(--gold-dim)" },
-  sender:   { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-dim)", display: "flex", justifyContent: "space-between", marginBottom: 4 },
+  sender:   { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-secondary)", display: "flex", justifyContent: "space-between", marginBottom: 4 },
   time:     { fontFamily: "var(--font-body)", fontSize: 8, color: "var(--text-dim)", fontStyle: "italic", textTransform: "none" as const },
   content:  { fontFamily: "var(--font-body)", fontSize: 14, lineHeight: 1.6, color: "var(--text-primary)", whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const },
   quizResult: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "var(--stone-3)", border: "1px solid var(--gold-dim)" },
@@ -198,9 +198,9 @@ const styles: Record<string, React.CSSProperties> = {
   flashcardNav:    { display: "flex", gap: 4, marginTop: 6, justifyContent: "flex-end" },
   fcBtn:           { background: "var(--stone-4)", border: "1px solid var(--green-dark)", color: "var(--text-secondary)", fontFamily: "var(--font-header)", fontSize: 13, padding: "2px 10px", cursor: "pointer" },
   emptyState:      { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 32, textAlign: "center" as const },
-  emptyRune:       { fontFamily: "var(--font-header)", fontSize: 48, color: "var(--green-dark)", lineHeight: 1 },
-  emptyTitle:      { fontFamily: "var(--font-header)", fontSize: 13, fontWeight: 600, letterSpacing: "0.15em", color: "var(--text-dim)" },
-  emptySubtitle:   { fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-dim)", maxWidth: 280 },
+  emptyRune:       { fontFamily: "var(--font-header)", fontSize: 48, color: "var(--green-dim)", lineHeight: 1 },
+  emptyTitle:      { fontFamily: "var(--font-header)", fontSize: 13, fontWeight: 600, letterSpacing: "0.15em", color: "var(--text-secondary)" },
+  emptySubtitle:   { fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-secondary)", maxWidth: 280 },
   emptySuggestions:{ marginTop: 12, display: "flex", flexDirection: "column" as const, gap: 4, width: "100%", maxWidth: 320 },
-  suggestion:      { padding: "5px 12px", background: "var(--stone-2)", border: "1px solid var(--green-dark)", fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-secondary)" },
+  suggestion:      { padding: "5px 12px", background: "var(--stone-2)", border: "1px solid var(--green-dim)", fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-primary)" },
 };

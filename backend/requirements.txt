@@ -7,12 +7,14 @@ python-multipart==0.0.9
 # ── Auth ───────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1          # passlib 1.7.4 breaks with bcrypt>=4.1 (72-byte test vector)
 
 # ── LLM / Ollama ───────────────────────────────────────────
 ollama==0.2.1
 
 # ── Vector memory ──────────────────────────────────────────
 chromadb==0.5.0
+numpy<2.0            # chromadb 0.5.x uses np.float_ which was removed in NumPy 2.0
 
 # ── Structured DB ──────────────────────────────────────────
 sqlalchemy==2.0.30

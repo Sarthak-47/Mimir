@@ -237,8 +237,10 @@ export default function App() {
 
   // ── WebSocket streaming ────────────────────────────────
   const streamingId = useRef<string | null>(null);
+  const [isWaiting, setIsWaiting] = useState(false);
 
   const onToken = useCallback((token: string) => {
+    setIsWaiting(false);
     setMessages((prev) => {
       if (streamingId.current) {
         return prev.map((m) =>
@@ -252,7 +254,7 @@ export default function App() {
     });
   }, []);
 
-  const onDone = useCallback(() => { streamingId.current = null; }, []);
+  const onDone = useCallback(() => { setIsWaiting(false); streamingId.current = null; }, []);
 
   const onReviewReminder = useCallback((topics: string[], count: number) => {
     setReviewAlert({ topics, count });
@@ -281,6 +283,7 @@ export default function App() {
   // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string) => {
     if (!text.trim()) return;
+    setIsWaiting(true);
     setMessages((prev) => [...prev, {
       id:        `user-${Date.now()}`,
       role:      "user",
@@ -361,7 +364,7 @@ export default function App() {
 
         {view === "oracle" && (
           <>
-            <Chat messages={messages} onSuggestion={handleSend} username={username} />
+            <Chat messages={messages} onSuggestion={handleSend} username={username} isWaiting={isWaiting} />
             <InputZone
               onSend={handleSend}
               onTrial={handleTrial}

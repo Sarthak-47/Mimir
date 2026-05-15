@@ -12,6 +12,11 @@ import json
 import re
 from typing import AsyncGenerator
 
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+def _strip_think(text: str) -> str:
+    return _THINK_RE.sub("", text).lstrip()
+
 import ollama
 
 from config import settings
@@ -113,7 +118,7 @@ async def run_agent(
         messages=messages,
         options=_ollama_opts(),
     )
-    raw: str = first["message"]["content"]
+    raw: str = _strip_think(first["message"]["content"])
 
     # ── 4. Parse ACTION / ARGS ────────────────────────────────
     action_m = re.search(r"ACTION:\s*(\w+)", raw)

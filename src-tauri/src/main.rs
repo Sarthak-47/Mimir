@@ -14,17 +14,21 @@ const BUILTIN_BACKEND: &str = env!("MIMIR_BACKEND_PATH");
 struct Processes(Mutex<Vec<Child>>);
 
 // ── Backend discovery ─────────────────────────────────────────
-/// Returns the backend directory, trying (in order):
-///   1. MIMIR_BACKEND env var  (runtime override / portability)
-///   2. Path baked in at build time  (works for the build machine)
-///   3. Relative to the executable   (works during `cargo tauri dev`)
+
+/// In production: find the PyInstaller-bundled mimir-backend.exe
+/// that Tauri copied into the install directory as a resource.
+fn find_bundled_backend() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let candidate = exe_dir.join("mimir-backend").join("mimir-backend.exe");
+    if candidate.exists() { Some(candidate) } else { None }
+}
+
+/// In dev mode: find the Python backend source directory.
+/// Tries (in order): MIMIR_BACKEND env var → baked compile-time path → relative to exe.
 fn find_backend() -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = [
-        // Runtime override
         std::env::var("MIMIR_BACKEND").ok().map(PathBuf::from),
-        // Build-time baked path
         Some(PathBuf::from(BUILTIN_BACKEND)),
-        // Dev mode: exe lives at src-tauri/target/debug/mimir.exe
         std::env::current_exe().ok().and_then(|exe| {
             let p = exe.parent()?.parent()?.parent()?.parent()?.join("backend");
             Some(p)
@@ -64,8 +68,14 @@ fn spawn_hidden(cmd: &mut Command) -> Option<Child> {
 fn main() {
     let mut procs: Vec<Child> = Vec::new();
 
-    // 1. FastAPI backend (uvicorn) ─────────────────────────────
-    if let Some(backend_dir) = find_backend() {
+    // 1. FastAPI backend ───────────────────────────────────────
+    // Production: use the PyInstaller bundle copied in by Tauri.
+    // Dev mode: fall back to spawning Python directly.
+    if let Some(backend_exe) = find_bundled_backend() {
+        if let Some(child) = spawn_hidden(&mut Command::new(&backend_exe)) {
+            procs.push(child);
+        }
+    } else if let Some(backend_dir) = find_backend() {
         let python = find_python(&backend_dir);
         if let Some(child) = spawn_hidden(
             Command::new(&python)

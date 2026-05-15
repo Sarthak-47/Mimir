@@ -66,6 +66,17 @@ export default function App() {
       return stored ? new Date(stored) : null;
     } catch { return null; }
   });
+  const [modelName, setModelName]         = useState<string>("qwen2.5:14b");
+
+  // ── Fetch model name from health endpoint ─────────────────
+  useEffect(() => {
+    fetch(`${API}/health`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { model?: string } | null) => {
+        if (data?.model) setModelName(data.model);
+      })
+      .catch(() => { /* keep default */ });
+  }, []);
 
   // ── Auth handlers ──────────────────────────────────────
   const handleAuthenticated = useCallback((token: string, user: string) => {
@@ -280,6 +291,7 @@ export default function App() {
             subjects={subjects}
             activeSubject={activeSubject}
             authToken={authToken}
+            modelName={modelName}
           />
         )}
 

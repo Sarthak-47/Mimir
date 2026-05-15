@@ -5,6 +5,7 @@ POST /api/quiz/submit     — submit answers, update topic confidence
 GET  /api/quiz/history    — past quiz sessions
 """
 
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -59,7 +60,7 @@ async def generate_quiz(
     req: GenerateRequest,
     _: User = Depends(get_current_user),   # auth guard only
 ):
-    questions = tool_quiz(topic=req.topic, subject=req.subject, n=req.n)
+    questions = await asyncio.to_thread(tool_quiz, topic=req.topic, subject=req.subject, n=req.n)
     if not questions:
         raise HTTPException(status_code=500, detail="Failed to generate quiz questions")
     return questions

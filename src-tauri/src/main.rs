@@ -84,16 +84,7 @@ fn main() {
     // 2. Ollama ───────────────────────────────────────────────
     // `ollama serve` is idempotent — if it's already running it
     // exits immediately with an error, which we safely ignore.
-    //
-    // CUDA_VISIBLE_DEVICES="" forces CPU mode.
-    // Ollama 0.23.x ships CUDA 12.x runtime DLLs that crash on
-    // driver 596.xx (CUDA 13.2).  Once Ollama is updated this env
-    // var can be removed.
-    if let Some(child) = spawn_hidden(
-        Command::new("ollama")
-            .arg("serve")
-            .env("CUDA_VISIBLE_DEVICES", ""),
-    ) {
+    if let Some(child) = spawn_hidden(Command::new("ollama").arg("serve")) {
         procs.push(child);
     }
 

@@ -13,6 +13,41 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
 
+// ── Boot splash — shown while uvicorn is starting up ───────
+function BootSplash({ dots }: { dots: number }) {
+  const d = ".".repeat((dots % 3) + 1).padEnd(3, " ");
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: "var(--stone-0)",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      gap: 20,
+    }}>
+      {/* Eye-in-diamond mark */}
+      <svg width="64" height="64" viewBox="0 0 36 36" fill="none">
+        <path d="M18 2 L34 18 L18 34 L2 18 Z" stroke="#c9a84c" strokeWidth="1" fill="none" />
+        <line x1="18" y1="2"  x2="18" y2="6"  stroke="#c9a84c" strokeWidth="1" />
+        <line x1="34" y1="18" x2="30" y2="18" stroke="#c9a84c" strokeWidth="1" />
+        <line x1="18" y1="34" x2="18" y2="30" stroke="#c9a84c" strokeWidth="1" />
+        <line x1="2"  y1="18" x2="6"  y2="18" stroke="#c9a84c" strokeWidth="1" />
+        <path d="M10 18 Q18 11 26 18 Q18 25 10 18 Z" stroke="#c9a84c" strokeWidth="1" fill="none" />
+        <circle cx="18" cy="18" r="3.5" stroke="#c9a84c" strokeWidth="1" fill="none" />
+        <circle cx="18" cy="18" r="1.5" fill="#c9a84c" />
+      </svg>
+      <div style={{
+        fontFamily: "var(--font-header)",
+        fontSize: 11,
+        letterSpacing: "0.22em",
+        color: "var(--gold-dim)",
+        textTransform: "uppercase",
+      }}>
+        Awakening Mimir{d}
+      </div>
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────
 export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls";
 
@@ -52,6 +87,42 @@ function authHeaders(token: string): Record<string, string> {
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
+  // ── Backend readiness ─────────────────────────────────
+  // Uvicorn takes ~2-4 s to start. Poll /health before rendering the
+  // auth screen so the user never sees a "backend not running" error.
+  const [backendReady, setBackendReady] = useState(false);
+  const [bootDots,     setBootDots]     = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const tick = setInterval(() => setBootDots((d) => d + 1), 500);
+
+    const poll = async () => {
+      for (let i = 0; i < 40; i++) {         // up to 20 s
+        if (!alive) return;
+        try {
+          const ctrl = new AbortController();
+          const tid  = setTimeout(() => ctrl.abort(), 800);
+          const res  = await fetch(`${API}/health`, { signal: ctrl.signal });
+          clearTimeout(tid);
+          if (res.ok) {
+            if (alive) setBackendReady(true);
+            return;
+          }
+        } catch { /* not ready yet */ }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      // Timed out — show UI anyway; user will see error on submit if still down
+      if (alive) setBackendReady(true);
+    };
+
+    poll();
+    return () => {
+      alive = false;
+      clearInterval(tick);
+    };
+  }, []);
+
   // ── State ─────────────────────────────────────────────
   const stored = readStoredAuth();
   const [authToken, setAuthToken]         = useState<string | null>(stored?.token ?? null);
@@ -233,6 +304,11 @@ export default function App() {
     const subj = subjects.find((s) => s.id === activeSubject);
     handleSend(`Build a revision schedule for ${subj ? subj.name : "my subjects"}`);
   };
+
+  // ── Boot gate — wait for uvicorn ──────────────────────
+  if (!backendReady) {
+    return <BootSplash dots={bootDots} />;
+  }
 
   // ── Auth gate ──────────────────────────────────────────
   if (!authToken) {

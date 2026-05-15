@@ -60,10 +60,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow Tauri dev server + production WebView to connect
+# Allow Tauri dev server + production WebView to connect.
+# Tauri v2 on Windows uses http://tauri.localhost (WebView2);
+# Tauri v1 and macOS used tauri://localhost.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "tauri://localhost"],
+    allow_origins=[
+        "http://localhost:5173",   # Vite dev server
+        "tauri://localhost",       # Tauri v1 / macOS
+        "http://tauri.localhost",  # Tauri v2 Windows WebView2
+        "https://tauri.localhost", # Tauri v2 secure context
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -77,10 +77,10 @@ export default function InputZone({
 
   // ── Rune action buttons config ───────────────────────────
   const ACTIONS = [
-    { icon: "📤", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image", onClick: handleScrollClick, disabled: uploading },
-    { icon: "🛡",  label: "TRIAL",  title: "Quiz me on the active subject", onClick: onTrial,  disabled: false },
-    { icon: "🃏",  label: "RUNES",  title: "Generate flashcards",            onClick: onRunes,  disabled: false },
-    { icon: "📅",  label: "FATES",  title: "Build a revision schedule",      onClick: onFates,  disabled: false },
+    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image", onClick: handleScrollClick, disabled: uploading },
+    { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject", onClick: onTrial,  disabled: false },
+    { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",            onClick: onRunes,  disabled: false },
+    { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",      onClick: onFates,  disabled: false },
   ];
 
   return (
@@ -159,8 +159,8 @@ const styles: Record<string, React.CSSProperties> = {
   runeStrip: { display: "flex", alignItems: "center", gap: 4, marginBottom: 6 },
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "3px 7px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },
   runeBtnDisabled: { opacity: 0.5, cursor: "not-allowed" },
-  runeBtnIcon:  { fontSize: 13, lineHeight: 1 },
-  runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 7, letterSpacing: "0.1em", color: "var(--text-dim)", textTransform: "uppercase" as const },
+  runeBtnIcon:  { fontSize: 15, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green)" },
+  runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 7, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" as const },
   activeSubjectBadge: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "2px 8px", background: "var(--stone-3)", border: "1px solid var(--green-dark)" },
   diamond: { display: "inline-block", width: 5, height: 5, background: "var(--green-bright)", transform: "rotate(45deg)", flexShrink: 0 },
   activeSubjectText: { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" as const },

@@ -30,9 +30,10 @@ class Settings(BaseSettings):
 
     # ── Ollama ───────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3:8b"
+    ollama_model: str = "qwen3.5:9b"
     # GPU layers to offload. -1 = auto (let Ollama use full GPU).
-    # qwen3:8b (5.2 GB) fits entirely in 8 GB VRAM so no split needed.
+    # qwen3.5:9b (6.6 GB) fits entirely in 8 GB VRAM, leaving ~1.8 GB
+    # free for KV cache. Vision + tools + thinking built in.
     ollama_num_gpu: int = -1
     ollama_temperature: float = 0.7
     ollama_context_length: int = 8192

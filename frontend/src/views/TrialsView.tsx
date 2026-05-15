@@ -13,12 +13,11 @@ interface TrialsViewProps {
   subjects:      Subject[];
   activeSubject: string | null;
   authToken:     string;
-  modelName?:    string;
 }
 
 type Phase = "setup" | "loading" | "quiz" | "result" | "error";
 
-export default function TrialsView({ subjects, activeSubject, authToken, modelName = "qwen2.5:14b" }: TrialsViewProps) {
+export default function TrialsView({ subjects, activeSubject, authToken }: TrialsViewProps) {
   const [phase,     setPhase]     = useState<Phase>("setup");
   const [subjectId, setSubjectId] = useState<string>(activeSubject ?? subjects[0]?.id ?? "");
   const [topic,     setTopic]     = useState<string>("");
@@ -192,7 +191,7 @@ export default function TrialsView({ subjects, activeSubject, authToken, modelNa
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder={subjectName ? `e.g. "Gradient Descent"` : `e.g. "Binary Search Trees"`}
+            placeholder=""
           />
         </div>
 
@@ -217,9 +216,6 @@ export default function TrialsView({ subjects, activeSubject, authToken, modelNa
         <button style={styles.primaryBtn} onClick={handleBegin}>
           Enter the Trial — ᛏ
         </button>
-        <div style={styles.hint}>
-          Requires Ollama running with <em>{modelName}</em> loaded.
-        </div>
       </div>
     </div>
   );
@@ -331,14 +327,6 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase" as const,
     cursor: "pointer",
     transition: "all 0.15s",
-  },
-  hint: {
-    fontFamily: "var(--font-body)",
-    fontSize: 9,
-    fontStyle: "italic",
-    color: "var(--text-dim)",
-    textAlign: "center" as const,
-    marginTop: 6,
   },
   loading: {
     display: "flex",

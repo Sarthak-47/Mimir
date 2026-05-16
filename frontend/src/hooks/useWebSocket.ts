@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 import { WS_CHAT as WS_BASE_URL } from "@/config";
-const RECONNECT_DELAY_MS = 2000;
-const MAX_RECONNECT_DELAY_MS = 15000;
+const RECONNECT_DELAY_MS = 1500;
+const MAX_RECONNECT_DELAY_MS = 4000;
 
 // ── Types ───────────────────────────────────────────────────
 export interface WsMessage {
@@ -24,6 +24,7 @@ interface UseWebSocketOptions {
 interface UseWebSocketReturn {
   sendMessage: (text: string, subjectId?: number, mode?: string) => void;
   isConnected: boolean;
+  isConnecting: boolean;
 }
 
 /**
@@ -66,6 +67,9 @@ export function useWebSocket({
   useEffect(() => { onReviewReminderRef.current = onReviewReminder; }, [onReviewReminder]);
 
   const [isConnected, setIsConnected] = useState(false);
+  // True until the socket has connected at least once (startup grace period).
+  const [isConnecting, setIsConnecting] = useState(true);
+  const everConnected = useRef(false);
 
   const connect = useCallback((token?: string | null) => {
     if (wsRef.current) wsRef.current.close();
@@ -76,6 +80,8 @@ export function useWebSocket({
 
     ws.onopen = () => {
       setIsConnected(true);
+      setIsConnecting(false);
+      everConnected.current = true;
       reconnectCount.current = 0;
       console.log("[Mimir WS] Connected");
     };
@@ -109,9 +115,20 @@ export function useWebSocket({
 
     ws.onerror = () => console.warn("[Mimir WS] Connection error");
 
-    ws.onclose = () => {
+    ws.onclose = (event: CloseEvent) => {
       setIsConnected(false);
-      console.log("[Mimir WS] Disconnected");
+      // Stay in "connecting" state if we haven't successfully connected yet
+      if (!everConnected.current) setIsConnecting(true);
+      console.log("[Mimir WS] Disconnected, code:", event.code);
+
+      // 4001 = auth rejected by backend — token invalid or user not found.
+      // Retrying is pointless; clear storage and reload to show login screen.
+      if (event.code === 4001) {
+        console.warn("[Mimir WS] Auth rejected (4001) — clearing session");
+        localStorage.clear();
+        window.location.reload();
+        return;
+      }
 
       reconnectCount.current += 1;
       const delay = Math.min(RECONNECT_DELAY_MS * reconnectCount.current, MAX_RECONNECT_DELAY_MS);
@@ -140,5 +157,5 @@ export function useWebSocket({
     }
   }, []);
 
-  return { sendMessage, isConnected };
+  return { sendMessage, isConnected, isConnecting };
 }

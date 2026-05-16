@@ -10,19 +10,23 @@
 2. [First Launch — Boot Splash](#2-first-launch--boot-splash)
 3. [Authentication — Login & Register](#3-authentication--login--register)
 4. [Main Layout — The Three Columns](#4-main-layout--the-three-columns)
-5. [Sidebar (Left Column)](#5-sidebar-left-column)
-6. [Topbar](#6-topbar)
-7. [The Oracle — Chat View](#7-the-oracle--chat-view)
-8. [Trials — Quiz Runner](#8-trials--quiz-runner)
-9. [The Reckoning — Progress Dashboard](#9-the-reckoning--progress-dashboard)
-10. [Chronicle — Conversation History](#10-chronicle--conversation-history)
-11. [Scrolls — File Library](#11-scrolls--file-library)
-12. [Right Panel](#12-right-panel)
-13. [Response Modes — Deep vs Swift](#13-response-modes--deep-vs-swift)
-14. [Keyboard Shortcuts](#14-keyboard-shortcuts)
-15. [How the AI Works](#15-how-the-ai-works)
-16. [Data & Privacy](#16-data--privacy)
-17. [Troubleshooting](#17-troubleshooting)
+5. [Disciplines — The Core Organiser](#5-disciplines--the-core-organiser)
+6. [Sidebar (Left Column)](#6-sidebar-left-column)
+7. [Topbar](#7-topbar)
+8. [Review Reminder Banner](#8-review-reminder-banner)
+9. [The Oracle — Chat View](#9-the-oracle--chat-view)
+10. [Trials — Quiz Runner](#10-trials--quiz-runner)
+11. [The Reckoning — Progress Dashboard](#11-the-reckoning--progress-dashboard)
+12. [Chronicle — Conversation History](#12-chronicle--conversation-history)
+13. [Scrolls — File Library](#13-scrolls--file-library)
+14. [Right Panel](#14-right-panel)
+15. [Response Modes — Deep vs Swift](#15-response-modes--deep-vs-swift)
+16. [Topics & Spaced Repetition](#16-topics--spaced-repetition)
+17. [Background Scheduler](#17-background-scheduler)
+18. [Keyboard Shortcuts](#18-keyboard-shortcuts)
+19. [How the AI Works](#19-how-the-ai-works)
+20. [Data & Privacy](#20-data--privacy)
+21. [Troubleshooting](#21-troubleshooting)
 
 ---
 
@@ -33,38 +37,40 @@
 | Requirement | Where to get it |
 |-------------|----------------|
 | **Ollama** (runs the local AI) | [ollama.com/download](https://ollama.com/download) |
-| **qwen3.5:9b model** (~6 GB download) | `ollama pull qwen3.5:9b` in a terminal |
+| **qwen3.5:9b model** (~6 GB download) | `ollama pull qwen3.5:9b` in any terminal |
 | **Windows x64** | Only platform supported currently |
 
-> **Pull the model first.** Run `ollama pull qwen3.5:9b` in any terminal and wait for it to finish before opening Mimir. This is a one-time download.
+> **Pull the model first.** Run `ollama pull qwen3.5:9b` in any terminal and wait for it to finish before opening Mimir. This is a one-time 6 GB download. Mimir will not respond to messages if the model is missing.
 
 ### Installing Mimir
 
 1. Download `Mimir_x.x.x_x64-setup.exe` from the [Releases page](https://github.com/Sarthak-47/Mimir/releases).
-2. Run the installer. Windows may show a SmartScreen warning — click **More info → Run anyway** (the app is unsigned).
-3. The installer places Mimir in `%LocalAppData%\Mimir\` and creates a Start Menu shortcut.
-4. Launch Mimir from the Start Menu or the desktop shortcut.
+2. Run the installer. Windows SmartScreen may warn you — click **More info → Run anyway** (the app is not code-signed).
+3. The installer places everything in `%LocalAppData%\Mimir\` and creates a Start Menu shortcut.
+4. Launch Mimir from the Start Menu or desktop shortcut.
 
 ### Uninstalling
 
 Run `%LocalAppData%\Mimir\uninstall.exe` or use **Add/Remove Programs** → search "Mimir".
 
-Your conversation data lives in `%LocalAppData%\Mimir\data\` — the uninstaller does **not** delete this folder, so your history is preserved if you reinstall.
+Your conversation data in `%LocalAppData%\Mimir\data\` is **not deleted** by the uninstaller — your history, topics, and quiz scores are preserved if you reinstall.
 
 ---
 
 ## 2. First Launch — Boot Splash
 
-When Mimir opens, a full-screen **boot splash** appears:
+When Mimir opens for the first time, the Python backend needs a few seconds to unpack and start. You will see a full-screen boot splash:
 
 ```
-      ◇ (eye-in-diamond logo)
-   Awakening Mimir...
+         ◇  (eye-in-diamond logo, animated)
+    Awakening Mimir...
 ```
 
-The app's Python backend (FastAPI + Ollama) takes a few seconds to start. The splash polls `/health` every 500 ms for up to 20 seconds. The ellipsis animates to show it is working. Once the backend responds, the splash disappears and the login screen appears.
+The ellipsis cycles (`...` → `. ` → `.. ` → `...`) every 500 ms while the app polls the backend `/health` endpoint. Once the backend responds, the splash disappears and the login screen appears automatically.
 
-> **If the splash never goes away:** Ollama is not running. Open a terminal and run `ollama serve`, then restart Mimir.
+**On first ever launch specifically:** the app also extracts a ~71 MB zip archive (`backend-internal.zip`) into the install directory. This happens silently in the background and may add 10–20 seconds to the very first startup. Subsequent launches are faster.
+
+> **If the splash never goes away (>20 seconds):** Ollama is not running. Open any terminal and run `ollama serve`, then restart Mimir. After 20 seconds the splash gives up and shows the auth screen anyway — but Mimir will not be able to answer questions until Ollama is running.
 
 ---
 
@@ -72,636 +78,1052 @@ The app's Python backend (FastAPI + Ollama) takes a few seconds to start. The sp
 
 ### The login card
 
-The card shows the **eye-in-diamond logo**, the name **MIMIR**, and the tagline *"The Well of Knowledge"*.
+The card shows:
+- **Eye-in-diamond SVG logo** (left)
+- **MIMIR** in large gold letters
+- *"The Well of Knowledge"* subtitle in small italic
 
-Two tabs at the top switch between modes:
+A gold engraving line separates the logo from the form.
 
-| Tab | What it does |
-|-----|-------------|
-| **Drink from the Well** | Log in to an existing account |
-| **Engrave your Name** | Create a new account |
+### Mode tabs
 
-Both modes ask for the same two fields:
+Two tabs at the top of the card:
 
-- **NAME OF THE SEEKER** — your username
-- **PASSPHRASE** — your password
+| Tab | Action |
+|-----|--------|
+| **Drink from the Well** | Log in with an existing account |
+| **Engrave your Name** | Register a new account |
 
-The main button changes label based on mode:
-- Login mode → **"Enter the Well"**
-- Register mode → **"Forge your Path"**
+The active tab has a brighter border and a green underline. Switching tabs clears any error message.
+
+### Form fields
+
+Both modes use the same two fields:
+
+- **NAME OF THE SEEKER** — your username (text input, auto-focused on load)
+- **PASSPHRASE** — your password (password input, masked)
+
+### Buttons
+
+| Button label | Mode | What it does |
+|-------------|------|-------------|
+| **Enter the Well** | Login | Submits credentials via OAuth2 form-encoded POST |
+| **Forge your Path** | Register | Submits username + password as JSON, then logs you in |
+| **Consulting the runes…** | Either (loading) | Shown while the request is in flight; button is disabled |
+
+### Error messages
+
+If login fails (wrong credentials) or registration fails (username taken), a red error box appears below the fields with the server's message.
+
+### Footer
+
+Below the second engraving line: *"All knowledge is stored locally. Nothing leaves your machine."*
 
 ### After authenticating
 
-Your **JWT token** and **username** are saved to `localStorage`. On subsequent launches you go straight to the main interface — no need to log in again until you manually log out or the token expires (7 days).
+Your **JWT token** and **username** are saved to `localStorage`. On subsequent launches you go straight to the main interface — the login screen is skipped until you log out or the token expires (7 days by default).
 
-### Notes
-
-- Passwords are hashed with bcrypt on the backend — they are never stored in plain text.
-- All data is local. Nothing is sent to any server outside your machine.
-- If you are on a fresh install, you must **register** — there is no default account.
+**Notes:**
+- Passwords are hashed with bcrypt — never stored in plain text.
+- Accounts are local to your machine; there is no cloud sync.
+- On a fresh install you must **register** first — there is no default account.
 
 ---
 
 ## 4. Main Layout — The Three Columns
 
-After logging in, the app shows three columns side by side:
+After logging in, the app displays three fixed columns:
 
 ```
-┌──────────┬───────────────────────────────┬──────────┐
-│          │  Topbar                        │          │
-│          ├───────────────────────────────┤          │
-│ Sidebar  │  Main view content             │  Right   │
-│  (left)  │  (Oracle / Trials / etc.)      │  Panel   │
-│          │                               │          │
-│          ├───────────────────────────────┤          │
-│          │  Input Zone (Oracle only)      │          │
-└──────────┴───────────────────────────────┴──────────┘
+┌─────────────────┬──────────────────────────────────────┬──────────────┐
+│                 │  Topbar                               │              │
+│                 ├──────────────────────────────────────┤              │
+│   Sidebar       │  [Review Reminder Banner — if any]   │  Right       │
+│   (left)        ├──────────────────────────────────────┤  Panel       │
+│                 │                                      │              │
+│  • Logo         │   Main view content                  │  • Stats     │
+│  • Navigation   │   (Oracle / Trials / Reckoning /     │  • Weaknesses│
+│  • Disciplines  │    Chronicle / Scrolls)              │  • Countdown │
+│  • Exam date    │                                      │              │
+│  • Profile      ├──────────────────────────────────────┤              │
+│                 │  Input Zone  (Oracle view only)       │              │
+└─────────────────┴──────────────────────────────────────┴──────────────┘
 ```
 
-The sidebar and right panel are always visible. The centre column shows whichever view you have selected.
+- The **Sidebar** and **Right Panel** are always visible regardless of which view is active.
+- The **Topbar** and optional **Review Reminder Banner** span the top of the centre column.
+- The **Input Zone** only appears in the Oracle view.
+- The centre column scrolls independently; the outer columns do not scroll.
 
 ---
 
-## 5. Sidebar (Left Column)
+## 5. Disciplines — The Core Organiser
+
+**Disciplines** (also called subjects) are the most important concept in Mimir. They are study subjects you create — e.g. *"Machine Learning"*, *"Organic Chemistry"*, *"Data Structures"* — and they act as a lens that focuses the entire app on what you are currently studying.
+
+### How disciplines flow through the whole app
+
+Selecting a discipline (clicking it in the sidebar) sets it as the **active subject**. This one action affects every other part of the app:
+
+| Where | What changes |
+|-------|-------------|
+| **Topbar breadcrumb** | Changes from `THE ORACLE` to `THE ORACLE · Machine Learning` |
+| **Input zone badge** | A coloured diamond + subject name appears on the right of the button strip |
+| **Every chat message** | The active subject's ID is attached to every message you send — Mimir uses it to tailor explanations and quizzes to that subject |
+| **TRIAL button** | Sends *"Quiz me on Machine Learning"* instead of a generic prompt |
+| **RUNES button** | Sends *"Generate flashcards for Machine Learning"* |
+| **FATES button** | Sends *"Build a revision schedule for Machine Learning"* |
+| **Trials view — discipline dropdown** | Pre-selects the active discipline in the quiz setup form |
+| **Scrolls view — upload selector** | The active discipline is suggested for new file uploads |
+| **Reckoning — mastery filter** | You can filter the topic list to show only topics under the active discipline |
+| **Right panel — active discipline chip** | Shows a coloured diamond + subject name at the bottom of the right panel |
+| **Conversation history (SQLite)** | Each message is tagged with the subject ID so history can be filtered per discipline in future |
+
+### Creating a discipline
+
+1. In the sidebar under **Disciplines**, click **"+ engrave new discipline"**.
+2. A text input appears inline — type the discipline name.
+3. Press **Enter** to save. The discipline is immediately sent to the backend API and appears in the list with an auto-assigned colour.
+4. Press **Escape** or click away to cancel without saving.
+
+### Selecting / switching disciplines
+
+Click any discipline name. The active one gets a bright green left border. You can only have one active discipline at a time.
+
+To **clear** the active discipline, click it again — the green border disappears and all the context above resets (messages go back to being subject-agnostic).
+
+### Discipline colours
+
+Colours are assigned automatically in a cycling sequence:
+1. `#6ab87a` — forest green
+2. `#c9a84c` — gold
+3. `#7aaa84` — light green
+4. `#e8c96a` — bright gold
+5. `#4a8a5a` — dark green
+
+After 5 disciplines the cycle repeats from the beginning.
+
+### Deleting a discipline
+
+Hover over any discipline row — a **×** button appears on the far right. Click it to:
+- Remove the discipline from the sidebar immediately.
+- Send a DELETE request to the backend (removes the discipline and its associated topic scores from SQLite).
+- If the deleted discipline was active, the active subject is cleared.
+
+> **Note:** Deleting a discipline does **not** delete conversation history that was tagged with it — those messages remain in the Chronicle.
+
+### Disciplines vs Topics
+
+These are two different things:
+
+| Concept | What it is | Who creates it |
+|---------|-----------|---------------|
+| **Discipline** | A broad study subject (e.g. "Machine Learning") | You, manually in the sidebar |
+| **Topic** | A specific area within a discipline (e.g. "neural networks", "backpropagation") | Created automatically when you submit a Trials quiz |
+
+Disciplines organise your work. Topics are what Mimir tracks for spaced repetition. You can have many topics under one discipline.
+
+---
+
+## 6. Sidebar (Left Column)
 
 ### Logo strip
 
-At the top of the sidebar: the **eye-in-diamond SVG logo**, the word **MIMIR** in large gold letters, and the subtitle *"Drink from the well of knowledge"* in small italic text below.
+At the top: the **eye-in-diamond SVG logo**, the word **MIMIR** in large gold Cinzel font, and the tagline *"Drink from the well of knowledge"* in small italic Crimson Text. This is purely decorative.
 
 ---
 
 ### Navigation — Paths
 
-Five navigation buttons, each with a rune icon and a label:
+Five navigation buttons arranged vertically, each with an Elder Futhark rune and a label:
 
-| Rune | Label | What it opens |
-|------|-------|---------------|
-| **ᚦ** | The Oracle | Main chat interface |
-| **ᛏ** | Trials | Standalone quiz runner |
-| **ᚢ** | The Reckoning | Progress & stats dashboard |
+| Rune | Label | View |
+|------|-------|------|
+| **ᚦ** | The Oracle | Chat with Mimir |
+| **ᛏ** | Trials | Run a standalone quiz |
+| **ᚢ** | The Reckoning | Progress dashboard |
 | **ᛊ** | Chronicle | Full conversation history |
 | **ᚱ** | Scrolls | Uploaded file library |
 
-The active view is highlighted with a bright green left border. Clicking any button switches the centre column instantly.
+The active button has:
+- A bright green left border
+- Brighter rune colour
+- Brighter label text
+
+Clicking any button switches the centre column instantly with no loading state.
 
 ---
 
-### Disciplines
+### Disciplines section
 
-Below the navigation is the **Disciplines** section — your study subjects.
+The section heading **"Disciplines"** (uppercase, dim gold) labels the list below it.
 
-**Adding a discipline:**
-Click **"+ engrave new discipline"** at the bottom of the list. A text input appears inline — type the name and press **Enter**. The discipline is saved to the backend and appears immediately with a coloured diamond icon.
+**Discipline list:** Each discipline shows a small coloured diamond (rotated square) followed by the discipline name in body font. Active discipline has a green left border and brighter text.
 
-**Selecting a discipline:**
-Click any discipline name to make it the **active subject**. A bright green left border marks it as active. The active subject:
-- Appears as a badge in the input zone
-- Is sent with every chat message so Mimir tailors responses to that subject
-- Pre-selects the subject in the Trials quiz setup form
-- Is used by TRIAL / RUNES / FATES quick actions
+**Hover interaction:** Hovering any discipline row reveals the **×** delete button on the right.
 
-**Deselecting a discipline:**
-Click the active discipline again to deselect it (or select a different one).
+**"+ engrave new discipline" button:** At the bottom of the list. Italic, dim, full-width button that opens the inline add form.
 
-**Deleting a discipline:**
-Hover over any discipline — a small **×** button appears on the right. Clicking it removes the discipline and its topics from the backend.
-
-Subject colours cycle through: green, gold, light green, bright gold, and dark green.
+**Add form:** A full-width text input that appears below the list. Auto-focused. Press Enter to save, Escape or click elsewhere to cancel.
 
 ---
 
 ### Ragnarök — Exam Date
 
-Below the disciplines is the **Ragnarök** section (your exam deadline).
+Below the disciplines, a section with:
+
+- **"Ragnarök"** label on the left (uppercase, gold)
+- **Date value or "set date"** on the right (italic, clickable)
 
 **Setting the date:**
-Click on **"set date"** (or the existing date if one is set). A date input appears. Pick your exam date and click away — it saves automatically to both `localStorage` and your user profile on the backend.
+Click "set date" (or the existing date). A native date input (`<input type="date">`) appears. Pick your exam date — it saves the moment you select a date and click away. The value is stored in:
+1. `localStorage` (instant, for offline access)
+2. Your user profile on the backend via `PATCH /api/users/exam-date` (best-effort, synced on login)
 
-**What it affects:**
-- A **countdown** in the right panel shows how many days remain.
-- A progress bar fills red as the exam approaches.
+**What the exam date powers:**
+- The **days-until countdown** in the right panel
+- The **fill bar** that turns red when ≤7 days remain
 
 **Clearing the date:**
-In the right panel, a small *"clear date"* link appears below the countdown when a date is set.
+Click **"clear date"** in the right panel (below the countdown). This removes the date from `localStorage` and sends `null` to the backend.
 
 ---
 
 ### User Profile Strip
 
-At the very bottom of the sidebar:
+Fixed at the bottom of the sidebar:
 
-- A square **avatar** showing the first letter of your username (in gold).
-- Your **username** in small caps.
-- The label *"Seeker of wisdom"* in italic below it.
+- Gold engraving line above it
+- Square **avatar** (first letter of username, uppercase, in gold on stone background)
+- **Username** in small caps
+- *"Seeker of wisdom"* label in italic below
 
-This strip is decorative — it does not have any interactive buttons (logout is in the Topbar).
+This is decorative — no interactive actions here. Logout is in the Topbar.
 
 ---
 
-## 6. Topbar
+## 7. Topbar
 
-The thin bar at the top of the centre column contains:
+The bar at the top of the centre column. Always visible.
 
-### Left side — Breadcrumb + subtitle
+### Left side — breadcrumb + subtitle
 
-- **Breadcrumb** (small, uppercase, dim): the current view name, e.g. `THE ORACLE` — or with an active subject: `THE ORACLE · Machine Learning`.
-- **Subtitle** (larger, bold): the view's tagline, e.g. *"Speak your question into the well"*.
+**Breadcrumb** (small, uppercase, dim):
+- Without an active discipline: `THE ORACLE`
+- With an active discipline: `THE ORACLE · Machine Learning`
+- Changes per view: `TRIALS`, `THE RECKONING`, `CHRONICLE`, `SCROLLS`
 
-### Right side — User badge + status pill
+**Subtitle** (larger, bold, primary colour):
+
+| View | Subtitle |
+|------|---------|
+| The Oracle | *"Speak your question into the well"* |
+| Trials | *"Test your knowledge. Face the trial."* |
+| The Reckoning | *"Behold your progress, warrior"* |
+| Chronicle | *"Records of past sessions"* |
+| Scrolls | *"Your uploaded knowledge"* |
+
+A thin gold engraving gradient runs along the very bottom edge of the topbar.
+
+### Right side — user badge + status pill
 
 **User badge:**
-Shows your username in a bordered chip. Next to it, the **logout rune button** (ᛚ — "Leave the Well"). Clicking it:
-- Clears your token from `localStorage`
-- Returns you to the login screen
-- Clears all in-memory messages and subjects
+A bordered chip showing your username in small uppercase letters. To its right, the **logout rune button**:
 
-**Status pill:**
-A coloured dot + text showing the WebSocket connection state:
+| Element | Detail |
+|---------|--------|
+| Rune | **ᛚ** |
+| Tooltip | *"Leave the Well"* |
+| Action | Clears token + username from `localStorage`, resets all app state, returns to the login screen |
+
+**WebSocket status pill:**
+A small bordered chip with a coloured dot and text label:
 
 | Dot colour | Text | Meaning |
 |------------|------|---------|
-| 🟢 Green | **awake** | Connected — you can send messages |
-| 🟡 Gold | **summoning…** | Connecting on startup (normal, wait a few seconds) |
-| 🔴 Red | **offline** | Connection lost — Mimir will retry automatically |
+| 🟢 Bright green (glowing) | **awake** | WebSocket connected — Mimir can respond |
+| 🟡 Gold (dim) | **summoning…** | Connecting at startup — wait a few seconds |
+| 🔴 Dark red | **offline** | Disconnected — auto-retry is running |
 
-The connection retries automatically with exponential backoff. If it stays red for more than ~30 seconds, check that Ollama is running.
+The dot transitions smoothly between states. When offline, the hook retries automatically with backoff (1.5 s → 3 s → 4 s cap). If you stay offline for more than ~12 retries without ever connecting, it assumes a stale token and returns to the login screen.
 
 ---
 
-## 7. The Oracle — Chat View
+## 8. Review Reminder Banner
 
-The Oracle is the main interface — a conversational chat with your local AI tutor.
+A gold banner that appears **below the Topbar and above the main view** when the background scheduler detects overdue topics. It is not shown by default — only when Mimir has topics due for review.
 
-### Empty state
+### What it looks like
 
-When no messages exist yet, the centre shows:
+```
+ᚾ   3 topics overdue for review — backpropagation, calculus, B+ Trees     [×]
+```
 
-- The rune **ᚦ** in large green text
-- **"The Oracle Awaits"**
-- *"Ask Mimir anything — concepts, quizzes, summaries, or what to study next."*
-- Four **suggestion chips** you can click to start with a pre-filled question:
-  - *"Explain cross-entropy loss"*
-  - *"Quiz me on B+ Trees"*
-  - *"What should I study today?"*
-  - *"Summarize my uploaded notes"*
+- **ᚾ rune** on the left (gold)
+- Topic count + up to 3 topic names listed inline
+- **×** dismiss button on the far right
 
-Clicking a chip sends that message immediately.
+### When it appears
+
+The backend runs an **hourly check** (see [Background Scheduler](#17-background-scheduler)). If any of your topics have a `next_review` timestamp in the past and you are currently connected via WebSocket, the server pushes a `review_reminder` message through the WebSocket. The frontend shows the banner immediately.
+
+### Dismissing the banner
+
+Click the **×** button. The banner hides for the current session. It will reappear after the next hourly check if the topics are still overdue.
+
+The banner does not automatically navigate you anywhere — it is a reminder only. Go to **Trials** to review the listed topics and clear their overdue status.
+
+---
+
+## 9. The Oracle — Chat View
+
+The main interface. A live streaming conversation with your local AI tutor.
+
+### Empty state (no messages yet)
+
+When you have not sent any messages yet, the chat area shows:
+
+- Large **ᚦ** rune in green
+- **"The Oracle Awaits"** heading
+- *"Ask Mimir anything — concepts, quizzes, summaries, or what to study next."* subtext
+- Four **suggestion chips** — clickable prompts to get started:
+
+| Chip | What it sends |
+|------|--------------|
+| *"Explain cross-entropy loss"* | A concept explanation request |
+| *"Quiz me on B+ Trees"* | Triggers the quiz tool |
+| *"What should I study today?"* | Triggers the weak_topics tool |
+| *"Summarize my uploaded notes"* | Triggers summarization of indexed files |
+
+Clicking any chip sends that text immediately as your message.
 
 ---
 
 ### Message bubbles
 
-**Your messages** appear on the right with a gold right border. Your avatar initial appears to the far right.
+Every message appears as a **bubble** in the chat scroll area.
 
-**Mimir's messages** appear on the left with a green left border. A square **M** avatar appears to the far left.
+**Your messages (right-aligned):**
+- Gold right border (`2px solid var(--gold-dim)`)
+- Stone-4 background
+- Your username initial in a small square avatar on the far right
+- Sender label: **YOU** (uppercase, dim)
+- Timestamp (HH:MM) aligned to the right of the sender label
 
-Each bubble shows:
-- Sender label (**YOU** or **MIMIR**) + timestamp (HH:MM) on the same line
-- Message content below
+**Mimir's messages (left-aligned):**
+- Green left border (`2px solid var(--green)`)
+- Stone-3 background
+- Square **M** avatar on the far left
+- Sender label: **MIMIR** (uppercase, dim)
+- Timestamp aligned to the right of the sender label
 
-**Mimir's responses support:**
-- `**bold text**` → rendered in gold
-- `$inline math$` → rendered with KaTeX
-- `$$display math$$` → rendered as a centred block
-- Plain text with line breaks preserved
+**Mimir's message content renders:**
+
+| Syntax | Rendered as |
+|--------|------------|
+| `**bold text**` | Gold-coloured bold span |
+| `$x^2 + y^2$` | Inline KaTeX formula |
+| `$$\sum_{i=0}^{n} x_i$$` | Centred display KaTeX block |
+| Plain text | Preserved with line breaks (`white-space: pre-wrap`) |
 
 ---
 
 ### Thinking indicator
 
-While waiting for Mimir's first token to arrive, an animated bubble appears on the left with cycling Norse phrases:
+Shown while waiting for Mimir's first streaming token. A left-aligned bubble with a **M** avatar cycles through Norse-flavoured phrases (one every 2.8 s, with a fade transition):
 
-- *"Consulting the Well of Urd…"*
-- *"Mimir drinks deep…"*
-- *"The runes stir in the dark…"*
-- *"Seeking wisdom beneath Yggdrasil…"*
-- *"The waters of knowledge churn…"*
-- *"The Norns weave their answer…"*
-- *"Listening to the world tree…"*
-- *"Drawing from the Well's depths…"*
+1. *"Consulting the Well of Urd…"*
+2. *"Mimir drinks deep…"*
+3. *"The runes stir in the dark…"*
+4. *"Seeking wisdom beneath Yggdrasil…"*
+5. *"The waters of knowledge churn…"*
+6. *"The Norns weave their answer…"*
+7. *"Listening to the world tree…"*
+8. *"Drawing from the Well's depths…"*
 
-Phrases cycle every 2.8 seconds with a fade transition.
-
----
-
-### Inline quiz cards
-
-When you ask Mimir to quiz you (or click **TRIAL**), a quiz card appears **inside the chat** immediately after the response bubble. It renders as a bordered card containing:
-
-- A header: **ᛏ TRIALS — Question X of N**
-- The question text
-- Four answer options (A / B / C / D) as clickable buttons
-
-**Selecting an answer:**
-Click any option. All options lock immediately and colour-code:
-- ✅ Correct answer → green border + green text
-- ❌ Your wrong pick → red border + red text
-- All others dim
-
-An **explanation** appears below the options (if the model provided one).
-
-A **"Next →"** button in the bottom-right advances to the next question.
-
-**After the last question**, the quiz card is replaced by a score summary:
-- **ᛏ** rune + your score (e.g. `7/10 — 70%`)
-- A verdict:
-  - ≥80% → *"Outstanding! You know this well."*
-  - ≥60% → *"Good effort — keep practising."*
-  - ≥40% → *"Needs more work. Review soon."*
-  - <40% → *"Critical weakness. Review in 4 hours."*
-
-> Inline quiz scores are **not** saved to the backend. Only quizzes started from the **Trials** view update your spaced repetition scores.
+The indicator disappears the moment the first token arrives and text starts streaming in.
 
 ---
 
-### Inline flashcard decks
+### Inline quiz (embedded in chat)
 
-When you ask for flashcards (or click **RUNES**), a flashcard deck appears in the chat below the response:
+When Mimir's response includes quiz questions (triggered by asking Mimir to quiz you, or clicking the **TRIAL** button), an interactive quiz card appears **inside the chat, directly below the response bubble**.
 
-- Header: **ᚠ RUNES — 1/N** (card position)
-- A clickable card body showing the **question** (front)
-- Click the card to **flip** it — reveals the **answer** (back)
-- Hint text: *"Question — click to reveal"* / *"Answer"*
-- **‹** and **›** navigation arrows in the bottom right to move between cards
+**Quiz card structure:**
 
-Flipping resets when you navigate to a new card.
+```
+┌─────────────────────────────────────────────┐
+│  ᛏ TRIALS — Question 2 of 5                 │
+│─────────────────────────────────────────────│
+│  What is the time complexity of binary       │
+│  search on a sorted array?                   │
+│                                             │
+│  [A]  O(n)         [B]  O(log n)  ← correct │
+│  [C]  O(n log n)   [D]  O(1)                │
+│                                             │
+│  Binary search halves the search space       │
+│  each step, giving O(log n).                 │
+│                                    [Next →]  │
+└─────────────────────────────────────────────┘
+```
+
+**Interactions:**
+- Click any option → all options lock; correct answer turns green, your wrong pick turns red, others dim
+- Explanation text appears below the options (if generated by the model)
+- **"Next →"** button (bottom right) — advances to next question
+- After the last question → replaced by a score summary card
+
+**Score summary card:**
+
+```
+ᛏ   7/10 — 70%
+    Good effort — keep practising.
+```
+
+Verdicts:
+- ≥ 80% → *"Outstanding! You know this well."*
+- ≥ 60% → *"Good effort — keep practising."*
+- ≥ 40% → *"Needs more work. Review soon."*
+- < 40% → *"Critical weakness. Review in 4 hours."*
+
+> **Important:** Inline quiz scores are **not** saved to the database. They do not update your topic confidence or schedule. Only quizzes run from the **Trials** view are persisted.
+
+---
+
+### Inline flashcard deck (embedded in chat)
+
+When Mimir generates flashcards (triggered by asking for flashcards or clicking **RUNES**), a flip-card deck appears below the response bubble.
+
+```
+┌─────────────────────────────────────────────┐
+│  ᚠ RUNES — 3/8                              │
+│─────────────────────────────────────────────│
+│                                             │
+│   What is gradient descent?                  │
+│                                             │
+│   Question — click to reveal                 │
+│                                  [‹]  [›]   │
+└─────────────────────────────────────────────┘
+```
+
+**Interactions:**
+- **Click the card body** → flips to the answer (back face). The hint changes to *"Answer"*. Click again to flip back.
+- **‹ button** — previous card (disabled on first card)
+- **› button** — next card (disabled on last card)
+- Navigating to a new card always resets to the front (question) face
+
+The header shows current position: **ᚠ RUNES — 3/8**.
 
 ---
 
 ### Input zone
 
-The bottom strip of the Oracle view. Contains:
+The bottom strip of the Oracle view. Always visible within the Oracle.
 
-#### Quick-action rune buttons (top row)
+#### Rune action strip (top row of buttons)
 
-| Rune | Label | What it does |
-|------|-------|-------------|
-| **ᛋ** | SCROLL | Opens a file picker — uploads a PDF or image to the backend, then sends a summary request to Mimir automatically. Accepted: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp` |
-| **ᛏ** | TRIAL | Sends *"Quiz me on [active subject]"* (or the last discussed topic if no subject is active) |
-| **ᚠ** | RUNES | Sends *"Generate flashcards for [active subject]"* |
-| **ᚾ** | FATES | Sends *"Build a revision schedule for [active subject]"* |
-| **ᛞ/ᛊ** | DEEP / SWIFT | Toggles response mode (see [Response Modes](#13-response-modes--deep-vs-swift)) |
+Five quick-action buttons and one badge:
 
-**Active subject badge** (right side of button row): When a discipline is selected, a diamond + subject name appears as a badge on the far right. This is a display indicator only — it shows which subject context is being sent with your messages.
+| Rune | Label | Action |
+|------|-------|--------|
+| **ᛋ** | SCROLL | Opens OS file picker. Accepted: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`. Uploads the file to `/api/files/upload`, then automatically sends the message *"I just uploaded '[filename]'. Please summarise it for me."* to start a conversation about it. |
+| **ᛏ** | TRIAL | Sends *"Quiz me on [active subject]"*, or *"Quiz me on the topic we last discussed"* if no subject is active. Triggers the quiz tool. |
+| **ᚠ** | RUNES | Sends *"Generate flashcards for [active subject]"*, or *"Generate flashcards for the topic we last discussed"*. Triggers the flashcards tool. |
+| **ᚾ** | FATES | Sends *"Build a revision schedule for [active subject]"*, or *"Build a revision schedule for my subjects"*. Mimir responds with a structured study plan as plain text. |
+| **ᛞ / ᛊ** | DEEP / SWIFT | Toggles response verbosity. See [Response Modes](#15-response-modes--deep-vs-swift). |
 
-#### Text input
+**Active subject badge** (far right of the strip, when a discipline is selected):
+- Small green diamond + discipline name in uppercase
+- Display only — not interactive
+- Confirms which subject context is active for the next message
 
-A self-resizing **textarea**. Type your message here.
-- Expands up to ~5 lines automatically as you type.
-- Shrinks back when cleared.
+**SCROLL button loading state:**
+While a file is uploading, the SCROLL button shows **"…"** and is disabled. It re-enables once the upload completes or fails.
+
+#### Textarea
+
+A self-resizing plain text input.
 - Placeholder: *"Speak your query to Mimir..."*
+- Starts at 1 row height (~38px), expands as you type, capped at ~5 rows (130px)
+- Shrinks back to 1 row after sending
 
 #### Send button (ᛊ rune)
 
-A square button to the right of the textarea. It is dim and unclickable when the textarea is empty, and lights up green when there is text to send.
+A square button to the right of the textarea.
+- **Dim + disabled** when the textarea is empty
+- **Bright green + enabled** when there is text to send
+- Sends the message and clears the textarea
 
-**Hint text** below the input: *"Enter to send · Shift+Enter for new line"*
+#### Hint text
+
+Below the textarea: *"Enter to send · Shift+Enter for new line"* in small italic.
 
 ---
 
-## 8. Trials — Quiz Runner
+## 10. Trials — Quiz Runner
 
-The dedicated quiz view for running quizzes outside of the chat. Scores from here **do update** your spaced repetition and topic confidence.
+A dedicated quiz runner where scores **are saved** and update your spaced repetition schedule. Use this view when you want Mimir to track your progress on a topic.
 
 ### Setup form
 
-When you first open Trials, a setup card appears:
+Opens by default when you navigate to Trials.
 
-**Discipline dropdown** (if you have subjects): Select which subject the quiz covers. Defaults to the currently active subject.
+**Discipline dropdown** (only shown if you have at least one discipline):
+- Defaults to the currently active discipline
+- Select any discipline to quiz within that subject context
+- Choosing no discipline ("— any —") generates a general-knowledge quiz
 
-**Topic field**: Optional text input to narrow the quiz to a specific topic within the subject (e.g. "neural networks" within "Machine Learning"). Leave blank to quiz on the whole subject.
+**Topic input** (optional, text field):
+- Narrow the quiz to a specific topic within the selected discipline
+- Examples: *"neural networks"*, *"Dijkstra's algorithm"*, *"acid-base reactions"*
+- Leave blank to quiz on the whole discipline broadly
 
-**Number of questions**: Three buttons — **5**, **10**, or **15**. The active count has a highlighted border.
+**Number of questions:** Three toggle buttons:
+- **5** — quick check (~5 min)
+- **10** — standard session (~10 min)
+- **15** — deep review (~15 min)
+The selected count has a highlighted border. Default is 5.
 
-**"Enter the Trial — ᛏ" button**: Submits the request to the backend, which calls Ollama to generate the questions.
+**"Enter the Trial — ᛏ" button:**
+Full-width green button at the bottom of the card. Submits the quiz generation request. The backend sends the topic + discipline context to Ollama, which generates the questions.
 
 ---
 
 ### Loading state
 
-While questions are being generated, a loading screen shows:
-- The rune **ᛏ** in large gold text
-- *"Consulting the runes…"*
+While questions are being generated:
+- Large gold **ᛏ** rune
+- *"Consulting the runes…"* in italic
+- No progress indicator — just wait
 
-Generation typically takes 10–30 seconds depending on your hardware and question count.
+Generation takes 10–40 seconds depending on question count and hardware. Ollama generates all questions in one pass.
 
 ---
 
 ### Quiz runner
 
-The same interactive quiz format as inline chat quizzes, but filling the full centre column. All the same interactions apply (select answer → see correct/wrong → explanation → Next →).
+The same format as inline chat quizzes (see [Inline quiz](#inline-quiz-embedded-in-chat)) but:
+- Fills the full centre column width
+- Larger question text
+- Fully interactive — same click-to-answer, colour-coded feedback, explanation, and Next → button
 
 ---
 
 ### Result card
 
 After the last question:
-- Score + percentage (e.g. `8/10 — 80%`)
-- Same verdict messages as inline quizzes
-- **"Begin Another Trial"** button — resets the form so you can run another quiz
 
-The result is saved to the backend. Your topic's **confidence score** updates using a weighted formula based on percentage correct, and the **next review date** is scheduled using spaced repetition intervals (4h / 1d / 3d / 7d depending on score).
+```
+ᛏ
+8/10 — 80%
+Outstanding! You know this well.
+─────────────────────────────
+        [Begin Another Trial]
+```
+
+**What happens in the background when you see this card:**
+1. The result (`score`, `total`, `topic_name`, `subject_id`) is submitted to the backend.
+2. The topic is looked up by name — if it doesn't exist yet under the discipline, it is created automatically.
+3. The topic's **confidence score** is updated using a weighted moving average.
+4. The topic's **next_review** date is set based on your score (see [Topics & Spaced Repetition](#16-topics--spaced-repetition)).
+5. The result row is added to the **QuizSession** history (visible in Reckoning → Recent Trials).
+
+**"Begin Another Trial" button:** Resets the view to the setup form. The discipline and question count are remembered.
 
 ---
 
 ### Error card
 
-If question generation fails (Ollama not running, backend error, etc.):
-- *"The runes could not be consulted"*
-- The error message from the backend
-- *"Make sure the backend and Ollama are running."*
-- **"Try Again"** button
+If generation fails:
+
+```
+The runes could not be consulted
+[error message from the backend]
+Make sure the backend and Ollama are running.
+
+        [Try Again]
+```
+
+**"Try Again" button:** Returns to the setup form without losing your selections.
 
 ---
 
-## 9. The Reckoning — Progress Dashboard
+## 11. The Reckoning — Progress Dashboard
 
-Your full progress view. Loads data from the backend on mount.
+Your full progress view. All data fetched fresh from the backend on every mount.
 
-### Stats row (top)
+### Stats row
 
-Four stat boxes across the top:
+Four stat boxes displayed in a responsive flex row:
 
-| Stat | What it measures |
-|------|-----------------|
-| **Days at the Well** | Total days you have used Mimir (streak or cumulative — resets daily at 00:05 UTC) |
-| **Trial Accuracy** | Average score across all completed quizzes, as a percentage |
-| **Current Streak** | Consecutive days with at least one study session |
-| **Trials Completed** | Total number of quizzes submitted |
+| Box | Metric | Notes |
+|-----|--------|-------|
+| **Days at the Well** | How many days you have used Mimir | Computed from quiz session history; resets if you miss a day |
+| **Trial Accuracy** | Average score across all submitted quizzes | Percentage, rounded to nearest integer |
+| **Current Streak** | Consecutive days with at least one quiz submitted | Broken if you skip a day |
+| **Trials Completed** | Total quiz sessions ever submitted | Cumulative, never decreases |
+
+Each box has a label (small uppercase), a large number in gold, and a small italic subtitle (e.g. *"unbroken vigil"*, *"all time"*).
 
 ---
 
 ### Discipline Mastery
 
-A list of all your tracked topics with confidence scores.
+A table of all your tracked topics with live confidence scores.
 
-**Filter dropdown** at the top right: filter by discipline or show all.
+**Filter dropdown** (top right of the section):
+- *"All disciplines"* — shows every topic from every discipline
+- Any individual discipline — shows only topics under that subject
 
-Each row shows:
-- **Topic name**
-- **Subject name** (in small italic below the topic)
-- A **colour-coded confidence bar** (horizontal):
-  - 🟢 Green ≥ 80%
-  - 🟡 Gold ≥ 60%
-  - 🟫 Dark gold ≥ 40%
-  - 🔴 Red < 40%
-- **Percentage** (right of bar)
-- **Study count** (e.g. `3×`) — how many times you've been quizzed on this topic
+**Topic rows** (one per tracked topic):
 
-Topics are added automatically when you submit a quiz from the Trials view.
+| Element | What it shows |
+|---------|--------------|
+| Topic name | Full name in body font |
+| Subject name | Small italic below the topic name — which discipline it belongs to |
+| Confidence bar | Horizontal bar, 80px wide, colour-coded |
+| Percentage | Numeric score to the right of the bar |
+| Study count | Number of times this topic has been quizzed (e.g. `3×`), on the far right |
+
+**Confidence bar colours:**
+- 🟢 Green (`var(--green-dim)`) — ≥ 80% — strong
+- 🟡 Gold (`var(--gold-dim)`) — ≥ 60% — good
+- 🟫 Dark gold (`#7a5020`) — ≥ 40% — needs work
+- 🔴 Red (`#8a3a3a`) — < 40% — critical weakness
+
+If no topics exist yet: *"No topics tracked yet. Start chatting with Mimir or run a trial."*
 
 ---
 
 ### Recent Trials
 
-A table of your last 10 quiz results:
+Shown only if you have quiz history. Displays up to the **10 most recent** quiz sessions:
 
 | Column | Content |
 |--------|---------|
-| Date | Month + day (e.g. `May 16`) |
-| Topic | What was quizzed |
-| Score | Raw score (e.g. `7/10`) |
-| % | Percentage, coloured green/gold/red by performance |
+| Date | Short format — `May 16` |
+| Topic | Topic name |
+| Score | `7/10` format |
+| % | Percentage; coloured green (≥80%), gold (≥60%), or red (<60%) |
 
 ---
 
-## 10. Chronicle — Conversation History
+## 12. Chronicle — Conversation History
 
-A read-only view of your last 100 conversation turns, displayed in the same chat-bubble layout as the live Oracle.
+A paginated, read-only view of your conversation history. Loads the **100 most recent turns** on mount.
 
-- **Mimir's messages** on the left with green border, **M** avatar
-- **Your messages** on the right with gold border, your initial avatar
-- Each bubble shows the **date + time** of the message
-- `**bold**` markdown is rendered in gold, same as in live chat
-- Scroll up to read older messages
+### Layout
 
-The history is loaded once on view mount. It does not live-update while you are viewing it — switch away and back to refresh.
+Same chat-bubble layout as the live Oracle:
+- **Mimir messages** — left-aligned, green left border, **M** avatar
+- **Your messages** — right-aligned, gold right border, your initial avatar
+- **`**bold**`** markdown is highlighted in gold (same as live chat)
+- Each bubble shows **date + time** (e.g. `May 16, 14:32`)
 
----
+Scroll up to read older messages. The view does not live-update — it is a snapshot from when you navigated here. Switch to another view and back to refresh.
 
-## 11. Scrolls — File Library
+### Filtering and search
 
-Manage your uploaded documents. Mimir indexes uploaded files into its vector memory (ChromaDB) so you can ask questions about them in the chat.
-
-### Header area
-
-- **Title**: Scrolls / *"Your uploaded knowledge"*
-- **Discipline selector** (if you have subjects): Assign a discipline to new uploads before picking a file. Optional — unassigned files go into general memory.
-- **"ᛋ Upload Scroll" button**: Opens a file picker. Accepted formats: `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`
-
-### File list
-
-Each uploaded file shows as a row:
-
-| Column | Content |
-|--------|---------|
-| Rune icon | **ᚱ** for PDFs, **ᛇ** for images, **ᚦ** for other |
-| Filename | Full filename, truncated with ellipsis if long |
-| Discipline | Which subject it is assigned to (— if none) |
-| Status | **indexed** (green) — content is in memory; **pending** (gold) — still processing |
-| × button | Deletes the file and removes it from the database |
-
-### Empty state
-
-If no files have been uploaded yet:
-- Large **ᚱ** rune
-- *"The vault is empty"*
-- *"Upload a PDF or image and Mimir will extract its knowledge into memory."*
-- **"Upload your first scroll"** button
-
-### Hint text
-
-At the bottom: *"Indexed scrolls become part of Mimir's memory. Ask about them in the Oracle."*
-
-### How file indexing works
-
-When you upload:
-1. PDFs are parsed with **PyMuPDF** — all text is extracted.
-2. Images are processed with **Tesseract OCR** — text is extracted.
-3. Text is split into 512-character chunks with overlap.
-4. Chunks are embedded and stored in **ChromaDB**.
-5. Status shows `pending` until indexing completes, then `indexed`.
-
-Once indexed, just ask Mimir in the Oracle: *"What does my uploaded PDF say about X?"* — it will retrieve relevant chunks and answer.
+Not yet implemented. The full 100-turn history is shown in chronological order.
 
 ---
 
-## 12. Right Panel
+## 13. Scrolls — File Library
 
-A fixed sidebar on the far right showing live stats. Auto-refreshes every 30 seconds.
+Manage your uploaded documents. Files uploaded here are indexed into ChromaDB and become part of Mimir's permanent memory.
+
+### Header area (always visible)
+
+- **ᚱ** rune + **"Scrolls"** title + *"Your uploaded knowledge"* subtitle on the left
+- On the right:
+  - **Discipline selector** (dropdown, shown only if you have disciplines): choose which subject to assign new uploads to. Optional — unassigned files go into general memory.
+  - **"ᛋ Upload Scroll" button** — opens the OS file picker
+
+**Upload Scroll button accepted formats:** `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`
+
+**While uploading:** the button is disabled and shows *"Uploading…"*
+
+---
+
+### File list (when files exist)
+
+**Column header row** (dim, uppercase labels):
+`[rune icon] | Scroll | Discipline | Status | [delete]`
+
+**File rows**, one per uploaded document:
+
+| Element | Detail |
+|---------|--------|
+| Rune icon | **ᚱ** = PDF, **ᛇ** = image (png/jpg/webp), **ᚦ** = other |
+| Filename | Full original filename, truncated with `…` if long |
+| Discipline | Assigned subject name, or `—` if none |
+| Status badge | **indexed** in green = content searchable; **pending** in gold = still processing |
+| × button | Deletes file from the database and removes it from ChromaDB |
+
+---
+
+### Empty state (no files yet)
+
+```
+       ᚱ
+   The vault is empty
+Upload a PDF or image and Mimir will
+extract its knowledge into memory.
+
+   [Upload your first scroll]
+```
+
+---
+
+### Footer hint
+
+At the very bottom of the Scrolls view:
+*"Indexed scrolls become part of Mimir's memory. Ask about them in the Oracle."*
+
+---
+
+### How file indexing works (step by step)
+
+1. You select a file in the file picker.
+2. The file is sent to `POST /api/files/upload` with an optional `subject_id`.
+3. The backend saves the raw file to disk.
+4. **For PDFs:** PyMuPDF extracts all text content page by page.
+5. **For images:** Tesseract OCR reads any text in the image.
+6. The extracted text is split into **512-character chunks** with a small overlap between chunks.
+7. Each chunk is embedded (converted to a vector) and stored in **ChromaDB**, tagged with the file ID and subject ID.
+8. The file's `processed` flag is set to `True` in SQLite — the status badge changes from `pending` to `indexed`.
+
+Once indexed, Mimir can retrieve relevant chunks when you ask questions in the Oracle. Example: *"What does my Machine Learning notes PDF say about regularization?"*
+
+### Upload from Oracle vs upload from Scrolls
+
+| Method | Where | What happens after upload |
+|--------|-------|--------------------------|
+| **SCROLL button** in Oracle input zone | Chat view | File uploads, then Mimir immediately sends a summary of it into the chat |
+| **"ᛋ Upload Scroll" button** in Scrolls view | Scrolls view | File uploads and is indexed — no automatic chat message |
+
+Both methods index the file. The Oracle shortcut is faster if you want to immediately discuss what you just uploaded.
+
+---
+
+## 14. Right Panel
+
+A fixed sidebar on the far right. Fetches stats from the backend on mount and **auto-refreshes every 30 seconds**.
 
 ### Warrior's Record
 
-Two stat boxes with decorative corner marks (L-bracket corners in gold):
+Two stat boxes with gold L-bracket corner decorations (purely visual):
 
-- **Days at the Well** — same as Reckoning dashboard
-- **Trial Accuracy** — same as Reckoning dashboard
+**Days at the Well:**
+- Large number in gold (e.g. `12`)
+- Subtitle: *"unbroken vigil"*
+
+**Trial Accuracy:**
+- Large number + `%` in gold (e.g. `76%`)
+- Subtitle: *"all time"*
+
+Both boxes show `—` while loading.
 
 ---
 
 ### Weaknesses
 
-Up to 4 of your weakest topics, each shown as:
-- Topic name (truncated with ellipsis)
-- A small coloured bar showing confidence:
-  - 🔴 Red = critical (< ~30%)
-  - 🟡 Gold = weak
-  - 🟢 Green = moderate
+Up to **4 of your lowest-confidence topics** listed in order from weakest:
 
-This list updates every 30 seconds from the backend. It is designed to show at a glance what to study next.
+Each row:
+- Topic name (left, truncated with ellipsis)
+- A small 44px colour bar on the right:
+  - 🔴 Red `#8a3a3a` — `critical` status
+  - 🟡 Gold `var(--gold-dim)` — `weak` status
+  - 🟢 Green `var(--green-dim)` — `moderate` status
+
+If no topics tracked yet: *"No weak topics yet."*
+
+This section is your at-a-glance "what to study now" guide. The weakest topic is always at the top.
 
 ---
 
 ### Ragnarök Approaches
 
-The exam countdown section.
+**With an exam date set:**
+- Large number — days until exam (e.g. `14`)
+- **"Days Until Trial"** label (uppercase, dim)
+- Subject name + date (e.g. `Machine Learning · May 30`) in small italic gold
+- A progress fill bar:
+  - Calculates `100 - (days / 90 * 100)` fill percentage
+  - Bar colour: gold normally, **red** when ≤ 7 days remain
+- **"clear date"** link (italic, dim, right-aligned) — removes the exam date
 
-- **Large number** (e.g. `14`) — days until your exam
-- **"Days Until Trial"** label
-- Subject name and date (e.g. `Machine Learning · May 30`)
-- A **fill bar** that grows red as the date approaches (turns solid red with ≤7 days remaining)
-- **"clear date"** link — removes the exam date from your profile
-
-If no exam date is set: *"No exam date set."*
-
----
-
-### Active Discipline indicator
-
-When a subject is active (selected in the sidebar), a small chip at the bottom of the right panel shows:
-- A coloured diamond (the subject's colour)
-- The subject name
+**Without an exam date:**
+- *"No exam date set."* in italic
+- Set one via the Sidebar's Ragnarök section
 
 ---
 
-## 13. Response Modes — Deep vs Swift
+### Active Discipline chip
 
-The **mode toggle button** in the input zone controls how Mimir responds.
+When you have a discipline selected, a small chip appears at the very bottom of the right panel:
+- Small coloured diamond (the discipline's colour) on the left
+- Discipline name on the right
 
-| Mode | Button rune | Button label | What it does |
-|------|-------------|-------------|--------------|
-| **Deep** (default) | ᛞ | DEEP | Thorough, detailed explanations. Longer responses. Better for learning new concepts. |
-| **Swift** | ᛊ | SWIFT | Brief, direct answers. Shorter responses. Better for quick lookups or review. |
-
-The button highlights (dark green background) when **Swift** mode is active. Click it again to switch back to Deep.
-
-The mode is sent with every message — you can switch mid-conversation and the change takes effect on the very next message.
+This disappears when no discipline is active.
 
 ---
 
-## 14. Keyboard Shortcuts
+## 15. Response Modes — Deep vs Swift
 
-| Shortcut | Where | Action |
-|----------|-------|--------|
-| **Enter** | Input zone | Send message |
-| **Shift + Enter** | Input zone | Insert a new line (multi-line message) |
+The **mode toggle button** in the Oracle input zone controls the verbosity of every response Mimir gives.
 
-No other keyboard shortcuts currently. The textarea auto-focuses after each sent message.
+| Mode | Rune shown | Label | Behaviour |
+|------|------------|-------|-----------|
+| **Deep** (default) | ᛞ | DEEP | Thorough explanations, worked examples, context. Best for learning something new. |
+| **Swift** | ᛊ | SWIFT | Short, direct answers. No padding. Best for quick lookups or revision. |
+
+The button background turns dark green when **Swift** is active. Click it again to return to Deep.
+
+The mode value (`"detailed"` or `"fast"`) is sent with every chat message in the WebSocket payload. Switching modes mid-conversation takes effect on the very next message — you can ask a quick question in Swift then switch back to Deep for the next detailed topic.
 
 ---
 
-## 15. How the AI Works
+## 16. Topics & Spaced Repetition
 
-### ReAct agent loop
+### What is a topic?
 
-Every message you send goes through a **ReAct (Reason + Act)** loop running on `qwen3.5:9b` via Ollama:
+A **topic** is a specific knowledge area that Mimir tracks for spaced repetition. Topics are always children of a discipline.
 
-1. Mimir reads your message + the last 20 conversation turns + your topic scores for the active subject.
-2. It reasons about what you need.
-3. It decides whether to call a **tool** or respond directly.
-4. Tool output is injected back into the context and the model produces the final response.
-5. Tokens stream back to the frontend in real time as they are generated.
+Examples:
+- Discipline: *Machine Learning* → Topics: *"backpropagation"*, *"gradient descent"*, *"transformers"*
+- Discipline: *Data Structures* → Topics: *"B+ Trees"*, *"red-black trees"*, *"heaps"*
 
-### Available tools
+### How topics are created
 
-| Tool | What Mimir uses it for | What you see |
-|------|------------------------|--------------|
-| **quiz** | Generates multiple-choice questions | Inline quiz card appears in chat |
-| **flashcards** | Generates flip-card study pairs | Flashcard deck appears in chat |
-| **summarize** | Produces a condensed summary of a topic | Normal text response |
-| **weak_topics** | Fetches your lowest-confidence topics | Normal text response listing what to review |
+Topics are **never created manually**. They are created automatically when you submit a quiz from the **Trials view**:
 
-### Memory
+1. You run a quiz with topic *"backpropagation"* under *Machine Learning*.
+2. On completion, Mimir looks for an existing topic named "backpropagation" under Machine Learning.
+3. If found: updates the confidence score.
+4. If not found: creates a new topic row in SQLite.
+5. The new topic immediately appears in the **Reckoning** mastery list.
 
-Mimir has two memory layers:
+### Confidence score
 
-**Conversation history** (SQLite): The last 20 turns of your conversation are loaded on every message. This is the immediate context — what you discussed a moment ago.
+Each topic has a `confidence_score` (0–100). It starts at `50` when first created.
 
-**Semantic memory** (ChromaDB): Every message you send and every response Mimir gives is embedded and stored as a vector. Your uploaded files are also here. When relevant, Mimir can retrieve past context that happened earlier than the 20-turn window.
+After each quiz:
+- The new score is blended with the existing score: `new = old * 0.7 + result_pct * 0.3`
+- This weighted average prevents a single bad quiz from tanking your score or a single lucky run from inflating it.
 
-### Spaced repetition
+### Spaced repetition schedule
 
-After every quiz submitted from the **Trials** view, Mimir updates the topic's confidence score and schedules the next review:
+After each quiz submission, Mimir sets a `next_review` date based on performance:
 
-| Score | Next review |
-|-------|-------------|
+| Score | Next review due |
+|-------|----------------|
 | < 40% | 4 hours |
 | 40–59% | 1 day |
 | 60–79% | 3 days |
 | ≥ 80% | 7 days |
 
-The **APScheduler** runs an hourly job to detect overdue topics and push a review reminder banner at the top of the screen (the gold banner with **ᚾ** rune).
+When `next_review` is in the past, the topic is **overdue**. The hourly scheduler detects this and pushes the Review Reminder Banner.
+
+### Seeing your topics
+
+All tracked topics are visible in:
+- **The Reckoning** → Discipline Mastery section (full list, filterable)
+- **Right Panel** → Weaknesses section (top 4 lowest-confidence topics)
+- **Review Reminder Banner** → shows topic names when overdue
 
 ---
 
-## 16. Data & Privacy
+## 17. Background Scheduler
 
-Everything is local. Nothing leaves your machine.
+Mimir runs two automatic background jobs via APScheduler:
 
-| Data | Where it is stored |
-|------|--------------------|
-| User accounts + passwords (hashed) | `%LocalAppData%\Mimir\data\mimir.db` (SQLite) |
-| Conversation history | Same SQLite database |
-| Topic scores + quiz history | Same SQLite database |
-| Semantic memory (message embeddings) | `%LocalAppData%\Mimir\data\chroma\` |
-| Uploaded files (raw) | `%LocalAppData%\Mimir\data\uploads\` |
-| JWT token + username | Browser `localStorage` (inside Tauri WebView) |
-| Exam date | `localStorage` + synced to SQLite |
+### Hourly: Review Check
 
-**To fully wipe all data:** delete `%LocalAppData%\Mimir\data\` and clear the WebView storage at `%LocalAppData%\com.mimir.studyagent\`.
+**When:** Every hour, on the hour, 24/7 while Mimir is running.
+
+**What it does:**
+1. Queries all topics in the database where `next_review` is in the past.
+2. Groups overdue topics by user.
+3. For each user currently connected via WebSocket: sends a `review_reminder` push message with the topic count and up to 5 topic names.
+4. The frontend receives this message and shows the [Review Reminder Banner](#8-review-reminder-banner).
+
+If no topics are overdue, nothing happens.
+
+### Daily: Streak Update (00:05 UTC)
+
+**When:** Every day at 00:05 UTC (midnight + 5 min).
+
+**What it does:**
+1. Fetches all users who have at least one quiz session.
+2. For each user, computes the current consecutive-day streak from their quiz history.
+3. Logs the result (used by `/api/progress/stats` to serve the streak number in the Reckoning dashboard).
+
+**Streak logic:**
+- A day counts if you submitted at least one quiz that day.
+- The streak is the number of consecutive days ending on today (or yesterday) with at least one quiz.
+- If the most recent quiz was more than 1 day ago, the streak is 0.
 
 ---
 
-## 17. Troubleshooting
+## 18. Keyboard Shortcuts
+
+| Shortcut | Where it works | Action |
+|----------|---------------|--------|
+| **Enter** | Oracle input zone | Send the message |
+| **Shift + Enter** | Oracle input zone | Insert a newline (multi-line message) |
+| **Enter** | Add discipline form | Save the new discipline |
+| **Escape / click away** | Add discipline form | Cancel without saving |
+
+The textarea re-focuses automatically after each message is sent. No global navigation shortcuts currently exist.
+
+---
+
+## 19. How the AI Works
+
+### WebSocket streaming
+
+The connection to Mimir is a **persistent WebSocket** (`ws://127.0.0.1:8000/ws/chat?token=<jwt>`). It opens when you log in and stays open for the entire session. You can send multiple messages on the same connection without re-authenticating.
+
+Tokens stream back from Ollama one chunk at a time — the text appears in the message bubble as it is generated, not all at once at the end.
+
+### ReAct agent loop
+
+Every message goes through a **ReAct (Reason + Act)** loop:
+
+```
+Your message
+    ↓
+System prompt + last 20 conversation turns + topic scores for active subject
+    ↓
+Ollama (qwen3.5:9b) reasons about what you need
+    ↓
+Tool call? ──Yes──► Tool runs ──► Result injected into context ──► Final response generated
+     │                                                                     │
+    No                                                                     ↓
+     └──────────────────────────────────────────────────────────► Streaming tokens
+```
+
+### System prompt context
+
+Every message sends to the model:
+- The full **system prompt** (defines Mimir's role and Norse personality)
+- **Last 20 conversation turns** (immediate context)
+- **Topic confidence scores** for the active discipline (so Mimir knows what you are weak on)
+- **Active subject name and ID**
+- The chosen **response mode** (detailed or fast)
+
+### Tools the agent can call
+
+| Tool | Trigger phrase (examples) | Output |
+|------|--------------------------|--------|
+| **quiz** | *"quiz me"*, *"test me"*, *"MCQ on"* | JSON quiz data → inline quiz card |
+| **flashcards** | *"flashcards"*, *"flash cards"*, *"study cards"* | JSON flashcard data → flip-card deck |
+| **summarize** | *"summarize"*, *"summarise"*, *"TL;DR"* | Structured summary text |
+| **weak_topics** | *"what should I study"*, *"my weaknesses"* | Fetches topics from DB → listed in response |
+
+The agent decides which tool to call based on natural language — you do not have to use specific keywords. If no tool fits, it responds directly as a tutor.
+
+### Two memory layers
+
+**Immediate context (SQLite, last 20 turns):**
+What you discussed in the current and recent sessions. Always included in every request.
+
+**Semantic memory (ChromaDB, all history + files):**
+Every message and response is embedded and stored as a vector. Your uploaded files are also here. When you reference something from a long-ago session or ask about uploaded documents, the agent retrieves the most relevant chunks from ChromaDB and includes them in the context.
+
+---
+
+## 20. Data & Privacy
+
+Everything in Mimir runs and is stored on your local machine. No data is sent to any external server.
+
+| Data type | Stored at |
+|-----------|-----------|
+| User accounts + bcrypt-hashed passwords | `%LocalAppData%\Mimir\data\mimir.db` |
+| Conversation history (all messages) | Same SQLite database |
+| Disciplines and topic scores | Same SQLite database |
+| Quiz session history | Same SQLite database |
+| Exam date | Same SQLite database + `localStorage` |
+| Semantic message embeddings | `%LocalAppData%\Mimir\data\chroma\` |
+| Uploaded raw files | `%LocalAppData%\Mimir\data\uploads\` |
+| JWT token + username (current session) | WebView2 `localStorage` |
+| WebView2 cache and cookies | `%LocalAppData%\com.mimir.studyagent\EBWebView\` |
+
+**To fully reset all data:** delete `%LocalAppData%\Mimir\data\` (SQLite + ChromaDB + uploads), then clear `%LocalAppData%\com.mimir.studyagent\` (WebView2 localStorage / session data).
+
+---
+
+## 21. Troubleshooting
 
 ### Boot splash never disappears
 
-Ollama is not running. Open a terminal and run:
+Ollama is not running. Open any terminal and run:
 ```
 ollama serve
 ```
-Then restart Mimir.
-
-### Status pill shows "offline" / "summoning…" forever after login
-
-The backend started but Ollama crashed or the model is not loaded. Run:
-```
-ollama run qwen3.5:9b
-```
-The status pill should turn green within a few seconds.
-
-### "The runes could not be consulted" in Trials
-
-Ollama is running but returned an error generating questions. This usually happens when:
-- The model is still loading (first query after startup can take 30+ seconds)
-- The topic you entered is very obscure — try a broader topic name
-- You ran out of memory — close other heavy applications
-
-### Uploaded file stays "pending" forever
-
-File indexing ran but ChromaDB rejected the content. This can happen with:
-- Encrypted/password-protected PDFs (Mimir cannot read these)
-- Image files with no readable text (Tesseract finds nothing)
-- Very large files (>50 MB) — split them before uploading
-
-### Login screen loops or can't type
-
-This was a bug in v0.1.0 where the WebSocket would connect without a token, get rejected, clear storage, and reload infinitely. It is **fixed in v0.1.1**. Update to the latest release.
-
-### The app installed but shows the wrong version
-
-Uninstall via `%LocalAppData%\Mimir\uninstall.exe`, then install the new `Mimir_x.x.x_x64-setup.exe` from the [Releases page](https://github.com/Sarthak-47/Mimir/releases).
+Then restart Mimir. If the splash times out (20 s) it shows the login screen anyway, but Mimir cannot respond to questions until Ollama is up.
 
 ---
 
-*Built with Tauri + React + FastAPI + ChromaDB + Ollama. MIT licensed.*
+### Status pill shows "offline" or stays "summoning…" after logging in
+
+The WebSocket cannot reach the backend. Most common causes:
+
+1. **Ollama not running** — run `ollama serve`
+2. **Backend crashed during startup** — close Mimir completely and reopen it
+3. **Antivirus blocked the backend** — add `%LocalAppData%\Mimir\mimir-backend\` to your AV exclusions
+
+---
+
+### Mimir replies with an error or stops mid-response
+
+The LLM encountered an issue. Common causes:
+- The model is still loading on first use after startup (wait ~30 s and retry)
+- Ollama ran out of VRAM — close other GPU-heavy apps and retry
+- The response was cut short — ask Mimir to continue
+
+---
+
+### "The runes could not be consulted" in Trials
+
+Quiz generation failed. Try:
+- Waiting 30 s and clicking **Try Again** (model may still be loading)
+- Making the topic name broader (e.g. *"sorting algorithms"* instead of *"in-place stable O(n log n) sort"*)
+- Reducing the question count to 5
+
+---
+
+### Uploaded file stays "pending" forever
+
+Indexing failed silently. This happens with:
+- **Encrypted PDFs** — Mimir cannot read password-protected files
+- **Image with no text** — Tesseract finds nothing to embed
+- **Corrupt file** — the file was damaged before upload
+
+Delete the file, fix the source, and re-upload.
+
+---
+
+### Login screen loops, logo glitches, or can't type in the login fields
+
+This was a bug in **v0.1.0** where the WebSocket connected without a token, received a rejection, cleared `localStorage`, and reloaded the page — causing an infinite loop.
+
+**Fixed in v0.1.1.** Download the latest installer from the [Releases page](https://github.com/Sarthak-47/Mimir/releases).
+
+---
+
+### Review reminder banner appears but I reviewed the topic already
+
+The banner is sent when the hourly scheduler runs. If you just completed a quiz, the `next_review` date was updated, but the banner from the previous hourly check is still on screen. Click **×** to dismiss it. It will not reappear for that topic at the next check.
+
+---
+
+### Streak shows 0 even though I studied today
+
+The streak is computed from **quiz sessions submitted via the Trials view**. Just chatting in the Oracle does not count toward the streak. Submit at least one Trials quiz per day to maintain it.
+
+---
+
+*Built with Tauri · React · FastAPI · ChromaDB · Ollama. MIT licensed.*

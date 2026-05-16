@@ -300,7 +300,7 @@ export default function App() {
     });
   }, []);
 
-  const { sendMessage, isConnected } = useWebSocket({ onToken, onDone, onToolData, onReviewReminder, authToken });
+  const { sendMessage, isConnected, isConnecting } = useWebSocket({ onToken, onDone, onToolData, onReviewReminder, authToken });
 
   // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string, sendMode?: string) => {
@@ -361,6 +361,7 @@ export default function App() {
         <Topbar
           view={view}
           isConnected={isConnected}
+          isConnecting={isConnecting}
           activeSubjectName={activeSubjectObj?.name ?? null}
           username={username}
           onLogout={handleLogout}

@@ -121,7 +121,7 @@ export function useWebSocket({
       if (!everConnected.current) setIsConnecting(true);
       console.log("[Mimir WS] Disconnected, code:", event.code);
 
-      // 4001 = auth rejected by backend — token invalid or user not found.
+      // 4001 = auth rejected by backend (accept → close 4001 path).
       // Retrying is pointless; clear storage and reload to show login screen.
       if (event.code === 4001) {
         console.warn("[Mimir WS] Auth rejected (4001) — clearing session");
@@ -131,6 +131,17 @@ export function useWebSocket({
       }
 
       reconnectCount.current += 1;
+
+      // After many failed attempts without ever connecting, assume the token
+      // is stale (backend returned HTTP 403 / code 1006 before our accept fix
+      // was deployed, or token genuinely expired). Clear and reload.
+      if (!everConnected.current && reconnectCount.current > 12) {
+        console.warn("[Mimir WS] Too many failed attempts — clearing session");
+        localStorage.clear();
+        window.location.reload();
+        return;
+      }
+
       const delay = Math.min(RECONNECT_DELAY_MS * reconnectCount.current, MAX_RECONNECT_DELAY_MS);
       reconnectTimer.current = setTimeout(() => connect(token), delay);
     };

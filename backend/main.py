@@ -69,13 +69,12 @@ app = FastAPI(
 # Tauri v1 and macOS used tauri://localhost.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "tauri://localhost",       # Tauri v1 / macOS
-        "http://tauri.localhost",  # Tauri v2 Windows WebView2
-        "https://tauri.localhost", # Tauri v2 secure context
-    ],
-    allow_credentials=True,
+    # Backend binds to 127.0.0.1 only and auth is JWT-based, so CORS is
+    # not a meaningful security boundary here. Allow all origins so that
+    # Tauri WebView2 (whose exact internal scheme varies by platform/version)
+    # can always reach the WebSocket and REST endpoints without a 403.
+    allow_origins=["*"],
+    allow_credentials=False,  # must be False when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )

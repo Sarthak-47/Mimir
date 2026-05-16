@@ -66,14 +66,19 @@ async def ws_chat(
     and saves the completed assistant turn. Agent errors are sent as ``error``
     frames without closing the socket.
     """
+    # Accept the WebSocket upgrade FIRST so that any rejection is sent as
+    # a proper WS close frame (code 4001) rather than an HTTP 403 response.
+    # An HTTP 403 reaches the browser as close code 1006 (abnormal) which
+    # the frontend cannot distinguish from a transient network error, so it
+    # retries indefinitely instead of redirecting to the login screen.
+    await websocket.accept()
+
     async with AsyncSessionLocal() as db:
         user = await _resolve_user(token, db)
         if user is None:
-            # Reject before accepting — client sees a failed upgrade
             await websocket.close(code=4001)
             return
 
-        await websocket.accept()
         user_id = user.id
         manager.connect(user_id, websocket)
 

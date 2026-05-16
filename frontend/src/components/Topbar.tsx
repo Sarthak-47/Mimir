@@ -11,6 +11,7 @@ const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string
 interface TopbarProps {
   view: NavView;
   isConnected: boolean;
+  isConnecting?: boolean;
   activeSubjectName?: string | null;
   username?: string;
   onLogout?: () => void;
@@ -29,7 +30,7 @@ interface TopbarProps {
  * @param username           - Display name shown in the user badge.
  * @param onLogout           - Called when the user clicks the logout rune.
  */
-export default function Topbar({ view, isConnected, activeSubjectName, username, onLogout }: TopbarProps) {
+export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -62,12 +63,12 @@ export default function Topbar({ view, isConnected, activeSubjectName, username,
           <span
             style={{
               ...styles.statusDot,
-              background: isConnected ? "var(--green-bright)" : "#8a3a3a",
+              background: isConnected ? "var(--green-bright)" : isConnecting ? "var(--gold-dim)" : "#8a3a3a",
               boxShadow: isConnected ? "0 0 4px var(--green-bright)" : "none",
             }}
           />
           <span style={styles.statusText}>
-            {isConnected ? "awake" : "offline"}
+            {isConnected ? "awake" : isConnecting ? "summoning…" : "offline"}
           </span>
         </div>
       </div>

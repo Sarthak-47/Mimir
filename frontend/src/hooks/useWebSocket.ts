@@ -122,8 +122,9 @@ export function useWebSocket({
       console.log("[Mimir WS] Disconnected, code:", event.code);
 
       // 4001 = auth rejected by backend (accept → close 4001 path).
-      // Retrying is pointless; clear storage and reload to show login screen.
-      if (event.code === 4001) {
+      // Only clear session when we actually had a token — if there's no token
+      // we're already on the login screen and should not reload.
+      if (event.code === 4001 && token) {
         console.warn("[Mimir WS] Auth rejected (4001) — clearing session");
         localStorage.clear();
         window.location.reload();
@@ -133,9 +134,8 @@ export function useWebSocket({
       reconnectCount.current += 1;
 
       // After many failed attempts without ever connecting, assume the token
-      // is stale (backend returned HTTP 403 / code 1006 before our accept fix
-      // was deployed, or token genuinely expired). Clear and reload.
-      if (!everConnected.current && reconnectCount.current > 12) {
+      // is stale. Guard with `token` for the same reason as above.
+      if (!everConnected.current && reconnectCount.current > 12 && token) {
         console.warn("[Mimir WS] Too many failed attempts — clearing session");
         localStorage.clear();
         window.location.reload();
@@ -147,8 +147,12 @@ export function useWebSocket({
     };
   }, []);
 
-  // Reconnect whenever the auth token changes
+  // Reconnect whenever the auth token changes.
+  // Skip entirely when there is no token — we're on the login screen and
+  // attempting to connect without a token causes a 4001 close which clears
+  // localStorage and reloads the page, creating an infinite refresh loop.
   useEffect(() => {
+    if (!authToken) return;
     reconnectCount.current = 0;
     connect(authToken);
     return () => {

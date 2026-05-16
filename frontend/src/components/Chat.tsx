@@ -269,7 +269,7 @@ function FlashcardDeck({ cards }: { cards: { front: string; back: string }[] }) 
   return (
     <div style={styles.flashcard}>
       <div style={styles.flashcardHeader}>
-        <span style={{ fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.15em", color: "var(--gold-dim)" }}>
+        <span style={{ fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.15em", color: "var(--gold-dim)" }}>
           ᚠ RUNES — {idx + 1}/{cards.length}
         </span>
       </div>

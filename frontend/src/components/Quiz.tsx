@@ -132,7 +132,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   headerTitle: {
     fontFamily: "var(--font-header)",
-    fontSize: 9,
+    fontSize: 11,
     letterSpacing: "0.15em",
     color: "var(--gold-dim)",
     textTransform: "uppercase" as const,
@@ -140,7 +140,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   counter: {
     fontFamily: "var(--font-header)",
-    fontSize: 9,
+    fontSize: 11,
     color: "var(--text-dim)",
   },
   engraving: {
@@ -219,7 +219,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid var(--green)",
     color: "var(--green-bright)",
     fontFamily: "var(--font-header)",
-    fontSize: 9,
+    fontSize: 11,
     letterSpacing: "0.12em",
     textTransform: "uppercase" as const,
     cursor: "pointer",

@@ -374,7 +374,7 @@ export default function App() {
             padding: "6px 16px", background: "var(--stone-4)",
             borderBottom: "1px solid var(--gold-dim)", flexShrink: 0,
           }}>
-            <span style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.1em", color: "var(--gold-bright)" }}>
+            <span style={{ fontFamily: "var(--font-header)", fontSize: 11, letterSpacing: "0.1em", color: "var(--gold-bright)" }}>
               ᚾ &nbsp;{reviewAlert.count} topic{reviewAlert.count !== 1 ? "s" : ""} overdue for review
               {reviewAlert.topics.length > 0 && ` — ${reviewAlert.topics.slice(0, 3).join(", ")}`}
             </span>

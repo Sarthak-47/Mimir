@@ -143,7 +143,7 @@ const styles: Record<string, React.CSSProperties> = {
   bubble:      { padding: "7px 11px" },
   mimirBubble: { background: "var(--stone-3)", border: "1px solid var(--green-dark)", borderLeft: "2px solid var(--green)" },
   userBubble:  { background: "var(--stone-4)", border: "1px solid var(--gold-dim)", borderRight: "2px solid var(--gold-dim)" },
-  sender:      { fontFamily: "var(--font-header)", fontSize: 7, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "var(--text-dim)", display: "flex", justifyContent: "space-between", marginBottom: 3 },
-  time:        { fontFamily: "var(--font-body)", fontSize: 8, color: "var(--text-dim)", fontStyle: "italic", textTransform: "none" as const },
+  sender:      { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "var(--text-dim)", display: "flex", justifyContent: "space-between", marginBottom: 3 },
+  time:        { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-dim)", fontStyle: "italic", textTransform: "none" as const },
   content:     { fontFamily: "var(--font-body)", fontSize: 13, lineHeight: 1.6, color: "var(--text-primary)", whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const },
 };

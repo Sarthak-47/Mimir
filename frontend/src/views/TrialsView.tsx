@@ -330,7 +330,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   label: {
     fontFamily: "var(--font-header)",
-    fontSize: 7,
+    fontSize: 10,
     letterSpacing: "0.16em",
     color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
@@ -382,7 +382,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid var(--green)",
     color: "var(--green-bright)",
     fontFamily: "var(--font-header)",
-    fontSize: 9,
+    fontSize: 11,
     letterSpacing: "0.14em",
     textTransform: "uppercase" as const,
     cursor: "pointer",

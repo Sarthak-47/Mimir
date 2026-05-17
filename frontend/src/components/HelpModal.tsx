@@ -49,7 +49,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             <Row rune="ᛏ" name="EXAM  (ᛏ)"  desc="High-yield content, classic mistakes, boundary conditions, exam tips." />
             <Row rune="ᚲ" name="CODE  (ᚲ)"  desc="Implementation-focused — logic, patterns, bugs, edge cases in prose." />
             <Row rune="ᛜ" name="MATH  (ᛜ)"  desc="Step-by-step derivations from first principles with full LaTeX." />
-            <Row rune="ᛝ" name="SOKR  (ᛝ)"  desc="Socratic mode — guiding questions only, you reason toward the answer." />
+            <Row rune="ᚨ" name="ODIN  (ᚨ)"  desc="Odin mode — guiding questions only, you reason toward truth through dialogue." />
             <p style={styles.hint}>Click the mode button in the input bar to cycle through modes.</p>
           </Section>
 

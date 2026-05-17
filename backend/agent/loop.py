@@ -72,7 +72,7 @@ from config import settings
 from agent.prompts import (
     SYSTEM_PROMPT, FAST_SYSTEM_PROMPT,
     BEGINNER_PROMPT, EXAM_PROMPT, CODING_PROMPT, DERIVATION_PROMPT,
-    SOCRATIC_PROMPT,
+    ODIN_PROMPT,
 )
 from agent.tools import (
     tool_quiz, tool_summarize,
@@ -89,7 +89,7 @@ _MODE_PROMPTS: dict[str, str] = {
     "exam":       EXAM_PROMPT,
     "coding":     CODING_PROMPT,
     "derivation": DERIVATION_PROMPT,
-    "socratic":   SOCRATIC_PROMPT,
+    "odin":       ODIN_PROMPT,
 }
 
 # ── Async Ollama client (singleton) ─────────────────────────

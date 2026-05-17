@@ -105,6 +105,7 @@ async def ws_chat(
                 user_message: str       = payload.get("message", "").strip()
                 subject_id: int | None  = payload.get("subject_id")
                 mode: str               = payload.get("mode", "detailed")
+                images: list[str]       = payload.get("images") or []
 
                 if not user_message:
                     continue
@@ -180,6 +181,7 @@ async def ws_chat(
                         subject_id=subject_id,
                         subject_name=subject_name,
                         mode=mode,
+                        images=images or None,
                     ):
                         # ── Tool invocation signal ─────────────────────
                         if "__ACTION__:" in chunk:

@@ -6,11 +6,15 @@ const MAX_RECONNECT_DELAY_MS = 4000;
 
 // ── Types ───────────────────────────────────────────────────
 export interface WsMessage {
-  type: "token" | "done" | "tool_data" | "error" | "review_reminder";
+  type: "token" | "done" | "tool_data" | "error" | "review_reminder" | "tool_action" | "sources" | "ping" | "file_indexed";
   content?: string;
   data?: unknown;
   topics?: string[];
   count?: number;
+  tool?: string;      // for tool_action
+  file_id?: number;   // for file_indexed
+  filename?: string;  // for file_indexed
+  chunks?: number;    // for file_indexed
 }
 
 interface UseWebSocketOptions {
@@ -18,6 +22,9 @@ interface UseWebSocketOptions {
   onDone:             () => void;                // assistant turn complete
   onToolData:         (data: unknown) => void;   // structured quiz / flashcard data
   onReviewReminder?:  (topics: string[], count: number) => void; // overdue topics
+  onToolAction?:      (tool: string) => void;    // which tool the agent used
+  onSources?:         (sources: string[]) => void; // source file names retrieved
+  onFileIndexed?:     (filename: string, chunks: number) => void; // file indexing complete
   authToken?: string | null;                     // JWT — appended as ?token= query param
 }
 
@@ -50,6 +57,9 @@ export function useWebSocket({
   onDone,
   onToolData,
   onReviewReminder,
+  onToolAction,
+  onSources,
+  onFileIndexed,
   authToken,
 }: UseWebSocketOptions): UseWebSocketReturn {
   const wsRef          = useRef<WebSocket | null>(null);
@@ -61,10 +71,16 @@ export function useWebSocket({
   const onDoneRef            = useRef(onDone);
   const onToolDataRef        = useRef(onToolData);
   const onReviewReminderRef  = useRef(onReviewReminder);
+  const onToolActionRef      = useRef(onToolAction);
+  const onSourcesRef         = useRef(onSources);
+  const onFileIndexedRef     = useRef(onFileIndexed);
   useEffect(() => { onTokenRef.current          = onToken;          }, [onToken]);
   useEffect(() => { onDoneRef.current           = onDone;           }, [onDone]);
   useEffect(() => { onToolDataRef.current       = onToolData;       }, [onToolData]);
   useEffect(() => { onReviewReminderRef.current = onReviewReminder; }, [onReviewReminder]);
+  useEffect(() => { onToolActionRef.current     = onToolAction;     }, [onToolAction]);
+  useEffect(() => { onSourcesRef.current        = onSources;        }, [onSources]);
+  useEffect(() => { onFileIndexedRef.current    = onFileIndexed;    }, [onFileIndexed]);
 
   const [isConnected, setIsConnected] = useState(false);
   // True until the socket has connected at least once (startup grace period).
@@ -83,6 +99,10 @@ export function useWebSocket({
       setIsConnecting(false);
       everConnected.current = true;
       reconnectCount.current = 0;
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+      }
       console.log("[Mimir WS] Connected");
     };
 
@@ -100,8 +120,17 @@ export function useWebSocket({
           case "tool_data":
             if (msg.data !== undefined) onToolDataRef.current(msg.data);
             break;
+          case "tool_action":
+            if (msg.tool) onToolActionRef.current?.(msg.tool);
+            break;
+          case "sources":
+            if (Array.isArray(msg.data)) onSourcesRef.current?.(msg.data as string[]);
+            break;
           case "review_reminder":
             onReviewReminderRef.current?.(msg.topics ?? [], msg.count ?? 0);
+            break;
+          case "file_indexed":
+            onFileIndexedRef.current?.(msg.filename ?? "", msg.chunks ?? 0);
             break;
           case "error":
             console.error("[Mimir WS] Server error:", msg.content);
@@ -133,14 +162,10 @@ export function useWebSocket({
 
       reconnectCount.current += 1;
 
-      // After many failed attempts without ever connecting, assume the token
-      // is stale. Guard with `token` for the same reason as above.
-      if (!everConnected.current && reconnectCount.current > 12 && token) {
-        console.warn("[Mimir WS] Too many failed attempts — clearing session");
-        localStorage.clear();
-        window.location.reload();
-        return;
-      }
+      // NOTE: We intentionally do NOT clear the session on repeated network
+      // failures — that only masked connectivity issues (e.g. slow localhost
+      // in browser-extension contexts). The 4001 close code (above) is the
+      // authoritative signal that a token is invalid.
 
       const delay = Math.min(RECONNECT_DELAY_MS * reconnectCount.current, MAX_RECONNECT_DELAY_MS);
       reconnectTimer.current = setTimeout(() => connect(token), delay);

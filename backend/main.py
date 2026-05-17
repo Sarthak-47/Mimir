@@ -16,6 +16,7 @@ from config import settings
 from memory.database import init_db
 from routers import chat, chronicle, files, quiz, users, progress
 from scheduler import review_check, streak_update
+from memory.summarizer import summarize_old_sessions
 
 
 # ── Scheduler (module-level singleton) ───────────────────────
@@ -46,8 +47,16 @@ async def lifespan(app: FastAPI):
         id="streak_update",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        summarize_old_sessions,
+        trigger="cron",
+        hour=2,
+        minute=0,       # runs 02:00 UTC daily — compresses sessions > 7 days old
+        id="memory_summarization",
+        replace_existing=True,
+    )
     _scheduler.start()
-    print("[Mimir] Scheduler started — review_check (hourly), streak_update (daily).")
+    print("[Mimir] Scheduler started — review_check (hourly), streak_update (daily), memory_summarization (02:00 UTC).")
 
     yield
 

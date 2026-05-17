@@ -109,6 +109,7 @@ async def upload_file(
         user_id=current_user.id,
         subject_id=subject_id,
         content_type=file.content_type or "",
+        filename=file.filename or unique_name,
     )
 
     return db_file

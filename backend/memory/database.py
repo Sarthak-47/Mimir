@@ -16,7 +16,7 @@ Schema overview:
 from datetime import datetime
 from sqlalchemy import (
     Integer, String, Float, Boolean, Text, DateTime, Date,
-    ForeignKey, func,
+    ForeignKey, func, text,
 )
 from sqlalchemy.orm import (
     DeclarativeBase, Mapped, mapped_column, relationship,
@@ -90,6 +90,10 @@ class Topic(Base):
     next_review:      Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     confidence_score: Mapped[float]           = mapped_column(Float, default=0.0)  # 0–100
     study_count:      Mapped[int]             = mapped_column(Integer, default=0)
+    # SM-2 spaced-repetition state
+    sm2_ease_factor:  Mapped[float]           = mapped_column(Float, default=2.5)
+    sm2_repetitions:  Mapped[int]             = mapped_column(Integer, default=0)
+    sm2_interval:     Mapped[int]             = mapped_column(Integer, default=1)
 
     subject:       Mapped["Subject"]             = relationship("Subject", back_populates="topics")
     quiz_sessions: Mapped[list["QuizSession"]]   = relationship("QuizSession", back_populates="topic", cascade="all, delete")
@@ -135,6 +139,8 @@ class Conversation(Base):
 
     Also mirrored into ChromaDB for semantic recall. ``subject_id`` allows
     filtering memory queries to the active study discipline.
+    ``summarized`` is set to True once the daily summarisation job has
+    compressed this turn into a session-level ChromaDB document.
     """
     __tablename__ = "conversations"
 
@@ -144,16 +150,50 @@ class Conversation(Base):
     content:    Mapped[str]      = mapped_column(Text, nullable=False)
     subject_id: Mapped[int|None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
     timestamp:  Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    summarized: Mapped[bool]     = mapped_column(Boolean, default=False)
 
     user: Mapped["User"] = relationship("User", back_populates="conversations")
+
+
+class Misconception(Base):
+    """A tracked conceptual error — topics where the student repeatedly scores poorly.
+
+    Created or incremented on quiz submission when score < 60 %.
+    Used by the agent loop to warn the model that this student struggles with
+    specific topics so it can proactively address the gap.
+    """
+    __tablename__ = "misconceptions"
+
+    id:        Mapped[int]      = mapped_column(Integer, primary_key=True)
+    user_id:   Mapped[int]      = mapped_column(ForeignKey("users.id"), nullable=False)
+    topic_id:  Mapped[int]      = mapped_column(ForeignKey("topics.id"), nullable=False)
+    note:      Mapped[str]      = mapped_column(Text, default="")
+    count:     Mapped[int]      = mapped_column(Integer, default=1)   # consecutive low-score events
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    user:  Mapped["User"]  = relationship("User")
+    topic: Mapped["Topic"] = relationship("Topic")
 
 
 # ── Helpers ──────────────────────────────────────────────────
 
 async def init_db():
-    """Create all tables on startup (no-op if they exist)."""
+    """Create all tables on startup, then apply any additive column migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # SM-2 column migration — safe to run every startup; SQLite raises
+        # OperationalError when the column already exists, which we ignore.
+        _migrations = [
+            "ALTER TABLE topics ADD COLUMN sm2_ease_factor REAL DEFAULT 2.5",
+            "ALTER TABLE topics ADD COLUMN sm2_repetitions INTEGER DEFAULT 0",
+            "ALTER TABLE topics ADD COLUMN sm2_interval INTEGER DEFAULT 1",
+            "ALTER TABLE conversations ADD COLUMN summarized BOOLEAN DEFAULT 0",
+        ]
+        for stmt in _migrations:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # column already exists — skip
     print("[Mimir DB] Tables ready.")
 
 

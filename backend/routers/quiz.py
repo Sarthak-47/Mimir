@@ -13,8 +13,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from memory.database import QuizSession, Topic, User, get_db
-from agent.tools import tool_quiz, compute_next_review
+from memory.database import QuizSession, Topic, User, Misconception, get_db
+from agent.tools import tool_quiz, compute_sm2
 from routers.users import get_current_user
 
 router = APIRouter()
@@ -26,6 +26,7 @@ class GenerateRequest(BaseModel):
     topic: str
     subject: str = ""
     n: int = 5
+    difficulty: str = "medium"
 
 class QuizQuestion(BaseModel):
     """A single MCQ question as returned by the quiz generator."""
@@ -69,7 +70,9 @@ async def generate_quiz(
     loop. Returns 503 if Ollama is unavailable or returns no questions.
     """
     try:
-        questions = await asyncio.to_thread(tool_quiz, topic=req.topic, subject=req.subject, n=req.n)
+        questions = await asyncio.to_thread(
+            tool_quiz, topic=req.topic, subject=req.subject, n=req.n, difficulty=req.difficulty
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
     if not questions:
@@ -99,14 +102,50 @@ async def submit_quiz(
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    # Update spaced repetition fields
-    confidence = (req.score / req.total) * 100 if req.total > 0 else 0
-    next_review = compute_next_review(req.score, req.total)
+    # Read current SM-2 state (with safe defaults for pre-migration rows)
+    ease      = topic.sm2_ease_factor  if topic.sm2_ease_factor  is not None else 2.5
+    reps      = topic.sm2_repetitions  if topic.sm2_repetitions  is not None else 0
+    sm2_int   = topic.sm2_interval     if topic.sm2_interval      is not None else 1
 
+    # Run the SM-2 algorithm
+    new_ease, new_reps, new_interval, next_review = compute_sm2(
+        score=req.score,
+        total=req.total,
+        ease_factor=ease,
+        repetitions=reps,
+        interval=sm2_int,
+    )
+
+    confidence = (req.score / req.total) * 100 if req.total > 0 else 0
+
+    # Update topic with new SM-2 state
+    topic.sm2_ease_factor  = new_ease
+    topic.sm2_repetitions  = new_reps
+    topic.sm2_interval     = new_interval
     topic.confidence_score = round(confidence, 1)
     topic.last_studied     = datetime.utcnow()
     topic.next_review      = next_review
     topic.study_count      += 1
+
+    # ── Track misconceptions (score < 60 %) ──────────────────
+    if confidence < 60.0:
+        misc_result = await db.execute(
+            select(Misconception).where(
+                Misconception.user_id == current_user.id,
+                Misconception.topic_id == topic.id,
+            )
+        )
+        misc = misc_result.scalar_one_or_none()
+        if misc:
+            misc.count    += 1
+            misc.last_seen = datetime.utcnow()
+            misc.note      = f"Latest: {req.score}/{req.total} ({confidence:.0f}%)"
+        else:
+            db.add(Misconception(
+                user_id  = current_user.id,
+                topic_id = topic.id,
+                note     = f"First low score: {req.score}/{req.total} ({confidence:.0f}%)",
+            ))
 
     # Save quiz session
     session = QuizSession(
@@ -118,15 +157,18 @@ async def submit_quiz(
     db.add(session)
     await db.commit()
 
-    # Compose encouragement message
-    if confidence >= 80:
-        msg = f"Outstanding! {req.score}/{req.total} — you've mastered this. Review in 7 days."
-    elif confidence >= 60:
-        msg = f"Good effort! {req.score}/{req.total} — keep going. Review in 3 days."
-    elif confidence >= 40:
-        msg = f"Keep practicing! {req.score}/{req.total} — review tomorrow."
+    # Compose encouragement message with actual SM-2 interval
+    pct = confidence
+    if pct >= 90:
+        msg = f"Outstanding! {req.score}/{req.total} — next review in {new_interval} days."
+    elif pct >= 70:
+        msg = f"Well done! {req.score}/{req.total} — next review in {new_interval} days."
+    elif pct >= 60:
+        msg = f"Passed, but review again soon. {req.score}/{req.total} — next review tomorrow."
+    elif pct >= 40:
+        msg = f"Needs more work. {req.score}/{req.total} — review again tomorrow."
     else:
-        msg = f"This needs work — {req.score}/{req.total}. Review in 4 hours."
+        msg = f"Critical gap. {req.score}/{req.total} — review again tomorrow."
 
     return SubmitResponse(
         confidence_score=confidence,

@@ -200,6 +200,24 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
           </div>
         </div>
 
+        {/* Tool action badge */}
+        {!isUser && msg.toolAction && (
+          <div style={styles.toolActionBadge}>
+            <span style={styles.toolActionRune}>⚙</span>
+            <span style={styles.toolActionLabel}>{msg.toolAction.toUpperCase()} INVOKED</span>
+          </div>
+        )}
+
+        {/* Source grounding */}
+        {!isUser && msg.sources && msg.sources.length > 0 && (
+          <div style={styles.sourceBar}>
+            <span style={styles.sourceBarLabel}>ᛋ SOURCES</span>
+            {msg.sources.map((s, i) => (
+              <span key={i} style={styles.sourceChip}>{s}</span>
+            ))}
+          </div>
+        )}
+
         {/* Inline quiz card (when tool returned MCQs) */}
         {msg.quizData && msg.quizData.length > 0 && (
           <InlineQuiz questions={msg.quizData} />
@@ -347,6 +365,12 @@ const styles: Record<string, React.CSSProperties> = {
   flashcardHint:   { fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-dim)", marginTop: 6 },
   flashcardNav:    { display: "flex", gap: 4, marginTop: 6, justifyContent: "flex-end" },
   fcBtn:           { background: "var(--stone-4)", border: "1px solid var(--green-dark)", color: "var(--text-secondary)", fontFamily: "var(--font-header)", fontSize: 13, padding: "2px 10px", cursor: "pointer" },
+  toolActionBadge: { display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", background: "var(--stone-2)", border: "1px solid var(--green-dark)", alignSelf: "flex-start" },
+  toolActionRune:  { fontSize: 11, color: "var(--green-dim)" },
+  toolActionLabel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-dim)" },
+  sourceBar:       { display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: 4, padding: "3px 7px", background: "var(--stone-2)", border: "1px solid var(--green-dark)" },
+  sourceBarLabel:  { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.12em", color: "var(--text-dim)", marginRight: 2, flexShrink: 0 },
+  sourceChip:      { fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-secondary)", padding: "1px 5px", background: "var(--stone-3)", border: "1px solid var(--green-dark)" },
   emptyState:      { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 32, textAlign: "center" as const },
   emptyRune:       { fontFamily: "var(--font-header)", fontSize: 52, color: "var(--green-dim)", lineHeight: 1 },
   emptyTitle:      { fontFamily: "var(--font-header)", fontSize: 15, fontWeight: 600, letterSpacing: "0.15em", color: "var(--text-secondary)" },

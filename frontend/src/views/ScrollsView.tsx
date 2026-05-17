@@ -37,6 +37,7 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
   const [loading,        setLoading]        = useState(true);
   const [uploading,      setUploading]      = useState(false);
   const [uploadSubject,  setUploadSubject]  = useState<string>("");
+  const [isDragOver,     setIsDragOver]     = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadFiles = () => {
@@ -85,6 +86,35 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
     } catch { /* ignore */ }
   };
 
+  // ── Drag-and-drop upload ─────────────────────────────────
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (uploadSubject) form.append("subject_id", uploadSubject);
+      const res = await fetch(UPLOAD_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+        body: form,
+      });
+      if (res.ok) {
+        const newFile = await res.json() as FileRow;
+        setFiles((prev) => [newFile, ...prev]);
+      }
+    } catch { /* ignore */ }
+    finally { setUploading(false); }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
+  const handleDragLeave = () => setIsDragOver(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFile(file);
+  };
+
   const subjectName = (id: number | null) =>
     id ? subjects.find((s) => s.id === String(id))?.name ?? `Subject ${id}` : "—";
 
@@ -97,7 +127,13 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
   };
 
   return (
-    <div style={styles.page} className="scroll-area">
+    <div
+      style={{ ...styles.page, ...(isDragOver ? styles.pageDragOver : {}) }}
+      className="scroll-area"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* ── Header ── */}
       <div style={styles.pageHeader}>
         <span style={styles.headerRune}>ᚱ</span>
@@ -188,14 +224,15 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
       )}
 
       <div style={styles.hint}>
-        Indexed scrolls become part of Mimir's memory. Ask about them in the Oracle.
+        Indexed scrolls become part of Mimir's memory. Ask about them in the Oracle. Drag a file here to upload.
       </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page:         { flex: 1, padding: "16px 20px", overflowY: "auto", background: "var(--stone-1)", display: "flex", flexDirection: "column" },
+  page:         { flex: 1, padding: "16px 20px", overflowY: "auto", background: "var(--stone-1)", display: "flex", flexDirection: "column", transition: "background 0.15s, outline 0.15s" },
+  pageDragOver: { background: "var(--stone-2)", outline: "2px dashed var(--green)", outlineOffset: "-6px" },
   pageHeader:   { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   headerRune:   { fontFamily: "var(--font-header)", fontSize: 24, color: "var(--gold-dim)", lineHeight: 1 },
   headerTitle:  { fontFamily: "var(--font-header)", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", color: "var(--gold-bright)" },

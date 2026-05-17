@@ -12,10 +12,31 @@ metadata field allows queries to be scoped to the active discipline.
 The ChromaDB client is created lazily and reused as a module-level singleton.
 """
 
+import re
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from rank_bm25 import BM25Okapi
 
 from config import settings
+
+# ── Cross-encoder reranker (lazy singleton) ──────────────────
+# Uses ms-marco-MiniLM-L-6-v2 (~80 MB, downloads on first use).
+# Falls back to RRF-only if sentence-transformers is not installed.
+_reranker = None
+_reranker_tried = False
+
+def _get_reranker():
+    """Return the cross-encoder reranker, loading it lazily on first call."""
+    global _reranker, _reranker_tried
+    if _reranker_tried:
+        return _reranker
+    _reranker_tried = True
+    try:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", max_length=512)
+    except Exception:
+        _reranker = None
+    return _reranker
 
 
 # ── Client (singleton pattern) ───────────────────────────────
@@ -111,12 +132,155 @@ def query_memory(
         return []
 
 
+def query_memory_with_sources(
+    user_id: int,
+    query: str,
+    n_results: int = 5,
+    subject_id: int | None = None,
+) -> tuple[list[str], list[str]]:
+    """Retrieve relevant past documents *and* the source filenames they came from.
+
+    Returns:
+        A ``(documents, filenames)`` tuple.  ``filenames`` contains unique
+        original file names (from document metadata), in retrieval order.
+        Conversation turns that carry no ``filename`` metadata are ignored in
+        the sources list.
+    """
+    collection = get_collection()
+    where: dict = {"user_id": str(user_id)}
+    if subject_id is not None:
+        where["subject_id"] = str(subject_id)
+
+    try:
+        results = collection.query(
+            query_texts=[query],
+            n_results=n_results,
+            where=where,
+            include=["documents", "metadatas"],
+        )
+        docs: list[str] = results.get("documents", [[]])[0]
+        metadatas: list[dict] = results.get("metadatas", [[]])[0]
+
+        sources: list[str] = []
+        seen: set[str] = set()
+        for meta in metadatas:
+            fn = (meta or {}).get("filename", "")
+            if fn and fn not in seen:
+                seen.add(fn)
+                sources.append(fn)
+
+        return docs, sources
+    except Exception:
+        return [], []
+
+
+def _tokenize(text: str) -> list[str]:
+    """Lowercase word tokeniser for BM25."""
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def query_memory_hybrid(
+    user_id: int,
+    query: str,
+    n_results: int = 5,
+    subject_id: int | None = None,
+    candidate_pool: int = 20,
+) -> tuple[list[str], list[str]]:
+    """Hybrid retrieval: vector similarity + BM25 keyword search, merged via RRF.
+
+    Retrieves ``candidate_pool`` documents from ChromaDB using vector search,
+    then reranks them with BM25 keyword matching. Final scores are merged with
+    Reciprocal Rank Fusion so that documents ranking well on *both* signals
+    float to the top.
+
+    Args:
+        user_id:        Restricts results to this user's data.
+        query:          Natural-language query string.
+        n_results:      Number of final documents to return.
+        subject_id:     Optional discipline scope.
+        candidate_pool: How many candidates to fetch from ChromaDB before BM25.
+
+    Returns:
+        ``(documents, filenames)`` — same shape as ``query_memory_with_sources``.
+    """
+    collection = get_collection()
+    where: dict = {"user_id": str(user_id)}
+    if subject_id is not None:
+        where["subject_id"] = str(subject_id)
+
+    try:
+        results = collection.query(
+            query_texts=[query],
+            n_results=min(candidate_pool, 100),
+            where=where,
+            include=["documents", "metadatas"],
+        )
+        docs: list[str]      = results.get("documents", [[]])[0]
+        metas: list[dict]    = results.get("metadatas", [[]])[0]
+
+        if not docs:
+            return [], []
+
+        # ── BM25 reranking ───────────────────────────────────
+        tokenized_corpus = [_tokenize(d) for d in docs]
+        bm25 = BM25Okapi(tokenized_corpus)
+        bm25_scores = bm25.get_scores(_tokenize(query))
+
+        # ── Reciprocal Rank Fusion (k=60) ────────────────────
+        # Vector rank comes from ChromaDB order (index = rank)
+        rrf_k = 60
+        rrf: dict[int, float] = {}
+        for vec_rank, idx in enumerate(range(len(docs))):
+            rrf[idx] = rrf.get(idx, 0.0) + 1.0 / (rrf_k + vec_rank + 1)
+
+        # BM25 rank: sort indices by BM25 score descending
+        bm25_ranked = sorted(range(len(docs)), key=lambda i: bm25_scores[i], reverse=True)
+        for bm25_rank, idx in enumerate(bm25_ranked):
+            rrf[idx] = rrf.get(idx, 0.0) + 1.0 / (rrf_k + bm25_rank + 1)
+
+        # ── RRF: pick intermediate pool (2× final size) for reranker ──
+        rrf_pool = min(n_results * 2, len(docs))
+        rrf_indices = sorted(rrf.keys(), key=lambda i: rrf[i], reverse=True)[:rrf_pool]
+
+        pool_docs  = [docs[i]  for i in rrf_indices]
+        pool_metas = [metas[i] for i in rrf_indices]
+
+        # ── Cross-encoder rerank ─────────────────────────────
+        reranker = _get_reranker()
+        if reranker is not None and len(pool_docs) > 1:
+            try:
+                pairs  = [(query, d[:500]) for d in pool_docs]
+                scores = reranker.predict(pairs)
+                order  = sorted(range(len(pool_docs)), key=lambda i: scores[i], reverse=True)
+                pool_docs  = [pool_docs[i]  for i in order]
+                pool_metas = [pool_metas[i] for i in order]
+            except Exception:
+                pass   # fall back to RRF order silently
+
+        final_docs  = pool_docs[:n_results]
+        final_metas = pool_metas[:n_results]
+
+        sources: list[str] = []
+        seen: set[str] = set()
+        for meta in final_metas:
+            fn = (meta or {}).get("filename", "")
+            if fn and fn not in seen:
+                seen.add(fn)
+                sources.append(fn)
+
+        return final_docs, sources
+
+    except Exception:
+        return [], []
+
+
 def add_document_memory(
     user_id: int,
     content: str,
     file_id: int,
     chunk_idx: int,
     subject_id: int | None = None,
+    filename: str = "",
 ) -> None:
     """Upsert one text chunk from a parsed PDF or image into ChromaDB.
 
@@ -140,6 +304,8 @@ def add_document_memory(
     }
     if subject_id is not None:
         metadata["subject_id"] = str(subject_id)
+    if filename:
+        metadata["filename"] = filename
 
     collection.upsert(
         ids=[doc_id],

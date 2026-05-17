@@ -6,7 +6,7 @@ const MAX_RECONNECT_DELAY_MS = 4000;
 
 // ── Types ───────────────────────────────────────────────────
 export interface WsMessage {
-  type: "token" | "done" | "tool_data" | "error" | "review_reminder" | "tool_action" | "sources" | "ping" | "file_indexed";
+  type: "token" | "done" | "tool_data" | "error" | "review_reminder" | "tool_action" | "sources" | "ping" | "file_indexed" | "tutor_state" | "tutor_quiz";
   content?: string;
   data?: unknown;
   topics?: string[];
@@ -15,6 +15,7 @@ export interface WsMessage {
   file_id?: number;   // for file_indexed
   filename?: string;  // for file_indexed
   chunks?: number;    // for file_indexed
+  state?: string;     // for tutor_state
 }
 
 interface UseWebSocketOptions {
@@ -25,11 +26,13 @@ interface UseWebSocketOptions {
   onToolAction?:      (tool: string) => void;    // which tool the agent used
   onSources?:         (sources: string[]) => void; // source file names retrieved
   onFileIndexed?:     (filename: string, chunks: number) => void; // file indexing complete
+  onTutorState?:      (state: string) => void;   // tutor session state changed
+  onTutorQuiz?:       (data: unknown) => void;   // tutor quiz questions ready
   authToken?: string | null;                     // JWT — appended as ?token= query param
 }
 
 interface UseWebSocketReturn {
-  sendMessage: (text: string, subjectId?: number, mode?: string, images?: string[]) => void;
+  sendMessage: (text: string, subjectId?: number, mode?: string, images?: string[], tutorSessionId?: number) => void;
   isConnected: boolean;
   isConnecting: boolean;
 }
@@ -60,6 +63,8 @@ export function useWebSocket({
   onToolAction,
   onSources,
   onFileIndexed,
+  onTutorState,
+  onTutorQuiz,
   authToken,
 }: UseWebSocketOptions): UseWebSocketReturn {
   const wsRef          = useRef<WebSocket | null>(null);
@@ -74,6 +79,8 @@ export function useWebSocket({
   const onToolActionRef      = useRef(onToolAction);
   const onSourcesRef         = useRef(onSources);
   const onFileIndexedRef     = useRef(onFileIndexed);
+  const onTutorStateRef      = useRef(onTutorState);
+  const onTutorQuizRef       = useRef(onTutorQuiz);
   useEffect(() => { onTokenRef.current          = onToken;          }, [onToken]);
   useEffect(() => { onDoneRef.current           = onDone;           }, [onDone]);
   useEffect(() => { onToolDataRef.current       = onToolData;       }, [onToolData]);
@@ -81,6 +88,8 @@ export function useWebSocket({
   useEffect(() => { onToolActionRef.current     = onToolAction;     }, [onToolAction]);
   useEffect(() => { onSourcesRef.current        = onSources;        }, [onSources]);
   useEffect(() => { onFileIndexedRef.current    = onFileIndexed;    }, [onFileIndexed]);
+  useEffect(() => { onTutorStateRef.current     = onTutorState;     }, [onTutorState]);
+  useEffect(() => { onTutorQuizRef.current      = onTutorQuiz;      }, [onTutorQuiz]);
 
   const [isConnected, setIsConnected] = useState(false);
   // True until the socket has connected at least once (startup grace period).
@@ -131,6 +140,12 @@ export function useWebSocket({
             break;
           case "file_indexed":
             onFileIndexedRef.current?.(msg.filename ?? "", msg.chunks ?? 0);
+            break;
+          case "tutor_state":
+            if (msg.state) onTutorStateRef.current?.(msg.state);
+            break;
+          case "tutor_quiz":
+            if (msg.data !== undefined) onTutorQuizRef.current?.(msg.data);
             break;
           case "error":
             console.error("[Mimir WS] Server error:", msg.content);
@@ -192,6 +207,7 @@ export function useWebSocket({
     subjectId?: number,
     mode: string = "detailed",
     images?: string[],
+    tutorSessionId?: number,
   ) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const payload: Record<string, unknown> = {
@@ -200,6 +216,7 @@ export function useWebSocket({
         mode,
       };
       if (images && images.length > 0) payload.images = images;
+      if (tutorSessionId) payload.tutor_session_id = tutorSessionId;
       wsRef.current.send(JSON.stringify(payload));
     } else {
       console.warn("[Mimir WS] Cannot send — not connected");

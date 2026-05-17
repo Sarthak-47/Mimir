@@ -10,10 +10,11 @@
 import { useState, useRef, useCallback } from "react";
 
 interface InputZoneProps {
-  onSend:    (text: string, mode: string, images?: string[]) => void;
-  onTrial:   () => void;
-  onRunes:   () => void;
-  onFates:   () => void;
+  onSend:         (text: string, mode: string, images?: string[]) => void;
+  onTrial:        () => void;
+  onRunes:        () => void;
+  onFates:        () => void;
+  onStartLesson:  (topicName: string) => void;
   activeSubjectName: string | null;
   authToken?: string | null;
   mode: string;
@@ -34,7 +35,7 @@ const UPLOAD_URL = `${API_FILES}/upload`;
  * @param authToken          - JWT forwarded with file upload requests.
  */
 export default function InputZone({
-  onSend, onTrial, onRunes, onFates, activeSubjectName, authToken, mode, onModeChange,
+  onSend, onTrial, onRunes, onFates, onStartLesson, activeSubjectName, authToken, mode, onModeChange,
 }: InputZoneProps) {
   const [text,          setText]          = useState("");
   const [uploading,     setUploading]     = useState(false);
@@ -42,6 +43,10 @@ export default function InputZone({
   // dataUrl is used for the preview thumbnail; base64 is sent to the backend.
   const [pendingImages, setPendingImages] = useState<{ base64: string; dataUrl: string }[]>([]);
   const [isDragOver,    setIsDragOver]    = useState(false);
+  // Lesson topic picker state
+  const [showLessonPicker, setShowLessonPicker] = useState(false);
+  const [lessonTopic,      setLessonTopic]      = useState("");
+  const lessonInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,6 +108,25 @@ export default function InputZone({
   }, []);
 
   const handleDragLeave = useCallback(() => setIsDragOver(false), []);
+
+  // ── Lesson picker ────────────────────────────────────────
+  const handleLessonOpen = () => {
+    setShowLessonPicker(true);
+    // Focus the input on next tick
+    setTimeout(() => lessonInputRef.current?.focus(), 50);
+  };
+
+  const handleLessonConfirm = () => {
+    if (!lessonTopic.trim()) return;
+    onStartLesson(lessonTopic.trim());
+    setLessonTopic("");
+    setShowLessonPicker(false);
+  };
+
+  const handleLessonKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleLessonConfirm();
+    if (e.key === "Escape") { setShowLessonPicker(false); setLessonTopic(""); }
+  };
 
   /** Handle drop — accept image files. */
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -171,10 +195,11 @@ export default function InputZone({
 
   // ── Rune action buttons config ───────────────────────────
   const ACTIONS = [
-    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image", onClick: handleScrollClick, disabled: uploading },
-    { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject", onClick: onTrial,  disabled: false },
-    { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",            onClick: onRunes,  disabled: false },
-    { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",      onClick: onFates,  disabled: false },
+    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image",              onClick: handleScrollClick, disabled: uploading },
+    { icon: "ᛚ", label: "LESSON", title: "Start an interactive tutor session",      onClick: handleLessonOpen,  disabled: false },
+    { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject",           onClick: onTrial,           disabled: false },
+    { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",                     onClick: onRunes,           disabled: false },
+    { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",               onClick: onFates,           disabled: false },
   ];
 
   return (
@@ -219,6 +244,31 @@ export default function InputZone({
       {isDragOver && (
         <div style={styles.dragOverlay}>
           <span style={styles.dragHint}>ᛋ Drop image to attach</span>
+        </div>
+      )}
+
+      {/* ── Lesson topic picker ── */}
+      {showLessonPicker && (
+        <div style={styles.lessonPicker}>
+          <span style={styles.lessonLabel}>ᛚ Topic:</span>
+          <input
+            ref={lessonInputRef}
+            type="text"
+            value={lessonTopic}
+            onChange={(e) => setLessonTopic(e.target.value)}
+            onKeyDown={handleLessonKeyDown}
+            placeholder="e.g. Photosynthesis, Dijkstra's algorithm…"
+            style={styles.lessonInput}
+          />
+          <button
+            style={{ ...styles.lessonBtn, ...(lessonTopic.trim() ? styles.lessonBtnActive : {}) }}
+            onClick={handleLessonConfirm}
+            disabled={!lessonTopic.trim()}
+          >Begin</button>
+          <button
+            style={styles.lessonCancel}
+            onClick={() => { setShowLessonPicker(false); setLessonTopic(""); }}
+          >×</button>
         </div>
       )}
 
@@ -319,4 +369,10 @@ const styles: Record<string, React.CSSProperties> = {
   sendBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)", cursor: "pointer", opacity: 1 },
   sendRune: { fontFamily: "var(--font-header)", fontSize: 18, color: "var(--green-bright)", lineHeight: 1 },
   hint: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-dim)", fontStyle: "italic", marginTop: 3, textAlign: "center" as const },
+  lessonPicker: { display: "flex", alignItems: "center", gap: 6, padding: "5px 0 3px", borderBottom: "1px solid var(--green-dark)", marginBottom: 4 },
+  lessonLabel: { fontFamily: "var(--font-header)", fontSize: 11, color: "var(--gold)", letterSpacing: "0.1em", flexShrink: 0 },
+  lessonInput: { flex: 1, background: "var(--stone-1)", border: "1px solid var(--green-dark)", color: "var(--text-primary)", fontFamily: "var(--font-body)", fontSize: 13, padding: "4px 8px", outline: "none" },
+  lessonBtn: { padding: "4px 12px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", color: "var(--text-dim)", fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", cursor: "not-allowed", flexShrink: 0 },
+  lessonBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)", color: "var(--green-bright)", cursor: "pointer" },
+  lessonCancel: { background: "none", border: "none", color: "var(--text-dim)", fontFamily: "var(--font-header)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0, flexShrink: 0 },
 };

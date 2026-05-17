@@ -10,6 +10,8 @@ import ReckoningView from "@/views/ReckoningView";
 import ChronicleView from "@/views/ChronicleView";
 import ScrollsView from "@/views/ScrollsView";
 import CommandPalette from "@/components/CommandPalette";
+import TutorBar from "@/components/TutorBar";
+import HelpModal from "@/components/HelpModal";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
@@ -155,6 +157,11 @@ export default function App() {
   const [reviewAlert, setReviewAlert]       = useState<{ topics: string[]; count: number } | null>(null);
   const [fileIndexedAlert, setFileIndexedAlert] = useState<{ filename: string; chunks: number } | null>(null);
   const [mode, setMode]                   = useState<string>("detailed");
+  // Active tutor session — null when not in a lesson
+  const [activeTutorSession, setActiveTutorSession] = useState<{
+    id: number; state: string; topic: string;
+  } | null>(null);
+  const [showHelp, setShowHelp]           = useState(false);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -327,8 +334,32 @@ export default function App() {
     setTimeout(() => setFileIndexedAlert(null), 5000);
   }, []);
 
+  const onTutorState = useCallback((state: string) => {
+    setActiveTutorSession((prev) => prev ? { ...prev, state } : prev);
+    // When DEBRIEF completes, clear session after a short delay
+    if (state === "DEBRIEF") {
+      setTimeout(() => setActiveTutorSession(null), 60_000);
+    }
+  }, []);
+
+  const onTutorQuiz = useCallback((data: unknown) => {
+    setMessages((prev) => {
+      const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
+      const quizData = Array.isArray(data) ? data as import("@/components/Quiz").QuizQuestion[] : [];
+      const tutorMsg = {
+        id: `assistant-tutor-quiz-${Date.now()}`,
+        role: "assistant" as const,
+        content: "Trial of Blades — answer the questions below.",
+        timestamp: new Date(),
+        quizData,
+      };
+      return lastIdx === -1 ? [...prev, tutorMsg] : [...prev.slice(0, lastIdx + 1), tutorMsg];
+    });
+  }, []);
+
   const { sendMessage, isConnected, isConnecting } = useWebSocket({
-    onToken, onDone, onToolData, onReviewReminder, onToolAction, onSources, onFileIndexed, authToken,
+    onToken, onDone, onToolData, onReviewReminder, onToolAction, onSources, onFileIndexed,
+    onTutorState, onTutorQuiz, authToken,
   });
 
   // ── Chat handlers ──────────────────────────────────────
@@ -347,8 +378,41 @@ export default function App() {
       activeSubject ? Number(activeSubject) : undefined,
       sendMode ?? mode,
       images,
+      activeTutorSession?.id,
     );
   };
+
+  const handleStartLesson = useCallback(async (topicName: string) => {
+    if (!authToken || !topicName.trim()) return;
+    try {
+      const res = await fetch(`${API}/api/tutor/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+        body: JSON.stringify({
+          topic_name: topicName.trim(),
+          subject_id: activeSubject ? Number(activeSubject) : null,
+        }),
+      });
+      if (!res.ok) return;
+      const session = await res.json() as { id: number; state: string; topic_name: string };
+      setActiveTutorSession({ id: session.id, state: session.state, topic: session.topic_name });
+      // Trigger the first tutor turn (INTRO) with an empty user message
+      setIsWaiting(true);
+      sendMessage(
+        `Begin the lesson on ${session.topic_name}.`,
+        activeSubject ? Number(activeSubject) : undefined,
+        mode,
+        undefined,
+        session.id,
+      );
+      setMessages((prev) => [...prev, {
+        id: `user-lesson-${Date.now()}`,
+        role: "user",
+        content: `Begin the lesson on ${session.topic_name}.`,
+        timestamp: new Date(),
+      }]);
+    } catch { /* backend offline — silent */ }
+  }, [authToken, activeSubject, mode, sendMessage]);
 
   const handleTrial = () => {
     const subj = subjects.find((s) => s.id === activeSubject);
@@ -400,6 +464,7 @@ export default function App() {
           activeSubjectName={activeSubjectObj?.name ?? null}
           username={username}
           onLogout={handleLogout}
+          onHelp={() => setShowHelp(true)}
         />
 
         {/* ── Review reminder banner ── */}
@@ -440,12 +505,20 @@ export default function App() {
 
         {view === "oracle" && (
           <>
+            {activeTutorSession && (
+              <TutorBar
+                topic={activeTutorSession.topic}
+                state={activeTutorSession.state}
+                onDismiss={() => setActiveTutorSession(null)}
+              />
+            )}
             <Chat messages={messages} onSuggestion={handleSend} username={username} isWaiting={isWaiting} />
             <InputZone
               onSend={handleSend}
               onTrial={handleTrial}
               onRunes={handleRunes}
               onFates={handleFates}
+              onStartLesson={handleStartLesson}
               activeSubjectName={activeSubjectObj?.name ?? null}
               authToken={authToken}
               mode={mode}
@@ -494,6 +567,8 @@ export default function App() {
         subjects={subjects}
         activeSubject={activeSubject}
       />
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

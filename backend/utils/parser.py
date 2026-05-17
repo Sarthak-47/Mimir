@@ -44,41 +44,146 @@ except ImportError:
 
 
 # ── Text chunking ────────────────────────────────────────────
-def _chunk_text(text: str, size: int = 512, overlap: int = 64) -> list[str]:
-    """Split normalised text into overlapping character-based chunks.
 
-    Whitespace is first collapsed to single spaces. The default 64-character
-    overlap helps ChromaDB maintain context across chunk boundaries.
+_SENT_END_RE = re.compile(r'(?<=[.!?])\s+')
+
+
+def _last_sentence(text: str) -> str:
+    """Return the final sentence of *text* (used for chunk overlap)."""
+    parts = _SENT_END_RE.split(text.strip())
+    return parts[-1].strip() if parts else ""
+
+
+def _semantic_chunk(text: str, max_size: int = 800) -> list[str]:
+    """Paragraph-aware semantic chunker — replaces the old fixed-size splitter.
+
+    Strategy:
+    1. Normalise line-endings and collapse excessive blank lines.
+    2. Split on blank lines (paragraph boundaries).
+    3. Merge adjacent short paragraphs up to *max_size*.
+    4. Split long paragraphs on sentence boundaries.
+    5. Overlap: include the last sentence of each emitted chunk at the start
+       of the next chunk so ChromaDB retrieval spans boundaries cleanly.
 
     Args:
-        text: Raw extracted text (may contain newlines and multiple spaces).
-        size: Target chunk size in characters.
-        overlap: Number of characters shared between adjacent chunks.
+        text:     Raw extracted text (may contain multiple blank lines).
+        max_size: Target maximum chunk size in characters.
 
     Returns:
-        List of non-empty chunk strings, or an empty list if ``text`` is blank.
+        List of non-empty chunk strings.
     """
-    text = re.sub(r"\s+", " ", text).strip()
-    if not text:
+    # Normalise
+    text = re.sub(r'\r\n?', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    if not paragraphs:
         return []
+
     chunks: list[str] = []
-    start = 0
-    while start < len(text):
-        chunks.append(text[start : start + size])
-        start += size - overlap
+    buf  = ""
+    tail = ""   # last sentence of the most recently emitted chunk
+
+    def flush(b: str) -> None:
+        nonlocal tail
+        b = b.strip()
+        if len(b) > 15:
+            chunks.append(b)
+            tail = _last_sentence(b)
+
+    for para in paragraphs:
+        if len(para) > max_size:
+            # Flush current buffer first, then split the long paragraph
+            if buf:
+                flush(buf)
+                buf = ""
+
+            sents = _SENT_END_RE.split(para)
+            seg = tail  # begin with overlap from previous chunk
+            for s in sents:
+                s = s.strip()
+                if not s:
+                    continue
+                candidate = (seg + " " + s).strip() if seg else s
+                if len(candidate) > max_size and seg:
+                    flush(seg)
+                    seg = (tail + " " + s).strip() if tail else s
+                else:
+                    seg = candidate
+            if seg:
+                buf = seg   # keep remainder; may merge with next paragraph
+        else:
+            candidate = (buf + "\n\n" + para).strip() if buf else para
+            if len(candidate) > max_size and buf:
+                flush(buf)
+                buf = (tail + "\n\n" + para).strip() if tail else para
+            else:
+                buf = candidate
+
+    if buf:
+        flush(buf)
+
     return chunks
 
 
 # ── Extractors ───────────────────────────────────────────────
 def _extract_pdf(filepath: str) -> str:
-    """Extract all text from a PDF using PyMuPDF. Returns empty string if unavailable."""
+    """Extract text from a PDF preserving document structure using PyMuPDF.
+
+    Uses block-level extraction with font-size heuristics to detect headings.
+    Headings are prefixed with a blank line so the semantic chunker treats them
+    as paragraph boundaries, keeping related content together.
+
+    Falls back to plain ``get_text()`` if structured extraction fails.
+    """
     if not _HAS_PYMUPDF:
         return ""
     try:
         doc = fitz.open(filepath)
-        pages = [page.get_text() for page in doc]
+        page_texts: list[str] = []
+
+        for page in doc:
+            try:
+                raw = page.get_text("dict", sort=True)
+                blocks = raw.get("blocks", [])
+                parts: list[str] = []
+
+                for block in blocks:
+                    if block.get("type") != 0:   # skip image blocks
+                        continue
+
+                    # Collect all spans in the block to measure font sizes
+                    spans: list[dict] = [
+                        span
+                        for line in block.get("lines", [])
+                        for span in line.get("spans", [])
+                    ]
+                    if not spans:
+                        continue
+
+                    block_text = " ".join(s.get("text", "") for s in spans).strip()
+                    if not block_text:
+                        continue
+
+                    # Heading heuristic: max font size ≥ 13 AND short line
+                    max_size = max(s.get("size", 0) for s in spans)
+                    is_heading = max_size >= 13 and len(block_text) <= 150
+
+                    if is_heading:
+                        # Blank line before heading creates a semantic boundary
+                        parts.append(f"\n{block_text}")
+                    else:
+                        parts.append(block_text)
+
+                page_texts.append("\n\n".join(parts))
+
+            except Exception:
+                # Per-page fallback to plain text
+                page_texts.append(page.get_text())
+
         doc.close()
-        return "\n".join(pages)
+        return "\n\n".join(page_texts)
+
     except Exception as e:
         logger.error("PDF extraction failed for %s: %s", filepath, e)
         return ""
@@ -103,6 +208,7 @@ async def parse_and_index_file(
     user_id:      int,
     subject_id:   int | None,
     content_type: str,
+    filename:     str = "",
 ) -> None:
     """
     Background task: extract text → chunk → store in ChromaDB → mark processed.
@@ -119,9 +225,11 @@ async def parse_and_index_file(
         text = _extract_image(filepath)
 
     # ── Index chunks ─────────────────────────────────────────
+    chunk_count = 0
     if text.strip():
-        chunks = _chunk_text(text)
-        logger.info("Indexing %d chunks for file %d", len(chunks), file_id)
+        chunks = _semantic_chunk(text)
+        chunk_count = len(chunks)
+        logger.info("Indexing %d semantic chunks for file %d", chunk_count, file_id)
         for idx, chunk in enumerate(chunks):
             try:
                 add_document_memory(
@@ -130,6 +238,7 @@ async def parse_and_index_file(
                     file_id=file_id,
                     chunk_idx=idx,
                     subject_id=subject_id,
+                    filename=filename,
                 )
             except Exception as e:
                 logger.error("Failed to index chunk %d: %s", idx, e)
@@ -146,3 +255,16 @@ async def parse_and_index_file(
             file_row.processed = True
             await db.commit()
             logger.info("File %d marked as processed.", file_id)
+
+    # ── Notify user via WebSocket ─────────────────────────────
+    try:
+        from ws_manager import manager
+        await manager.send_to_user(user_id, {
+            "type":     "file_indexed",
+            "file_id":  file_id,
+            "filename": filename,
+            "chunks":   chunk_count,
+        })
+        logger.info("Sent file_indexed WS notification to user %d.", user_id)
+    except Exception as e:
+        logger.warning("Could not send file_indexed WS notification: %s", e)

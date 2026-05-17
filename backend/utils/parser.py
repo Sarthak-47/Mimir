@@ -189,7 +189,7 @@ def _extract_pdf(filepath: str) -> str:
         return ""
 
 
-def _extract_image(filepath: str) -> str:
+def _extract_image_ocr(filepath: str) -> str:
     """Run Tesseract OCR on an image file. Returns empty string if unavailable."""
     if not _HAS_OCR:
         return ""
@@ -199,6 +199,52 @@ def _extract_image(filepath: str) -> str:
     except Exception as e:
         logger.error("OCR failed for %s: %s", filepath, e)
         return ""
+
+
+async def _extract_image(filepath: str) -> str:
+    """Extract content from an image using the Ollama vision model.
+
+    Strategy:
+    1. Try the configured vision model (``settings.vision_model``).
+       Produces a rich, structured description of diagrams, text, and
+       relationships — far better than raw OCR for study indexing.
+    2. Fall back to Tesseract OCR if the vision model is not loaded or
+       the call fails.
+    3. Return empty string if both fail — the file is still marked
+       processed so the upload does not block the user.
+    """
+    import base64
+    try:
+        import ollama as _ollama
+        from config import settings as _s
+
+        with open(filepath, "rb") as fh:
+            img_b64 = base64.b64encode(fh.read()).decode("utf-8")
+
+        client = _ollama.AsyncClient(host=_s.ollama_base_url)
+        resp = await client.chat(
+            model=_s.vision_model,
+            messages=[{
+                "role":    "user",
+                "content": (
+                    "You are indexing this image for a student's study notes. "
+                    "Extract and describe ALL content: every text label, formula, "
+                    "arrow, relationship, diagram structure, and key concept. "
+                    "Be thorough so this image can be found by relevant search queries."
+                ),
+                "images":  [img_b64],
+            }],
+            options={"temperature": 0.2},
+            stream=False,
+        )
+        text = resp["message"]["content"].strip()
+        if text:
+            return text
+        logger.warning("Vision model returned empty content for %s — falling back to OCR", filepath)
+    except Exception as e:
+        logger.warning("Vision model unavailable for %s (%s) — falling back to OCR", filepath, e)
+
+    return _extract_image_ocr(filepath)
 
 
 # ── Main async task ──────────────────────────────────────────
@@ -222,7 +268,7 @@ async def parse_and_index_file(
     if "pdf" in content_type:
         text = _extract_pdf(filepath)
     else:
-        text = _extract_image(filepath)
+        text = await _extract_image(filepath)
 
     # ── Index chunks ─────────────────────────────────────────
     chunk_count = 0

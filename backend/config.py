@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # ── Ollama ───────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:9b"
+    # Dedicated vision model for image/diagram understanding.
+    # Pull with: ollama pull qwen2.5vl:7b
+    # Falls back gracefully if not available (Tesseract OCR used instead).
+    vision_model: str = "qwen2.5vl:7b"
     # GPU layers to offload. -1 = auto (let Ollama use full GPU).
     # qwen3.5:9b (6.6 GB) fits entirely in 8 GB VRAM, leaving ~1.8 GB
     # free for KV cache. Vision + tools + thinking built in.

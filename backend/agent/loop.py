@@ -141,6 +141,7 @@ async def run_agent(
     subject_id: int | None = None,
     subject_name: str = "",
     mode: str = "detailed",
+    images: list[str] | None = None,   # base64-encoded images attached to this message
 ) -> AsyncGenerator[str, None]:
     """Run one ReAct iteration and stream response tokens.
 
@@ -225,7 +226,41 @@ async def run_agent(
     except Exception:
         pass   # Misconception table may not exist yet on first boot
 
+    # ── Vision pre-processing (if images attached) ──────────
+    image_context = ""
+    if images:
+        vision_parts: list[str] = []
+        for idx, img_b64 in enumerate(images[:3]):   # cap at 3 images per message
+            try:
+                vision_resp = await _client.chat(
+                    model=settings.vision_model,
+                    messages=[{
+                        "role":    "user",
+                        "content": (
+                            "Describe this diagram or image in detail for a student "
+                            f"studying {subject_name or 'this subject'}. "
+                            "Extract all text, labels, arrows, equations, and relationships."
+                        ),
+                        "images":  [img_b64],
+                    }],
+                    options={"temperature": 0.2},
+                    stream=False,
+                )
+                desc = vision_resp["message"]["content"].strip()
+                vision_parts.append(f"[ATTACHED IMAGE {idx + 1}]\n{desc}")
+            except Exception as vision_err:
+                vision_parts.append(
+                    f"[ATTACHED IMAGE {idx + 1}]\n"
+                    "[Vision analysis unavailable — run: ollama pull qwen2.5vl:7b]"
+                )
+                import logging as _log
+                _log.getLogger("mimir.agent").warning("Vision model error: %s", vision_err)
+
+        if vision_parts:
+            image_context = "\n\n".join(vision_parts) + "\n\n"
+
     context_prompt = (
+        f"{image_context}"
         f"[PAST SESSIONS]\n{memory_ctx}\n\n"
         f"[RECENT CONVERSATION]\n{history_text}\n\n"
         f"[STUDENT CONTEXT]\n"

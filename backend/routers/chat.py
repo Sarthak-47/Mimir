@@ -29,14 +29,115 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from memory.database import (
-    AsyncSessionLocal, Conversation, Topic, Subject, User,
+    AsyncSessionLocal, Conversation, Topic, Subject, User, TutorSession,
 )
 from memory.vector import add_memory
 from agent.loop import run_agent
+from agent.tutor import run_tutor_turn, next_state as tutor_next_state
 from routers.users import decode_jwt
 from ws_manager import manager
 
 router = APIRouter()
+
+
+async def _handle_tutor_turn(
+    websocket: WebSocket,
+    db,
+    user_id: int,
+    tutor_session_id: int,
+    user_message: str,
+) -> None:
+    """Route one WebSocket message through the tutor state machine."""
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(TutorSession).where(
+            TutorSession.id == tutor_session_id,
+            TutorSession.user_id == user_id,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        await websocket.send_text(json.dumps({"type": "error", "content": "Tutor session not found."}))
+        await websocket.send_text(json.dumps({"type": "done"}))
+        return
+
+    # Fetch recent tutor conversation (messages tagged with this session)
+    conv_result = await db.execute(
+        select(Conversation)
+        .where(
+            Conversation.user_id == user_id,
+            Conversation.subject_id == session.subject_id,
+        )
+        .order_by(Conversation.timestamp.desc())
+        .limit(20)
+    )
+    history = [{"role": r.role, "content": r.content}
+               for r in reversed(conv_result.scalars().all())]
+
+    # Add user message to history for this turn
+    if user_message:
+        history.append({"role": "user", "content": user_message})
+        user_conv = Conversation(
+            user_id=user_id, role="user", content=user_message,
+            subject_id=session.subject_id,
+        )
+        db.add(user_conv)
+        await db.commit()
+
+    # Build quiz_result context for DEBRIEF if needed
+    quiz_result = None
+    if session.state == "QUIZ" and session.quiz_score is not None:
+        quiz_result = {"score": session.quiz_score, "total": session.quiz_total or 3}
+
+    _ping_task = asyncio.create_task(_keepalive(websocket))
+    full_response = ""
+    quiz_json: str | None = None
+
+    try:
+        async for chunk in run_tutor_turn(
+            state=session.state,
+            topic_name=session.topic_name,
+            history=history,
+            quiz_result=quiz_result,
+        ):
+            if chunk.startswith("__TUTOR_STATE__:"):
+                state_name = chunk.split(":", 1)[1]
+                await websocket.send_text(json.dumps({"type": "tutor_state", "state": state_name}))
+            elif chunk.startswith("__TUTOR_QUIZ__:"):
+                quiz_json = chunk.split(":", 1)[1]
+                await websocket.send_text(json.dumps({"type": "tutor_quiz", "data": json.loads(quiz_json)}))
+            else:
+                full_response += chunk
+                await websocket.send_text(json.dumps({"type": "token", "content": chunk}))
+
+        await websocket.send_text(json.dumps({"type": "done"}))
+
+        # Advance session state
+        new_state = tutor_next_state(session.state)
+        if new_state:
+            session.state = new_state
+            if new_state == "DEBRIEF":
+                session.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+            # Notify frontend of new state
+            await websocket.send_text(json.dumps({"type": "tutor_state", "state": new_state}))
+
+        # Save assistant response
+        if full_response.strip():
+            asst_conv = Conversation(
+                user_id=user_id, role="assistant", content=full_response.strip(),
+                subject_id=session.subject_id,
+            )
+            db.add(asst_conv)
+            await db.commit()
+
+    except Exception as exc:
+        logger.error("Tutor turn error: %s", exc)
+        await websocket.send_text(json.dumps({"type": "error", "content": str(exc)}))
+        await websocket.send_text(json.dumps({"type": "done"}))
+    finally:
+        _ping_task.cancel()
 
 
 async def _keepalive(websocket: WebSocket, interval: float = 8.0) -> None:
@@ -106,8 +207,20 @@ async def ws_chat(
                 subject_id: int | None  = payload.get("subject_id")
                 mode: str               = payload.get("mode", "detailed")
                 images: list[str]       = payload.get("images") or []
+                tutor_session_id: int | None = payload.get("tutor_session_id")
 
-                if not user_message:
+                if not user_message and not images:
+                    continue
+
+                # ── Tutor session turn ────────────────────────
+                if tutor_session_id:
+                    await _handle_tutor_turn(
+                        websocket=websocket,
+                        db=db,
+                        user_id=user_id,
+                        tutor_session_id=tutor_session_id,
+                        user_message=user_message,
+                    )
                     continue
 
                 # ── Fetch conversation history from DB ────────

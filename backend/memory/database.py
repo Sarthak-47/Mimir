@@ -155,6 +155,29 @@ class Conversation(Base):
     user: Mapped["User"] = relationship("User", back_populates="conversations")
 
 
+class TutorSession(Base):
+    """A structured 5-stage tutor session on a specific topic.
+
+    States cycle: INTRO -> TEACH -> CHECK -> QUIZ -> DEBRIEF
+    ``quiz_score``/``quiz_total`` are set when QUIZ state completes.
+    ``completed_at`` is set when DEBRIEF state finishes.
+    """
+    __tablename__ = "tutor_sessions"
+
+    id:           Mapped[int]             = mapped_column(Integer, primary_key=True)
+    user_id:      Mapped[int]             = mapped_column(ForeignKey("users.id"), nullable=False)
+    topic_name:   Mapped[str]             = mapped_column(String(256), nullable=False)
+    subject_id:   Mapped[int | None]      = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    state:        Mapped[str]             = mapped_column(String(32), default="INTRO")
+    quiz_score:   Mapped[int | None]      = mapped_column(Integer, nullable=True)
+    quiz_total:   Mapped[int | None]      = mapped_column(Integer, nullable=True)
+    created_at:   Mapped[datetime]        = mapped_column(DateTime, default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    user:    Mapped["User"]           = relationship("User")
+    subject: Mapped["Subject | None"] = relationship("Subject")
+
+
 class Misconception(Base):
     """A tracked conceptual error — topics where the student repeatedly scores poorly.
 
@@ -188,6 +211,7 @@ async def init_db():
             "ALTER TABLE topics ADD COLUMN sm2_repetitions INTEGER DEFAULT 0",
             "ALTER TABLE topics ADD COLUMN sm2_interval INTEGER DEFAULT 1",
             "ALTER TABLE conversations ADD COLUMN summarized BOOLEAN DEFAULT 0",
+            # TutorSession table is created by create_all above; no ALTER needed.
         ]
         for stmt in _migrations:
             try:

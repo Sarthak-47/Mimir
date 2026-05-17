@@ -15,6 +15,7 @@ interface TopbarProps {
   activeSubjectName?: string | null;
   username?: string;
   onLogout?: () => void;
+  onHelp?: () => void;
 }
 
 /**
@@ -30,7 +31,7 @@ interface TopbarProps {
  * @param username           - Display name shown in the user badge.
  * @param onLogout           - Called when the user clicks the logout rune.
  */
-export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout }: TopbarProps) {
+export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -46,8 +47,13 @@ export default function Topbar({ view, isConnected, isConnecting, activeSubjectN
         <div style={styles.subtitle}>{subtitle}</div>
       </div>
 
-      {/* ── Right: username + model badge + status pill ── */}
+      {/* ── Right: username + help + status pill ── */}
       <div style={styles.right}>
+        {onHelp && (
+          <button style={styles.helpBtn} onClick={onHelp} title="Help — Guide to Mimir">
+            ᚱ
+          </button>
+        )}
         {username && (
           <div style={styles.userRow}>
             <span style={styles.userName}>{username}</span>
@@ -128,6 +134,17 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.1em",
     color: "var(--text-secondary)",
     textTransform: "uppercase" as const,
+  },
+  helpBtn: {
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--gold-dim)",
+    fontFamily: "var(--font-header)",
+    fontSize: 14,
+    cursor: "pointer",
+    padding: "3px 8px",
+    lineHeight: 1,
+    transition: "all 0.15s",
   },
   logoutBtn: {
     background: "none",

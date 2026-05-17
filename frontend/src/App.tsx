@@ -69,6 +69,7 @@ export interface Message {
   flashcardData?: { front: string; back: string }[];
   sources?: string[];      // source file names retrieved from ChromaDB
   toolAction?: string;     // which agent tool was invoked for this message
+  images?: string[];       // base64 images attached to this user message (data URLs for display)
 }
 
 export interface Subject {
@@ -331,16 +332,22 @@ export default function App() {
   });
 
   // ── Chat handlers ──────────────────────────────────────
-  const handleSend = (text: string, sendMode?: string) => {
-    if (!text.trim()) return;
+  const handleSend = (text: string, sendMode?: string, images?: string[]) => {
+    if (!text.trim() && (!images || images.length === 0)) return;
     setIsWaiting(true);
     setMessages((prev) => [...prev, {
       id:        `user-${Date.now()}`,
       role:      "user",
       content:   text.trim(),
       timestamp: new Date(),
+      images:    images && images.length > 0 ? images : undefined,
     }]);
-    sendMessage(text.trim(), activeSubject ? Number(activeSubject) : undefined, sendMode ?? mode);
+    sendMessage(
+      text.trim(),
+      activeSubject ? Number(activeSubject) : undefined,
+      sendMode ?? mode,
+      images,
+    );
   };
 
   const handleTrial = () => {

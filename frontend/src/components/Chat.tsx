@@ -193,6 +193,20 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
             {isUser ? "You" : "Mimir"}
             <span style={styles.time}>{formatTime(msg.timestamp)}</span>
           </div>
+          {/* Attached image thumbnails (user messages) */}
+          {isUser && msg.images && msg.images.length > 0 && (
+            <div style={styles.attachedImages}>
+              {msg.images.map((b64, i) => (
+                <img
+                  key={i}
+                  src={`data:image/png;base64,${b64}`}
+                  alt={`Attached image ${i + 1}`}
+                  style={styles.attachedThumb}
+                />
+              ))}
+            </div>
+          )}
+
           <div style={styles.content}>
             {msg.role === "assistant"
               ? <MessageRenderer text={msg.content} />
@@ -350,7 +364,9 @@ const styles: Record<string, React.CSSProperties> = {
   avatarUser: { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
   bubble:   { padding: "8px 12px" },
   mimirBubble: { background: "var(--stone-3)", border: "1px solid var(--green-dark)", borderLeft: "2px solid var(--green)" },
-  userBubble:  { background: "var(--stone-4)", border: "1px solid var(--gold-dim)", borderRight: "2px solid var(--gold-dim)" },
+  userBubble:    { background: "var(--stone-4)", border: "1px solid var(--gold-dim)", borderRight: "2px solid var(--gold-dim)" },
+  attachedImages: { display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 6 },
+  attachedThumb:  { width: 80, height: 80, objectFit: "cover" as const, border: "1px solid var(--gold-dim)", cursor: "pointer" },
   sender:   { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-secondary)", display: "flex", justifyContent: "space-between", marginBottom: 4 },
   time:     { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-dim)", fontStyle: "italic", textTransform: "none" as const },
   content:  { fontFamily: "var(--font-body)", fontSize: 15, lineHeight: 1.65, color: "var(--text-primary)", whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const },

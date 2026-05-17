@@ -9,6 +9,7 @@ import TrialsView from "@/views/TrialsView";
 import ReckoningView from "@/views/ReckoningView";
 import ChronicleView from "@/views/ChronicleView";
 import ScrollsView from "@/views/ScrollsView";
+import CommandPalette from "@/components/CommandPalette";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
@@ -66,6 +67,8 @@ export interface Message {
   timestamp: Date;
   quizData?: QuizQuestion[];
   flashcardData?: { front: string; back: string }[];
+  sources?: string[];      // source file names retrieved from ChromaDB
+  toolAction?: string;     // which agent tool was invoked for this message
 }
 
 export interface Subject {
@@ -109,8 +112,12 @@ function authHeaders(token: string): Record<string, string> {
  */
 export default function App() {
   // ── Backend readiness ─────────────────────────────────
-  // Uvicorn takes ~2-4 s to start. Poll /health before rendering the
-  // auth screen so the user never sees a "backend not running" error.
+  // Show a brief animated splash while the app initialises, then proceed.
+  // We attempt a health check in the background but don't block on it —
+  // if the backend is down the user will see an error on their first action.
+  // (Blocking on the health fetch causes multi-second hangs in browser-
+  // extension / Tauri-webview environments where the first localhost request
+  // is slow to establish.)
   const [backendReady, setBackendReady] = useState(false);
   const [bootDots,     setBootDots]     = useState(0);
 
@@ -118,26 +125,18 @@ export default function App() {
     let alive = true;
     const tick = setInterval(() => setBootDots((d) => d + 1), 500);
 
-    const poll = async () => {
-      for (let i = 0; i < 40; i++) {         // up to 20 s
-        if (!alive) return;
-        try {
-          const ctrl = new AbortController();
-          const tid  = setTimeout(() => ctrl.abort(), 800);
-          const res  = await fetch(`${API}/health`, { signal: ctrl.signal });
-          clearTimeout(tid);
-          if (res.ok) {
-            if (alive) setBackendReady(true);
-            return;
-          }
-        } catch { /* not ready yet */ }
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      // Timed out — show UI anyway; user will see error on submit if still down
-      if (alive) setBackendReady(true);
-    };
+    // Show the splash for at least 1.5 s (branding moment), then reveal UI.
+    // In parallel, try a health check; if it comes back sooner we fast-path.
+    const minDelay = new Promise<void>((r) => setTimeout(r, 1500));
 
-    poll();
+    const healthCheck = fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) })
+      .then((r) => r.ok)
+      .catch(() => false);
+
+    Promise.all([minDelay, healthCheck]).then(() => {
+      if (alive) setBackendReady(true);
+    });
+
     return () => {
       alive = false;
       clearInterval(tick);
@@ -152,7 +151,8 @@ export default function App() {
   const [messages, setMessages]           = useState<Message[]>([]);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [subjects, setSubjects]           = useState<Subject[]>([]);
-  const [reviewAlert, setReviewAlert]     = useState<{ topics: string[]; count: number } | null>(null);
+  const [reviewAlert, setReviewAlert]       = useState<{ topics: string[]; count: number } | null>(null);
+  const [fileIndexedAlert, setFileIndexedAlert] = useState<{ filename: string; chunks: number } | null>(null);
   const [mode, setMode]                   = useState<string>("detailed");
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
@@ -300,7 +300,35 @@ export default function App() {
     });
   }, []);
 
-  const { sendMessage, isConnected, isConnecting } = useWebSocket({ onToken, onDone, onToolData, onReviewReminder, authToken });
+  const onToolAction = useCallback((tool: string) => {
+    setMessages((prev) => {
+      const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
+      if (lastIdx === -1) return prev;
+      const updated = [...prev];
+      updated[lastIdx] = { ...updated[lastIdx], toolAction: tool };
+      return updated;
+    });
+  }, []);
+
+  const onSources = useCallback((sources: string[]) => {
+    setMessages((prev) => {
+      const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
+      if (lastIdx === -1) return prev;
+      const updated = [...prev];
+      updated[lastIdx] = { ...updated[lastIdx], sources };
+      return updated;
+    });
+  }, []);
+
+  const onFileIndexed = useCallback((filename: string, chunks: number) => {
+    setFileIndexedAlert({ filename, chunks });
+    // Auto-dismiss after 5 s
+    setTimeout(() => setFileIndexedAlert(null), 5000);
+  }, []);
+
+  const { sendMessage, isConnected, isConnecting } = useWebSocket({
+    onToken, onDone, onToolData, onReviewReminder, onToolAction, onSources, onFileIndexed, authToken,
+  });
 
   // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string, sendMode?: string) => {
@@ -385,6 +413,24 @@ export default function App() {
           </div>
         )}
 
+        {/* ── File indexed notification ── */}
+        {fileIndexedAlert && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "6px 16px", background: "var(--stone-4)",
+            borderBottom: "1px solid var(--green-dark)", flexShrink: 0,
+          }}>
+            <span style={{ fontFamily: "var(--font-header)", fontSize: 11, letterSpacing: "0.1em", color: "var(--green)" }}>
+              ᛊ &nbsp;Scroll indexed — {fileIndexedAlert.filename}
+              {fileIndexedAlert.chunks > 0 && ` (${fileIndexedAlert.chunks} runes)`}
+            </span>
+            <button
+              onClick={() => setFileIndexedAlert(null)}
+              style={{ background: "none", border: "none", color: "var(--green-dim)", fontFamily: "var(--font-header)", fontSize: 13, cursor: "pointer", lineHeight: 1, padding: "0 0 0 12px" }}
+            >×</button>
+          </div>
+        )}
+
         {view === "oracle" && (
           <>
             <Chat messages={messages} onSuggestion={handleSend} username={username} isWaiting={isWaiting} />
@@ -433,6 +479,13 @@ export default function App() {
         authToken={authToken}
         examDate={examDate}
         onSetExamDate={handleSetExamDate}
+      />
+
+      <CommandPalette
+        onSend={handleSend}
+        onViewChange={setView}
+        subjects={subjects}
+        activeSubject={activeSubject}
       />
     </div>
   );

@@ -96,6 +96,25 @@ export default function InputZone({
     }
   };
 
+  // ── Teaching mode configuration ─────────────────────────
+  const MODES = [
+    { key: "detailed",   label: "DEEP",   rune: "ᛞ", title: "Deep mode — thorough professor-style explanations with checkpoint questions" },
+    { key: "fast",       label: "SWIFT",  rune: "ᛊ", title: "Swift mode — brief, direct answers" },
+    { key: "beginner",   label: "BASIC",  rune: "ᚱ", title: "Basic mode — simplified analogies, no assumed prior knowledge" },
+    { key: "exam",       label: "EXAM",   rune: "ᛏ", title: "Exam mode — high-yield content, common mistakes, exam tips" },
+    { key: "coding",     label: "CODE",   rune: "ᚲ", title: "Code mode — implementation-focused, practical examples" },
+    { key: "derivation", label: "MATH",   rune: "ᛜ", title: "Math mode — step-by-step derivations from first principles" },
+    { key: "socratic",   label: "SOKR",   rune: "ᛝ", title: "Socratic mode — guiding questions only, student reasons toward the answer" },
+  ] as const;
+
+  const currentModeIdx = MODES.findIndex((m) => m.key === mode);
+  const currentMode    = MODES[currentModeIdx >= 0 ? currentModeIdx : 0];
+
+  const cycleMode = () => {
+    const nextIdx = (currentModeIdx + 1) % MODES.length;
+    onModeChange(MODES[nextIdx].key);
+  };
+
   // ── Rune action buttons config ───────────────────────────
   const ACTIONS = [
     { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image", onClick: handleScrollClick, disabled: uploading },
@@ -136,18 +155,18 @@ export default function InputZone({
           </button>
         ))}
 
-        {/* Mode toggle — DEEP / SWIFT */}
+        {/* Teaching mode cycle */}
         <button
           style={{
             ...styles.runeBtn,
-            ...(mode === "fast" ? styles.runeBtnActive : {}),
+            ...(mode !== "detailed" ? styles.runeBtnActive : {}),
             marginLeft: 4,
           }}
-          title={mode === "detailed" ? "Switch to Swift mode (brief answers)" : "Switch to Deep mode (thorough answers)"}
-          onClick={() => onModeChange(mode === "detailed" ? "fast" : "detailed")}
+          title={currentMode.title}
+          onClick={cycleMode}
         >
-          <span style={styles.runeBtnIcon}>{mode === "detailed" ? "ᛞ" : "ᛊ"}</span>
-          <span style={styles.runeBtnLabel}>{mode === "detailed" ? "DEEP" : "SWIFT"}</span>
+          <span style={styles.runeBtnIcon}>{currentMode.rune}</span>
+          <span style={styles.runeBtnLabel}>{currentMode.label}</span>
         </button>
 
         {activeSubjectName && (

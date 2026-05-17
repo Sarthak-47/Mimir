@@ -107,7 +107,7 @@ export default function Chat({ messages, onSuggestion, username, isWaiting }: Ch
   }, [messages, isWaiting]);
 
   return (
-    <div style={styles.chatArea} className="scroll-area">
+    <div style={styles.chatArea} className="scroll-area runic-bg">
       {messages.length === 0 && <EmptyState onSuggestion={onSuggestion} />}
 
       {messages.map((msg) => (
@@ -358,7 +358,7 @@ function formatTime(date: Date) {
 
 // ── Styles ───────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
-  chatArea: { flex: 1, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", background: "var(--stone-1)" },
+  chatArea: { flex: 1, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
   row:      { display: "flex", alignItems: "flex-end", gap: 8 },
   avatar:   { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
   avatarUser: { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },

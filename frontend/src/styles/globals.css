@@ -13,16 +13,16 @@
 /* CSS CUSTOM PROPERTIES (Design Tokens)                       */
 /* ---------------------------------------------------------- */
 :root {
-  /* Forest Green */
-  --green:        #4a8a5a;
-  --green-bright: #6ab87a;
-  --green-dim:    #2a5a38;
-  --green-dark:   #0f2e18;
+  /* Forest Green — vivid, saturated */
+  --green:        #329944;
+  --green-bright: #4de070;
+  --green-dim:    #1e6630;
+  --green-dark:   #0d2814;
 
-  /* Gold */
-  --gold:         #c9a84c;
-  --gold-bright:  #e8c96a;
-  --gold-dim:     #7a6030;
+  /* Gold — bright, pure */
+  --gold:         #d4a82c;
+  --gold-bright:  #f0cc30;
+  --gold-dim:     #9a7830;
   --gold-dark:    #3a2e18;
 
   /* Stone Backgrounds */
@@ -34,9 +34,9 @@
   --stone-5: #1e2e20;   /* light */
 
   /* Text */
-  --text-primary:   #d0e8d4;
-  --text-secondary: #7aaa84;
-  --text-dim:       #5c8c68;
+  --text-primary:   #ccecd4;
+  --text-secondary: #7cbe8e;
+  --text-dim:       #608c6e;
 
   /* Typography */
   --font-header: 'Cinzel', Georgia, serif;
@@ -373,4 +373,20 @@ input:focus, textarea:focus {
 .scroll-area {
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* ---------------------------------------------------------- */
+/* YGGDRASIL / CELTIC TREE OF LIFE WALLPAPER                   */
+/* Exact reference image, dimmed into the app stone theme via  */
+/* a dark overlay. Green tint preserves the Norse palette.    */
+/* ---------------------------------------------------------- */
+.runic-bg {
+  background-color: var(--stone-1);
+  background-image:
+    linear-gradient(rgba(7, 13, 9, 0.93), rgba(7, 13, 9, 0.93)),
+    url('/bg-tree.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: local;
 }

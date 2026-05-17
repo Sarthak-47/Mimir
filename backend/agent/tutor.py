@@ -174,6 +174,7 @@ async def run_tutor_turn(
             model=settings.ollama_model,
             messages=messages,
             stream=True,
+            think=False,
             options={"temperature": 0.6},
         ):
             token = chunk["message"]["content"]

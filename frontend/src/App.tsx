@@ -271,16 +271,17 @@ export default function App() {
 
   const onToken = useCallback((token: string) => {
     setIsWaiting(false);
+    if (!streamingId.current) {
+      streamingId.current = `assistant-${Date.now()}`;
+    }
+    const id = streamingId.current;
     setMessages((prev) => {
-      if (streamingId.current) {
+      if (prev.some((m) => m.id === id)) {
         return prev.map((m) =>
-          m.id === streamingId.current ? { ...m, content: m.content + token } : m
+          m.id === id ? { ...m, content: m.content + token } : m
         );
-      } else {
-        const id = `assistant-${Date.now()}`;
-        streamingId.current = id;
-        return [...prev, { id, role: "assistant", content: token, timestamp: new Date() }];
       }
+      return [...prev, { id, role: "assistant", content: token, timestamp: new Date() }];
     });
   }, []);
 

@@ -48,22 +48,22 @@ SUBJ_ID = r["id"] if st in (200, 201) else None
 r, st = post_json(f"{BASE}/api/progress/topics", {"name": "Binary Trees", "subject_id": SUBJ_ID}, token=TOKEN)
 TOPIC_ID = r["id"] if st in (200, 201) else None
 
-# ── 1. Socratic mode active in loop ──────────────────────────
-hdr("1. Socratic mode — prompt routed correctly")
+# ── 1. Odin mode active in loop ──────────────────────────────
+hdr("1. Odin mode — prompt routed correctly")
 from agent.loop import _MODE_PROMPTS
-from agent.prompts import SOCRATIC_PROMPT
-if "socratic" in _MODE_PROMPTS and _MODE_PROMPTS["socratic"] is SOCRATIC_PROMPT:
-    ok("'socratic' key in _MODE_PROMPTS, points to SOCRATIC_PROMPT")
+from agent.prompts import ODIN_PROMPT
+if "odin" in _MODE_PROMPTS and _MODE_PROMPTS["odin"] is ODIN_PROMPT:
+    ok("'odin' key in _MODE_PROMPTS, points to ODIN_PROMPT")
 else:
-    bad(f"socratic mode missing or wrong — keys: {list(_MODE_PROMPTS.keys())}")
+    bad(f"odin mode missing or wrong — keys: {list(_MODE_PROMPTS.keys())}")
 
-# ── 2. Socratic mode returns a question, not a direct answer ─
-hdr("2. Socratic mode — live agent response is a question")
+# ── 2. Odin mode returns a question, not a direct answer ─────
+hdr("2. Odin mode — live agent response is a question")
 msgs.clear()
 wsconn.send(json.dumps({
     "message": "What is binary search?",
     "subject_id": SUBJ_ID,
-    "mode": "socratic",
+    "mode": "odin",
 }))
 deadline = time.time() + 35
 while time.time() < deadline:
@@ -74,12 +74,12 @@ if any(m.get("type") == "done" for m in msgs):
     agent_errors = [m for m in msgs if m.get("type") == "error"]
     tokens = "".join(m.get("content", "") for m in msgs if m.get("type") == "token")
     if agent_errors:
-        bad(f"agent error in socratic mode: {agent_errors[0].get('content','')}")
+        bad(f"agent error in odin mode: {agent_errors[0].get('content','')}")
     else:
         has_question = "?" in tokens
-        ok(f"Socratic response received ({len(tokens)} chars, contains '?': {has_question})")
+        ok(f"Odin mode response received ({len(tokens)} chars, contains '?': {has_question})")
 else:
-    bad("Timed out waiting for socratic response")
+    bad("Timed out waiting for odin mode response")
 
 # ── 3. Structural PDF extractor ──────────────────────────────
 hdr("3. Structural PDF extraction — heading detection")

@@ -182,7 +182,7 @@ export default function InputZone({
     { key: "exam",       label: "EXAM",   rune: "ᛏ", title: "Exam mode — high-yield content, common mistakes, exam tips" },
     { key: "coding",     label: "CODE",   rune: "ᚲ", title: "Code mode — implementation-focused, practical examples" },
     { key: "derivation", label: "MATH",   rune: "ᛜ", title: "Math mode — step-by-step derivations from first principles" },
-    { key: "socratic",   label: "SOKR",   rune: "ᛝ", title: "Socratic mode — guiding questions only, student reasons toward the answer" },
+    { key: "odin",       label: "ODIN",   rune: "ᚨ", title: "Odin mode — guiding questions only, student reasons toward truth through dialogue" },
   ] as const;
 
   const currentModeIdx = MODES.findIndex((m) => m.key === mode);
@@ -294,7 +294,6 @@ export default function InputZone({
         <button
           style={{
             ...styles.runeBtn,
-            ...(mode !== "detailed" ? styles.runeBtnActive : {}),
             marginLeft: 4,
           }}
           title={currentMode.title}
@@ -358,8 +357,8 @@ const styles: Record<string, React.CSSProperties> = {
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "4px 9px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },
   runeBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)" },
   runeBtnDisabled: { opacity: 0.5, cursor: "not-allowed" },
-  runeBtnIcon:  { fontSize: 17, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green)" },
-  runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" as const },
+  runeBtnIcon:  { fontSize: 17, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green-bright)" },
+  runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-primary)", textTransform: "uppercase" as const },
   activeSubjectBadge: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "3px 10px", background: "var(--stone-3)", border: "1px solid var(--green-dark)" },
   diamond: { display: "inline-block", width: 6, height: 6, background: "var(--green-bright)", transform: "rotate(45deg)", flexShrink: 0 },
   activeSubjectText: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" as const },

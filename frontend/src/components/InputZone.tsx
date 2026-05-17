@@ -7,10 +7,10 @@
  * badge is shown when a discipline is selected.
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface InputZoneProps {
-  onSend:    (text: string, mode: string) => void;
+  onSend:    (text: string, mode: string, images?: string[]) => void;
   onTrial:   () => void;
   onRunes:   () => void;
   onFates:   () => void;
@@ -36,9 +36,13 @@ const UPLOAD_URL = `${API_FILES}/upload`;
 export default function InputZone({
   onSend, onTrial, onRunes, onFates, activeSubjectName, authToken, mode, onModeChange,
 }: InputZoneProps) {
-  const [text, setText]         = useState("");
-  const [uploading, setUploading] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [text,          setText]          = useState("");
+  const [uploading,     setUploading]     = useState(false);
+  // Pending images to attach to the next message — stored as {base64, dataUrl} objects.
+  // dataUrl is used for the preview thumbnail; base64 is sent to the backend.
+  const [pendingImages, setPendingImages] = useState<{ base64: string; dataUrl: string }[]>([]);
+  const [isDragOver,    setIsDragOver]    = useState(false);
+  const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Key handler ─────────────────────────────────────────
@@ -50,13 +54,63 @@ export default function InputZone({
   };
 
   const handleSend = () => {
-    if (!text.trim()) return;
-    onSend(text, mode);
+    if (!text.trim() && pendingImages.length === 0) return;
+    const images = pendingImages.map((img) => img.base64);
+    onSend(text, mode, images.length > 0 ? images : undefined);
     setText("");
-    // Reset textarea height after clearing
+    setPendingImages([]);
+    setIsDragOver(false);
     if (textareaRef.current) textareaRef.current.style.height = "34px";
     textareaRef.current?.focus();
   };
+
+  // ── Image helpers ────────────────────────────────────────
+
+  /** Convert a File/Blob to a {base64, dataUrl} record and add to pending. */
+  const addImageFile = useCallback((file: File | Blob) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      if (!dataUrl) return;
+      // DataURL format: "data:<type>;base64,<data>"
+      const base64 = dataUrl.split(",")[1];
+      if (base64) {
+        setPendingImages((prev) => {
+          if (prev.length >= 3) return prev;   // cap at 3 images
+          return [...prev, { base64, dataUrl }];
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  /** Handle clipboard paste — extract image files if present. */
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+    if (imageItems.length === 0) return;   // let normal text paste proceed
+    e.preventDefault();
+    imageItems.forEach((item) => {
+      const blob = item.getAsFile();
+      if (blob) addImageFile(blob);
+    });
+  }, [addImageFile]);
+
+  /** Handle drag-over — set visual indicator. */
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => setIsDragOver(false), []);
+
+  /** Handle drop — accept image files. */
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    files.forEach(addImageFile);
+  }, [addImageFile]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
@@ -124,7 +178,12 @@ export default function InputZone({
   ];
 
   return (
-    <div style={styles.inputZone}>
+    <div
+      style={{ ...styles.inputZone, ...(isDragOver ? styles.inputZoneDragOver : {}) }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -136,6 +195,32 @@ export default function InputZone({
 
       {/* Gold engraving top border */}
       <div style={styles.engravingTop} />
+
+      {/* Pending image preview strip */}
+      {pendingImages.length > 0 && (
+        <div style={styles.imageStrip}>
+          {pendingImages.map((img, i) => (
+            <div key={i} style={styles.imageThumbWrap}>
+              <img src={img.dataUrl} alt={`Attached image ${i + 1}`} style={styles.imageThumb} />
+              <button
+                style={styles.imageRemoveBtn}
+                onClick={() => setPendingImages((p) => p.filter((_, j) => j !== i))}
+                title="Remove image"
+              >×</button>
+            </div>
+          ))}
+          <span style={styles.imageCount}>
+            {pendingImages.length}/3 image{pendingImages.length !== 1 ? "s" : ""} attached
+          </span>
+        </div>
+      )}
+
+      {/* Drag-to-attach hint overlay */}
+      {isDragOver && (
+        <div style={styles.dragOverlay}>
+          <span style={styles.dragHint}>ᛋ Drop image to attach</span>
+        </div>
+      )}
 
       {/* ── Rune action strip ── */}
       <div style={styles.runeStrip}>
@@ -184,31 +269,40 @@ export default function InputZone({
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder="Speak your query to Mimir..."
+          onPaste={handlePaste}
+          placeholder={pendingImages.length > 0 ? "Add a message (or send image only)…" : "Speak your query to Mimir…"}
           style={styles.textarea}
           rows={1}
         />
         <button
           style={{
             ...styles.sendBtn,
-            ...(text.trim() ? styles.sendBtnActive : {}),
+            ...((text.trim() || pendingImages.length > 0) ? styles.sendBtnActive : {}),
           }}
           onClick={handleSend}
-          disabled={!text.trim()}
+          disabled={!text.trim() && pendingImages.length === 0}
           title="Send (Enter)"
         >
           <span style={styles.sendRune}>ᛊ</span>
         </button>
       </div>
 
-      <div style={styles.hint}>Enter to send · Shift+Enter for new line</div>
+      <div style={styles.hint}>Enter to send · Shift+Enter for newline · Paste or drop images to attach</div>
     </div>
   );
 }
 
 // ── Styles ───────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
-  inputZone: { background: "var(--stone-2)", borderTop: "1px solid var(--green-dark)", padding: "0 12px 8px", flexShrink: 0, position: "relative" },
+  inputZone:         { background: "var(--stone-2)", borderTop: "1px solid var(--green-dark)", padding: "0 12px 8px", flexShrink: 0, position: "relative" },
+  inputZoneDragOver: { borderColor: "var(--gold)", boxShadow: "inset 0 0 0 2px var(--gold-dim)" },
+  imageStrip:        { display: "flex", alignItems: "center", gap: 8, padding: "6px 0 4px", flexWrap: "wrap" as const },
+  imageThumbWrap:    { position: "relative" as const, flexShrink: 0 },
+  imageThumb:        { width: 56, height: 56, objectFit: "cover" as const, border: "1px solid var(--green-dark)", display: "block" },
+  imageRemoveBtn:    { position: "absolute" as const, top: -6, right: -6, width: 16, height: 16, borderRadius: "50%", background: "var(--stone-4)", border: "1px solid var(--green-dark)", color: "var(--text-dim)", fontSize: 10, lineHeight: "14px", cursor: "pointer", textAlign: "center" as const, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" },
+  imageCount:        { fontFamily: "var(--font-body)", fontSize: 10, fontStyle: "italic", color: "var(--text-dim)" },
+  dragOverlay:       { position: "absolute" as const, inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, pointerEvents: "none" as const },
+  dragHint:          { fontFamily: "var(--font-header)", fontSize: 13, letterSpacing: "0.12em", color: "var(--gold-bright)" },
   engravingTop: { height: 1, background: "linear-gradient(90deg, transparent, var(--gold-dim) 30%, var(--gold-dim) 70%, transparent)", opacity: 0.3, marginBottom: 8 },
   runeStrip: { display: "flex", alignItems: "center", gap: 4, marginBottom: 6 },
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "4px 9px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },

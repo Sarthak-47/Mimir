@@ -95,13 +95,24 @@ def tool_explain(concept: str, depth: str = "intermediate") -> str:
 
 # ── Tool: quiz ───────────────────────────────────────────────
 
-def tool_quiz(topic: str, subject: str = "", n: int = 5) -> list[dict]:
+def tool_quiz(topic: str, subject: str = "", n: int = 5, difficulty: str = "medium") -> list[dict]:
     """
-    Generate n MCQ questions about a topic.
-    Returns: list of {question, options, answer (int), explanation}
+    Generate n MCQ questions about a topic at the given difficulty.
+
+    Args:
+        topic:      The concept to quiz on.
+        subject:    Broader subject context (optional).
+        n:          Number of questions to generate.
+        difficulty: One of ``"easy" | "medium" | "hard" | "expert"``.
+
+    Returns:
+        list of {question, options, answer (int), explanation}
     """
+    valid_difficulties = {"easy", "medium", "hard", "expert"}
+    if difficulty not in valid_difficulties:
+        difficulty = "medium"
     try:
-        prompt = QUIZ_PROMPT.format(topic=topic, subject=subject, n=n)
+        prompt = QUIZ_PROMPT.format(topic=topic, subject=subject, n=n, difficulty=difficulty)
         raw = _llm(prompt)
         questions = _parse_json(raw)
         return questions
@@ -205,33 +216,81 @@ def tool_weak_topics(topic_scores: list[dict]) -> list[dict]:
     return result
 
 
-# ── Spaced Repetition ────────────────────────────────────────
+# ── Spaced Repetition (SM-2) ─────────────────────────────────
 
-def compute_next_review(score: int, total: int) -> datetime:
-    """Compute the next spaced-repetition review datetime from a quiz result.
+def compute_sm2(
+    score: int,
+    total: int,
+    ease_factor: float = 2.5,
+    repetitions: int = 0,
+    interval: int = 1,
+) -> tuple[float, int, int, datetime]:
+    """Full SM-2 spaced-repetition algorithm.
 
-    Applies SM-2-inspired intervals based on the percentage score:
-    - ≥ sr_high_threshold%  → 7 days
-    - ≥ sr_mid_threshold%   → 3 days
-    - ≥ sr_low_threshold%   → 1 day
-    - below threshold        → 4 hours
+    Maps the quiz percentage to a quality rating (0–5), then applies the
+    standard SM-2 update rules for ease factor, repetition count, and
+    inter-repetition interval.
+
+    Quality mapping:
+        90%+  → 5 (perfect)     80–89% → 4     70–79% → 3 (pass threshold)
+        60–69% → 2 (fail)       40–59% → 1      <40%  → 0 (complete fail)
 
     Args:
-        score: Number of correct answers.
-        total: Total number of questions.
+        score:       Number of correct answers.
+        total:       Total number of questions.
+        ease_factor: Current ease factor for the topic (default 2.5).
+        repetitions: Number of consecutive successful reviews (default 0).
+        interval:    Current inter-repetition interval in days (default 1).
 
     Returns:
-        UTC datetime when the topic should next be reviewed.
+        ``(new_ease_factor, new_repetitions, new_interval, next_review_datetime)``
     """
-    confidence = (score / total) * 100 if total > 0 else 0
+    pct = (score / total * 100) if total > 0 else 0
 
-    if confidence >= settings.sr_high_threshold:
-        delta = timedelta(days=7)
-    elif confidence >= settings.sr_mid_threshold:
-        delta = timedelta(days=3)
-    elif confidence >= settings.sr_low_threshold:
-        delta = timedelta(days=1)
+    # Map percentage to SM-2 quality (0–5)
+    if pct >= 90:
+        quality = 5
+    elif pct >= 80:
+        quality = 4
+    elif pct >= 70:
+        quality = 3
+    elif pct >= 60:
+        quality = 2   # borderline fail
+    elif pct >= 40:
+        quality = 1
     else:
-        delta = timedelta(hours=4)
+        quality = 0
 
-    return datetime.utcnow() + delta
+    if quality >= 3:
+        # Successful recall — advance the schedule
+        if repetitions == 0:
+            new_interval = 1
+        elif repetitions == 1:
+            new_interval = 6
+        else:
+            new_interval = round(interval * ease_factor)
+
+        # SM-2 ease factor update (min 1.3)
+        new_ease = ease_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)
+        new_ease = max(1.3, round(new_ease, 3))
+        new_reps = repetitions + 1
+    else:
+        # Failed recall — reset repetitions and shorten interval
+        new_interval = 1
+        new_reps = 0
+        new_ease = max(1.3, round(ease_factor - 0.2, 3))
+
+    # Cap at 365 days to stay practical
+    new_interval = min(new_interval, 365)
+
+    next_review = datetime.utcnow() + timedelta(days=new_interval)
+    return new_ease, new_reps, new_interval, next_review
+
+
+def compute_next_review(score: int, total: int) -> datetime:
+    """Legacy wrapper — returns only the next_review datetime using SM-2 defaults.
+
+    Kept for any callers that only need the datetime and don't track SM-2 state.
+    """
+    _, _, _, next_review = compute_sm2(score, total)
+    return next_review

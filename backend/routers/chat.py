@@ -18,6 +18,7 @@ inside the agent are caught and reported as ``error`` frames rather than
 closing the socket, so the user can retry.
 """
 
+import asyncio
 import json
 import logging
 
@@ -36,6 +37,21 @@ from routers.users import decode_jwt
 from ws_manager import manager
 
 router = APIRouter()
+
+
+async def _keepalive(websocket: WebSocket, interval: float = 8.0) -> None:
+    """Send a no-op ping frame every *interval* seconds.
+
+    Keeps the browser WebSocket alive during the initial non-streaming
+    Ollama reasoning call, which can take 30-60 s on local hardware.
+    The frontend ignores frames with ``type == "ping"``.
+    """
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await websocket.send_text(json.dumps({"type": "ping"}))
+        except Exception:
+            break
 
 
 async def _resolve_user(token: str | None, db: AsyncSession) -> User | None:
@@ -122,7 +138,7 @@ async def ws_chat(
                     )
                     topics = topics_result.scalars().all()
                     topic_scores = [
-                        {"name": t.name, "confidence_score": t.confidence_score}
+                        {"id": t.id, "name": t.name, "confidence_score": t.confidence_score}
                         for t in topics
                     ]
 
@@ -152,6 +168,9 @@ async def ws_chat(
                 full_response = ""
                 tool_data_raw: str | None = None
 
+                # Keep the WS alive while the non-streaming reasoning call
+                # is in flight (can take 30–60 s on local hardware).
+                _ping_task = asyncio.create_task(_keepalive(websocket))
                 try:
                     async for chunk in run_agent(
                         user_message=user_message,
@@ -162,8 +181,25 @@ async def ws_chat(
                         subject_name=subject_name,
                         mode=mode,
                     ):
-                        # Detect embedded tool data marker
-                        if "__TOOL_DATA__:" in chunk:
+                        # ── Tool invocation signal ─────────────────────
+                        if "__ACTION__:" in chunk:
+                            tool_name_sig = chunk.split("__ACTION__:", 1)[1].strip()
+                            await websocket.send_text(
+                                json.dumps({"type": "tool_action", "tool": tool_name_sig})
+                            )
+                        # ── Source grounding ───────────────────────────
+                        elif "__SOURCES__:" in chunk:
+                            sources_raw = chunk.split("__SOURCES__:", 1)[1].strip()
+                            try:
+                                sources_data = json.loads(sources_raw)
+                                if sources_data:
+                                    await websocket.send_text(
+                                        json.dumps({"type": "sources", "data": sources_data})
+                                    )
+                            except json.JSONDecodeError:
+                                pass
+                        # ── Structured tool output (quiz / flashcards) ─
+                        elif "__TOOL_DATA__:" in chunk:
                             parts = chunk.split("__TOOL_DATA__:", 1)
                             text_part = parts[0]
                             tool_data_raw = parts[1] if len(parts) > 1 else None
@@ -172,6 +208,7 @@ async def ws_chat(
                                 await websocket.send_text(
                                     json.dumps({"type": "token", "content": text_part})
                                 )
+                        # ── Normal streaming token ─────────────────────
                         else:
                             full_response += chunk
                             await websocket.send_text(
@@ -221,6 +258,8 @@ async def ws_chat(
                         await websocket.send_text(json.dumps({"type": "done"}))
                     except Exception:
                         pass
+                finally:
+                    _ping_task.cancel()
 
         except WebSocketDisconnect:
             pass

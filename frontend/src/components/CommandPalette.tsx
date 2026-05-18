@@ -21,10 +21,11 @@ interface Command {
 }
 
 interface CommandPaletteProps {
-  onSend:         (text: string) => void;
-  onViewChange:   (view: NavView) => void;
-  subjects:       Subject[];
-  activeSubject:  string | null;
+  onSend:           (text: string) => void;
+  onViewChange:     (view: NavView) => void;
+  onSubjectChange:  (id: string) => void;
+  subjects:         Subject[];
+  activeSubject:    string | null;
 }
 
 /** Simple subsequence fuzzy match — every char of `query` appears in `target` in order. */
@@ -40,7 +41,7 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export default function CommandPalette({
-  onSend, onViewChange, subjects, activeSubject,
+  onSend, onViewChange, onSubjectChange, subjects, activeSubject,
 }: CommandPaletteProps) {
   const [open,    setOpen]    = useState(false);
   const [query,   setQuery]   = useState("");
@@ -49,12 +50,24 @@ export default function CommandPalette({
 
   const close = useCallback(() => { setOpen(false); setQuery(""); setFocused(0); }, []);
 
-  // ── Global Ctrl+K / Cmd+K listener ─────────────────────
+  // ── Global Ctrl+K / Cmd+K + "/" in empty textarea ───────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setOpen((o) => !o);
+        setQuery("");
+        setFocused(0);
+      }
+      // "/" pressed while the Oracle textarea is focused and empty → open palette
+      if (
+        e.key === "/" &&
+        !e.ctrlKey && !e.metaKey && !e.altKey &&
+        e.target instanceof HTMLTextAreaElement &&
+        (e.target as HTMLTextAreaElement).value === ""
+      ) {
+        e.preventDefault();
+        setOpen(true);
         setQuery("");
         setFocused(0);
       }
@@ -97,7 +110,7 @@ export default function CommandPalette({
       rune:        "◆",
       label:       `Switch to ${s.name}`,
       description: `Set ${s.name} as the active subject`,
-      action:      () => close(),   // switching subject requires sidebar; just close for now
+      action:      () => { onSubjectChange(s.id); onViewChange("oracle"); close(); },
     })),
   ];
 
@@ -167,7 +180,7 @@ export default function CommandPalette({
         </div>
 
         <div style={styles.footer}>
-          <span style={styles.footerText}>↑↓ navigate · ↵ execute · Ctrl+K toggle</span>
+          <span style={styles.footerText}>↑↓ navigate · ↵ execute · Ctrl+K or / to open</span>
         </div>
       </div>
     </>

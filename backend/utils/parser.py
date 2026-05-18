@@ -15,8 +15,9 @@ import logging
 
 from sqlalchemy import select
 
-from memory.database import AsyncSessionLocal, File as FileModel
+from memory.database import AsyncSessionLocal, File as FileModel, UserMemory, ExamQuestion as ExamQuestionModel
 from memory.vector import add_document_memory
+from utils.exam_parser import is_exam_paper, parse_exam_questions
 
 logger = logging.getLogger("mimir.parser")
 
@@ -247,6 +248,57 @@ async def _extract_image(filepath: str) -> str:
     return _extract_image_ocr(filepath)
 
 
+async def _store_document_memory(
+    user_id: int,
+    subject_id: int | None,
+    filename: str,
+    text_preview: str,
+) -> None:
+    """Call LLM to extract a structured document summary into user_memories.
+
+    Produces a short summary + key topics so the agent always knows what
+    documents the student has uploaded, even without a similarity hit.
+    """
+    try:
+        import ollama as _ollama
+        from config import settings as _s
+
+        client = _ollama.AsyncClient(host=_s.ollama_base_url)
+        resp = await client.chat(
+            model=_s.ollama_model,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Analyse this document excerpt and respond in EXACTLY this format:\n"
+                    f"SUMMARY: <one sentence describing the document>\n"
+                    f"TOPICS: <comma-separated key concepts>\n"
+                    f"KEY_FACTS: <up to 5 bullet points of important formulas, definitions, or facts>\n\n"
+                    f"Document ({filename}):\n{text_preview}"
+                ),
+            }],
+            options={"temperature": 0.2, "num_predict": 300},
+            think=False,
+        )
+        content = resp["message"]["content"].strip()
+        if not content:
+            return
+
+        async with AsyncSessionLocal() as db:
+            mem = UserMemory(
+                user_id=user_id,
+                subject_id=subject_id,
+                memory_type="document",
+                key=f"doc:{filename}",
+                value=content,
+                source=filename,
+            )
+            db.add(mem)
+            await db.commit()
+        logger.info("Stored document memory for file %r (user %d)", filename, user_id)
+    except Exception as exc:
+        logger.warning("Document memory extraction failed for %r: %s", filename, exc)
+
+
 # ── Main async task ──────────────────────────────────────────
 async def parse_and_index_file(
     file_id:      int,
@@ -291,6 +343,29 @@ async def parse_and_index_file(
     else:
         logger.warning("No text extracted from file %d — check library install.", file_id)
 
+    # ── Exam-paper detection & question extraction ───────────
+    exam_question_count = 0
+    if "pdf" in content_type and text.strip() and is_exam_paper(text):
+        parsed_qs = parse_exam_questions(text, filename)
+        if parsed_qs:
+            async with AsyncSessionLocal() as db:
+                for pq in parsed_qs:
+                    db.add(ExamQuestionModel(
+                        file_id=file_id,
+                        user_id=user_id,
+                        subject_id=subject_id,
+                        question_number=pq.question_number,
+                        question_text=pq.question_text,
+                        marks=pq.marks,
+                        page_number=pq.page_number,
+                    ))
+                await db.commit()
+            exam_question_count = len(parsed_qs)
+            logger.info(
+                "Stored %d exam questions from file %d (%r).",
+                exam_question_count, file_id, filename,
+            )
+
     # ── Mark processed ───────────────────────────────────────
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -299,17 +374,24 @@ async def parse_and_index_file(
         file_row = result.scalar_one_or_none()
         if file_row:
             file_row.processed = True
+            if exam_question_count > 0:
+                file_row.has_exam_questions = True
             await db.commit()
             logger.info("File %d marked as processed.", file_id)
+
+    # ── Store document memory (always-on context for agent) ──
+    if text.strip():
+        await _store_document_memory(user_id, subject_id, filename, text[:3000])
 
     # ── Notify user via WebSocket ─────────────────────────────
     try:
         from ws_manager import manager
         await manager.send_to_user(user_id, {
-            "type":     "file_indexed",
-            "file_id":  file_id,
-            "filename": filename,
-            "chunks":   chunk_count,
+            "type":               "file_indexed",
+            "file_id":            file_id,
+            "filename":           filename,
+            "chunks":             chunk_count,
+            "exam_question_count": exam_question_count,
         })
         logger.info("Sent file_indexed WS notification to user %d.", user_id)
     except Exception as e:

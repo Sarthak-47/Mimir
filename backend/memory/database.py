@@ -11,6 +11,9 @@ Schema overview:
 - ``QuizSession``  — one completed quiz attempt; drives SR and streak logic.
 - ``File``         — uploaded PDF/image metadata; content lives on disk + ChromaDB.
 - ``Conversation`` — one turn of chat history (role = 'user' | 'assistant').
+- ``TutorSession`` — a 5-stage structured lesson on a specific topic.
+- ``Misconception``— topics where the student repeatedly scores poorly.
+- ``UserMemory``   — persistent facts: document summaries, student preferences/struggles.
 """
 
 from datetime import datetime
@@ -118,20 +121,43 @@ class File(Base):
 
     The actual bytes live on disk (``filepath``). Text is extracted and stored
     in ChromaDB for semantic search. ``processed`` flips to ``True`` once the
-    background indexing task completes.
+    background indexing task completes. ``has_exam_questions`` flips to ``True``
+    when the exam parser detects mark-allocated questions inside the file.
     """
     __tablename__ = "files"
 
-    id:         Mapped[int]          = mapped_column(Integer, primary_key=True)
-    user_id:    Mapped[int]          = mapped_column(ForeignKey("users.id"), nullable=False)
-    filename:   Mapped[str]          = mapped_column(String(256), nullable=False)
-    filepath:   Mapped[str]          = mapped_column(String(512), nullable=False)
-    subject_id: Mapped[int | None]   = mapped_column(ForeignKey("subjects.id"), nullable=True)
-    processed:  Mapped[bool]         = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime]     = mapped_column(DateTime, default=func.now())
+    id:                  Mapped[int]          = mapped_column(Integer, primary_key=True)
+    user_id:             Mapped[int]          = mapped_column(ForeignKey("users.id"), nullable=False)
+    filename:            Mapped[str]          = mapped_column(String(256), nullable=False)
+    filepath:            Mapped[str]          = mapped_column(String(512), nullable=False)
+    subject_id:          Mapped[int | None]   = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    processed:           Mapped[bool]         = mapped_column(Boolean, default=False)
+    has_exam_questions:  Mapped[bool]         = mapped_column(Boolean, default=False)
+    created_at:          Mapped[datetime]     = mapped_column(DateTime, default=func.now())
 
     user:    Mapped["User"]           = relationship("User", back_populates="files")
     subject: Mapped["Subject | None"] = relationship("Subject", back_populates="files")
+
+
+class ExamQuestion(Base):
+    """A structured exam question extracted from an uploaded PDF.
+
+    Populated by the background exam-parser task that runs after a PDF is
+    indexed.  These rows are queried by the agent loop to inject mark-scaling
+    context into Oracle prompts so answer depth matches the mark allocation.
+    """
+    __tablename__ = "exam_questions"
+
+    id:              Mapped[int]        = mapped_column(Integer, primary_key=True)
+    file_id:         Mapped[int]        = mapped_column(ForeignKey("files.id"), nullable=False)
+    user_id:         Mapped[int]        = mapped_column(ForeignKey("users.id"), nullable=False)
+    subject_id:      Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    question_number: Mapped[str]        = mapped_column(String(32),  nullable=False)
+    question_text:   Mapped[str]        = mapped_column(Text,        nullable=False)
+    marks:           Mapped[int]        = mapped_column(Integer,     nullable=False)
+    page_number:     Mapped[int]        = mapped_column(Integer,     default=0)
+
+    user: Mapped["User"] = relationship("User")
 
 
 class Conversation(Base):
@@ -198,6 +224,30 @@ class Misconception(Base):
     topic: Mapped["Topic"] = relationship("Topic")
 
 
+class UserMemory(Base):
+    """Persistent memory layer — always injected into every agent context.
+
+    Three ``memory_type`` values:
+    - ``'document'``      — key topics/formulas extracted when a file is indexed.
+    - ``'session_facts'`` — student struggles/preferences extracted after sessions.
+
+    Unlike ChromaDB chunks (retrieved by similarity), these rows are always
+    included in the context prompt so the model always knows who it is talking to.
+    """
+    __tablename__ = "user_memories"
+
+    id:          Mapped[int]        = mapped_column(Integer, primary_key=True)
+    user_id:     Mapped[int]        = mapped_column(ForeignKey("users.id"), nullable=False)
+    subject_id:  Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    memory_type: Mapped[str]        = mapped_column(String(32), nullable=False)
+    key:         Mapped[str]        = mapped_column(String(512), nullable=False)
+    value:       Mapped[str]        = mapped_column(Text, nullable=False)
+    source:      Mapped[str | None] = mapped_column(String(256), nullable=True)
+    updated_at:  Mapped[datetime]   = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+    user: Mapped["User"] = relationship("User")
+
+
 # ── Helpers ──────────────────────────────────────────────────
 
 async def init_db():
@@ -211,7 +261,9 @@ async def init_db():
             "ALTER TABLE topics ADD COLUMN sm2_repetitions INTEGER DEFAULT 0",
             "ALTER TABLE topics ADD COLUMN sm2_interval INTEGER DEFAULT 1",
             "ALTER TABLE conversations ADD COLUMN summarized BOOLEAN DEFAULT 0",
-            # TutorSession table is created by create_all above; no ALTER needed.
+            # Exam-question feature — safe additive migrations for existing DBs.
+            "ALTER TABLE files ADD COLUMN has_exam_questions BOOLEAN DEFAULT 0",
+            # ExamQuestion table is created by create_all above; no ALTER needed.
         ]
         for stmt in _migrations:
             try:

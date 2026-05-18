@@ -12,6 +12,7 @@ import ScrollsView from "@/views/ScrollsView";
 import CommandPalette from "@/components/CommandPalette";
 import TutorBar from "@/components/TutorBar";
 import HelpModal from "@/components/HelpModal";
+import AllChatsPanel from "@/components/AllChatsPanel";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
@@ -161,7 +162,8 @@ export default function App() {
   const [activeTutorSession, setActiveTutorSession] = useState<{
     id: number; state: string; topic: string;
   } | null>(null);
-  const [showHelp, setShowHelp]           = useState(false);
+  const [showHelp,      setShowHelp]      = useState(false);
+  const [showAllChats,  setShowAllChats]  = useState(false);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -266,11 +268,15 @@ export default function App() {
   }, [authToken]);
 
   // ── WebSocket streaming ────────────────────────────────
-  const streamingId = useRef<string | null>(null);
-  const [isWaiting, setIsWaiting] = useState(false);
+  const streamingId  = useRef<string | null>(null);
+  const stoppedRef   = useRef(false);
+  const [isWaiting,   setIsWaiting]   = useState(false);
+  const [isStreaming, setIsStreaming]  = useState(false);
 
   const onToken = useCallback((token: string) => {
     setIsWaiting(false);
+    setIsStreaming(true);
+    if (stoppedRef.current) return;  // user stopped — ignore remaining tokens
     if (!streamingId.current) {
       streamingId.current = `assistant-${Date.now()}`;
     }
@@ -285,7 +291,12 @@ export default function App() {
     });
   }, []);
 
-  const onDone = useCallback(() => { setIsWaiting(false); streamingId.current = null; }, []);
+  const onDone = useCallback(() => {
+    setIsWaiting(false);
+    setIsStreaming(false);
+    streamingId.current = null;
+    stoppedRef.current  = false;
+  }, []);
 
   const onReviewReminder = useCallback((topics: string[], count: number) => {
     setReviewAlert({ topics, count });
@@ -314,7 +325,9 @@ export default function App() {
       const lastIdx = (() => { for (let i = prev.length - 1; i >= 0; i--) if (prev[i].role === "assistant") return i; return -1; })();
       if (lastIdx === -1) return prev;
       const updated = [...prev];
-      updated[lastIdx] = { ...updated[lastIdx], toolAction: tool };
+      // Clear any preamble text the model streamed before firing the tool,
+      // so the chat bubble only shows the clean synthesis response.
+      updated[lastIdx] = { ...updated[lastIdx], toolAction: tool, content: "" };
       return updated;
     });
   }, []);
@@ -366,6 +379,7 @@ export default function App() {
   // ── Chat handlers ──────────────────────────────────────
   const handleSend = (text: string, sendMode?: string, images?: string[]) => {
     if (!text.trim() && (!images || images.length === 0)) return;
+    stoppedRef.current = false;
     setIsWaiting(true);
     setMessages((prev) => [...prev, {
       id:        `user-${Date.now()}`,
@@ -382,6 +396,77 @@ export default function App() {
       activeTutorSession?.id,
     );
   };
+
+  const handleAbort = useCallback(() => {
+    stoppedRef.current = true;
+    streamingId.current = null;
+    setIsWaiting(false);
+    setIsStreaming(false);
+  }, []);
+
+  /** Clear the current Oracle conversation to start fresh. */
+  const handleNewChat = useCallback(() => {
+    stoppedRef.current  = true;
+    streamingId.current = null;
+    setMessages([]);
+    setIsWaiting(false);
+    setIsStreaming(false);
+    setActiveTutorSession(null);
+    setView("oracle");
+  }, []);
+
+  const handleRegenerate = useCallback(() => {
+    const lastAssistantIdx = (() => {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "assistant") return i;
+      }
+      return -1;
+    })();
+    if (lastAssistantIdx === -1) return;
+    const lastUserMsg = messages.slice(0, lastAssistantIdx).reverse().find((m) => m.role === "user");
+    if (!lastUserMsg) return;
+
+    setMessages(messages.slice(0, lastAssistantIdx));
+    stoppedRef.current = false;
+    setIsWaiting(true);
+    sendMessage(
+      lastUserMsg.content,
+      activeSubject ? Number(activeSubject) : undefined,
+      mode,
+      lastUserMsg.images,
+      activeTutorSession?.id,
+    );
+  }, [messages, sendMessage, activeSubject, mode, activeTutorSession]);
+
+  const handleEditMessage = useCallback((msgId: string, newContent: string) => {
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === msgId);
+      if (idx === -1) return prev;
+      return [...prev.slice(0, idx), { ...prev[idx], content: newContent }];
+    });
+    stoppedRef.current = false;
+    setIsWaiting(true);
+    sendMessage(
+      newContent,
+      activeSubject ? Number(activeSubject) : undefined,
+      mode,
+      undefined,
+      activeTutorSession?.id,
+    );
+  }, [sendMessage, activeSubject, mode, activeTutorSession]);
+
+  const handleLoadSession = useCallback((sessionMessages: Array<{
+    id: number; role: string; content: string; subject_id: number | null; timestamp: string;
+  }>) => {
+    const msgs: Message[] = sessionMessages.map((m) => ({
+      id:        `loaded-${m.id}`,
+      role:      m.role as "user" | "assistant",
+      content:   m.content,
+      timestamp: new Date(m.timestamp),
+    }));
+    setMessages(msgs);
+    setView("oracle");
+  }, []);
 
   const handleStartLesson = useCallback(async (topicName: string) => {
     if (!authToken || !topicName.trim()) return;
@@ -444,6 +529,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <div className="yggdrasil-bg" />
       <Sidebar
         view={view}
         onViewChange={setView}
@@ -455,9 +541,11 @@ export default function App() {
         username={username}
         examDate={examDate}
         onSetExamDate={handleSetExamDate}
+        authToken={authToken}
+        onLoadSession={handleLoadSession}
       />
 
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 1 }}>
         <Topbar
           view={view}
           isConnected={isConnected}
@@ -466,6 +554,8 @@ export default function App() {
           username={username}
           onLogout={handleLogout}
           onHelp={() => setShowHelp(true)}
+          onAllChats={() => setShowAllChats(true)}
+          onNewChat={handleNewChat}
         />
 
         {/* ── Review reminder banner ── */}
@@ -513,7 +603,16 @@ export default function App() {
                 onDismiss={() => setActiveTutorSession(null)}
               />
             )}
-            <Chat messages={messages} onSuggestion={handleSend} username={username} isWaiting={isWaiting} />
+            <Chat
+              messages={messages}
+              onSuggestion={handleSend}
+              username={username}
+              isWaiting={isWaiting}
+              isStreaming={isStreaming}
+              onStop={handleAbort}
+              onEdit={handleEditMessage}
+              onRegenerate={handleRegenerate}
+            />
             <InputZone
               onSend={handleSend}
               onTrial={handleTrial}
@@ -540,6 +639,9 @@ export default function App() {
           <ReckoningView
             subjects={subjects}
             authToken={authToken}
+            onExamDateChange={(dateStr) =>
+              handleSetExamDate(dateStr ? new Date(dateStr + "T00:00:00") : null)
+            }
           />
         )}
 
@@ -565,11 +667,20 @@ export default function App() {
       <CommandPalette
         onSend={handleSend}
         onViewChange={setView}
+        onSubjectChange={setActiveSubject}
         subjects={subjects}
         activeSubject={activeSubject}
       />
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+
+      <AllChatsPanel
+        isOpen={showAllChats}
+        onClose={() => setShowAllChats(false)}
+        authToken={authToken}
+        subjects={subjects}
+        onLoadSession={(msgs) => { handleLoadSession(msgs); setShowAllChats(false); }}
+      />
     </div>
   );
 }

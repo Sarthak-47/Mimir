@@ -57,8 +57,10 @@ interface QuizHistoryRow {
 }
 
 interface ReckoningViewProps {
-  subjects:  Subject[];
-  authToken: string;
+  subjects:          Subject[];
+  authToken:         string;
+  /** Called whenever the exam date is saved or cleared, so App-level state stays in sync. */
+  onExamDateChange?: (date: string | null) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -141,7 +143,7 @@ function ExamCountdown({
 
 // ── Main component ───────────────────────────────────────────
 
-export default function ReckoningView({ subjects, authToken }: ReckoningViewProps) {
+export default function ReckoningView({ subjects, authToken, onExamDateChange }: ReckoningViewProps) {
   const [stats,     setStats]     = useState<Stats | null>(null);
   const [readiness, setReadiness] = useState<ReadinessRow[]>([]);
   const [schedule,  setSchedule]  = useState<ScheduleDay[]>([]);
@@ -189,6 +191,7 @@ export default function ReckoningView({ subjects, authToken }: ReckoningViewProp
         `${API_PROGRESS}/exam-date`, authToken, { exam_date: dateInput }
       );
       setExamDate(r.exam_date);
+      onExamDateChange?.(r.exam_date);   // keep App-level state in sync → RightPanel
       // Refresh schedule — it depends on exam date
       const sch = await getJson<ScheduleDay[]>(`${API_PROGRESS}/schedule`, authToken);
       setSchedule(sch);
@@ -202,6 +205,7 @@ export default function ReckoningView({ subjects, authToken }: ReckoningViewProp
       await putJson(`${API_PROGRESS}/exam-date`, authToken, { exam_date: null });
       setExamDate(null);
       setDateInput("");
+      onExamDateChange?.(null);          // keep App-level state in sync → RightPanel
       const sch = await getJson<ScheduleDay[]>(`${API_PROGRESS}/schedule`, authToken);
       setSchedule(sch);
     } catch { /* ignore */ }
@@ -398,7 +402,7 @@ export default function ReckoningView({ subjects, authToken }: ReckoningViewProp
 // ── Styles ───────────────────────────────────────────────────
 
 const S: Record<string, React.CSSProperties> = {
-  page:           { flex: 1, padding: "16px 20px", overflowY: "auto", background: "var(--stone-1)" },
+  page:           { flex: 1, padding: "16px 20px", overflowY: "auto", background: "transparent" },
   pageHeader:     { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   headerRune:     { fontFamily: "var(--font-header)", fontSize: 24, color: "var(--gold-dim)", lineHeight: 1 },
   headerTitle:    { fontFamily: "var(--font-header)", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", color: "var(--gold-bright)" },

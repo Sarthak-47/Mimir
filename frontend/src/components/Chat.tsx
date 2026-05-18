@@ -81,42 +81,62 @@ const THINKING_PHRASES = [
 ];
 
 interface ChatProps {
-  messages: Message[];
+  messages:      Message[];
   onSuggestion?: (text: string) => void;
-  username?: string;
-  isWaiting?: boolean;
+  username?:     string;
+  isWaiting?:    boolean;
+  isStreaming?:  boolean;
+  onStop?:       () => void;
+  onEdit?:       (msgId: string, newContent: string) => void;
+  onRegenerate?: () => void;
 }
 
-/**
- * Scrollable chat transcript.
- *
- * Renders user and assistant message bubbles, inline quizzes and flashcard
- * decks (when tool data is attached to a message), and a thinking animation
- * while waiting for the first token. Auto-scrolls to the bottom on new content.
- *
- * @param messages     - Ordered list of messages to display.
- * @param onSuggestion - Called when the user clicks an empty-state suggestion chip.
- * @param username     - Used to derive the user's avatar initial.
- * @param isWaiting    - When true, show the `ThinkingBubble` indicator.
- */
-export default function Chat({ messages, onSuggestion, username, isWaiting }: ChatProps) {
+export default function Chat({
+  messages, onSuggestion, username,
+  isWaiting, isStreaming, onStop, onEdit, onRegenerate,
+}: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isActive  = isWaiting || isStreaming;
+
+  // Index of the last assistant message — for the regenerate button
+  const lastAssistantIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") return i;
+    }
+    return -1;
+  })();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isWaiting]);
 
   return (
-    <div style={styles.chatArea} className="scroll-area runic-bg">
-      {messages.length === 0 && <EmptyState onSuggestion={onSuggestion} />}
+    <div style={styles.chatContainer}>
+      <div style={styles.chatArea} className="scroll-area">
+        {messages.length === 0 && <EmptyState onSuggestion={onSuggestion} />}
 
-      {messages.map((msg) => (
-        <MessageBubble key={msg.id} msg={msg} username={username} />
-      ))}
+        {messages.map((msg, idx) => (
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            username={username}
+            onEdit={onEdit}
+            onRegenerate={!isActive && idx === lastAssistantIdx ? onRegenerate : undefined}
+          />
+        ))}
 
-      {isWaiting && <ThinkingBubble />}
+        {isWaiting && <ThinkingBubble />}
 
-      <div ref={bottomRef} />
+        <div ref={bottomRef} />
+      </div>
+
+      {isActive && onStop && (
+        <div style={styles.stopBar}>
+          <button style={styles.stopBtn} onClick={onStop}>
+            ■ &nbsp;Stop
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -166,23 +186,45 @@ function ThinkingBubble() {
   );
 }
 
-/**
- * Render one chat message bubble with optional inline quiz or flashcard deck.
- *
- * User messages align right; assistant messages align left with the Mimir avatar.
- * If the message carries `quizData` or `flashcardData`, the interactive component
- * is rendered below the text bubble.
- */
-function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
-  const isUser = msg.role === "user";
-  const userInitial = (username?.[0] ?? "?").toUpperCase();
+function MessageBubble({
+  msg, username, onEdit, onRegenerate,
+}: {
+  msg:           Message;
+  username?:     string;
+  onEdit?:       (msgId: string, newContent: string) => void;
+  onRegenerate?: () => void;
+}) {
+  const isUser       = msg.role === "user";
+  const userInitial  = (username?.[0] ?? "?").toUpperCase();
+  const [hovered,    setHovered]   = useState(false);
+  const [editing,    setEditing]   = useState(false);
+  const [editText,   setEditText]  = useState(msg.content);
+  const [copied,     setCopied]    = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(msg.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const handleEditSubmit = () => {
+    if (editText.trim() && editText.trim() !== msg.content) {
+      onEdit?.(msg.id, editText.trim());
+    }
+    setEditing(false);
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEditSubmit(); }
+    if (e.key === "Escape") { setEditing(false); setEditText(msg.content); }
+  };
 
   return (
     <div
-      style={{
-        ...styles.row,
-        justifyContent: isUser ? "flex-end" : "flex-start",
-      }}
+      style={{ ...styles.row, justifyContent: isUser ? "flex-end" : "flex-start" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {!isUser && <div style={styles.avatar}>M</div>}
 
@@ -191,8 +233,32 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
         <div style={{ ...styles.bubble, ...(isUser ? styles.userBubble : styles.mimirBubble) }}>
           <div style={styles.sender}>
             {isUser ? "You" : "Mimir"}
-            <span style={styles.time}>{formatTime(msg.timestamp)}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={styles.time}>{formatTime(msg.timestamp)}</span>
+              {/* Action buttons — shown on hover */}
+              {hovered && (
+                <div style={styles.actionBar}>
+                  {/* Copy */}
+                  <button style={styles.actionBtn} title="Copy" onClick={handleCopy}>
+                    {copied ? "✓" : "⎘"}
+                  </button>
+                  {/* Edit (user messages only) */}
+                  {isUser && onEdit && (
+                    <button style={styles.actionBtn} title="Edit" onClick={() => { setEditText(msg.content); setEditing(true); }}>
+                      ✎
+                    </button>
+                  )}
+                  {/* Regenerate (last assistant message only) */}
+                  {!isUser && onRegenerate && (
+                    <button style={styles.actionBtn} title="Regenerate" onClick={onRegenerate}>
+                      ↻
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+
           {/* Attached image thumbnails (user messages) */}
           {isUser && msg.images && msg.images.length > 0 && (
             <div style={styles.attachedImages}>
@@ -207,11 +273,29 @@ function MessageBubble({ msg, username }: { msg: Message; username?: string }) {
             </div>
           )}
 
-          <div style={styles.content}>
-            {msg.role === "assistant"
-              ? <MessageRenderer text={msg.content} />
-              : msg.content}
-          </div>
+          {/* Edit mode: inline textarea */}
+          {editing ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+              <textarea
+                autoFocus
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                style={{ ...styles.editArea }}
+                rows={Math.min(8, editText.split("\n").length + 1)}
+              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={styles.editSave}   onClick={handleEditSubmit}>Send</button>
+                <button style={styles.editCancel} onClick={() => { setEditing(false); setEditText(msg.content); }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={styles.content}>
+              {msg.role === "assistant"
+                ? <MessageRenderer text={msg.content} />
+                : msg.content}
+            </div>
+          )}
         </div>
 
         {/* Tool action badge */}
@@ -358,7 +442,15 @@ function formatTime(date: Date) {
 
 // ── Styles ───────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
-  chatArea: { flex: 1, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
+  chatContainer: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 },
+  chatArea:  { flex: 1, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" },
+  stopBar:   { display: "flex", justifyContent: "center", padding: "6px 0", background: "rgba(13,21,16,0.85)", borderTop: "1px solid var(--green-dark)", flexShrink: 0 },
+  stopBtn:   { fontFamily: "var(--font-header)", fontSize: 11, letterSpacing: "0.14em", color: "var(--text-dim)", background: "var(--stone-3)", border: "1px solid var(--green-dark)", padding: "4px 16px", cursor: "pointer", textTransform: "uppercase" as const },
+  actionBar:  { display: "flex", gap: 3 },
+  actionBtn:  { background: "none", border: "none", color: "var(--text-dim)", fontSize: 12, cursor: "pointer", padding: "1px 4px", lineHeight: 1, fontFamily: "monospace", transition: "color 0.1s" },
+  editArea:   { width: "100%", background: "var(--stone-2)", border: "1px solid var(--green)", color: "var(--text-primary)", fontFamily: "var(--font-body)", fontSize: 14, padding: "6px 8px", resize: "vertical" as const, outline: "none" },
+  editSave:   { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.12em", color: "var(--green-bright)", background: "var(--stone-3)", border: "1px solid var(--green)", padding: "3px 12px", cursor: "pointer", textTransform: "uppercase" as const },
+  editCancel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.12em", color: "var(--text-dim)", background: "none", border: "1px solid var(--green-dark)", padding: "3px 12px", cursor: "pointer", textTransform: "uppercase" as const },
   row:      { display: "flex", alignItems: "flex-end", gap: 8 },
   avatar:   { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },
   avatarUser: { width: 26, height: 26, background: "var(--stone-3)", border: "1px solid var(--gold-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-header)", fontSize: 12, fontWeight: 700, color: "var(--gold)", flexShrink: 0 },

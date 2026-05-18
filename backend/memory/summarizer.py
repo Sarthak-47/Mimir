@@ -19,7 +19,7 @@ import ollama
 from sqlalchemy import select
 
 from config import settings
-from memory.database import AsyncSessionLocal, Conversation
+from memory.database import AsyncSessionLocal, Conversation, UserMemory
 from memory.vector import get_collection
 
 logger = logging.getLogger("mimir.summarizer")
@@ -121,6 +121,58 @@ async def _process_session(user_id: int, session: list) -> None:
         "[summarizer] user=%d session=%s summarised (%d turns → 1 doc)",
         user_id, date_str, len(session),
     )
+
+    # Extract persistent student facts from this session
+    await _extract_student_facts(user_id, subject_id, turns_text, date_str)
+
+
+async def _extract_student_facts(
+    user_id: int,
+    subject_id: int | None,
+    turns_text: str,
+    date_str: str,
+) -> None:
+    """Extract persistent student facts from a session into user_memories.
+
+    Looks for struggles, well-understood concepts, and any stated exam dates.
+    Skips the write if the model finds nothing worth persisting.
+    """
+    prompt = (
+        f"From this study session on {date_str}, identify ONLY persistent facts about the student:\n"
+        "- Concepts they found difficult or confusing\n"
+        "- Concepts they understood well\n"
+        "- Stated study preferences or learning style\n"
+        "- Any mentioned exam dates or deadlines\n"
+        "Be very brief. If there is nothing genuinely persistent and useful, respond with exactly: NONE\n\n"
+        + turns_text
+    )
+    try:
+        response = await asyncio.to_thread(
+            lambda: ollama.chat(
+                model=settings.ollama_model,
+                messages=[{"role": "user", "content": prompt}],
+                options={"temperature": 0.2, "num_predict": 200},
+                think=False,
+            )
+        )
+        facts = response["message"]["content"].strip()
+        if not facts or facts.upper() == "NONE":
+            return
+
+        async with AsyncSessionLocal() as db:
+            mem = UserMemory(
+                user_id=user_id,
+                subject_id=subject_id,
+                memory_type="session_facts",
+                key=f"session:{date_str}",
+                value=facts,
+                source="summarizer",
+            )
+            db.add(mem)
+            await db.commit()
+        logger.info("[summarizer] Stored student facts for user=%d session=%s", user_id, date_str)
+    except Exception as exc:
+        logger.warning("[summarizer] Fact extraction failed: %s", exc)
 
 
 # ── Public job ────────────────────────────────────────────────

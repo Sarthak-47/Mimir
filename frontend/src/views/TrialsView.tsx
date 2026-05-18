@@ -289,7 +289,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     padding: "24px 16px",
     overflowY: "auto",
-    background: "var(--stone-1)",
+    background: "transparent",
   },
   setupCard: {
     width: "100%",

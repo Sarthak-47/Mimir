@@ -16,6 +16,10 @@ interface TopbarProps {
   username?: string;
   onLogout?: () => void;
   onHelp?: () => void;
+  /** Opens the All Conversations drawer. */
+  onAllChats?: () => void;
+  /** Clears the current Oracle chat to start a fresh conversation. */
+  onNewChat?: () => void;
 }
 
 /**
@@ -31,7 +35,7 @@ interface TopbarProps {
  * @param username           - Display name shown in the user badge.
  * @param onLogout           - Called when the user clicks the logout rune.
  */
-export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp }: TopbarProps) {
+export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp, onAllChats, onNewChat }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -49,6 +53,20 @@ export default function Topbar({ view, isConnected, isConnecting, activeSubjectN
 
       {/* ── Right: username + help + status pill ── */}
       <div style={styles.right}>
+        {/* New Chat — only visible in Oracle view */}
+        {onNewChat && view === "oracle" && (
+          <button style={styles.newChatBtn} onClick={onNewChat} title="Begin a new conversation">
+            ᚾ <span style={styles.newChatLabel}>NEW</span>
+          </button>
+        )}
+
+        {/* All Conversations drawer */}
+        {onAllChats && (
+          <button style={styles.allChatsBtn} onClick={onAllChats} title="All conversations">
+            ᚷ
+          </button>
+        )}
+
         {onHelp && (
           <button style={styles.helpBtn} onClick={onHelp} title="Help — Guide to Mimir">
             ᚱ
@@ -145,6 +163,35 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "3px 8px",
     lineHeight: 1,
     transition: "all 0.15s",
+  },
+  allChatsBtn: {
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--gold-dim)",
+    fontFamily: "var(--font-header)",
+    fontSize: 14,
+    cursor: "pointer",
+    padding: "3px 8px",
+    lineHeight: 1,
+    transition: "all 0.15s",
+  },
+  newChatBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--green-bright)",
+    fontFamily: "var(--font-header)",
+    fontSize: 13,
+    cursor: "pointer",
+    padding: "3px 8px",
+    lineHeight: 1,
+    transition: "all 0.15s",
+  },
+  newChatLabel: {
+    fontSize: 9,
+    letterSpacing: "0.14em",
   },
   logoutBtn: {
     background: "none",

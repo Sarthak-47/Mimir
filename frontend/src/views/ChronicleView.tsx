@@ -129,7 +129,7 @@ export default function ChronicleView({ authToken, username }: ChronicleViewProp
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page:        { flex: 1, padding: "16px 20px", overflowY: "auto", background: "var(--stone-1)", display: "flex", flexDirection: "column", gap: 0 },
+  page:        { flex: 1, padding: "16px 20px", overflowY: "auto", background: "transparent", display: "flex", flexDirection: "column", gap: 0 },
   pageHeader:  { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
   headerRune:  { fontFamily: "var(--font-header)", fontSize: 24, color: "var(--gold-dim)", lineHeight: 1 },
   headerTitle: { fontFamily: "var(--font-header)", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", color: "var(--gold-bright)" },

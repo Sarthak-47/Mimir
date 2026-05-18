@@ -1,5 +1,24 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { NavView, Subject } from "@/App";
+import { API_BASE as API } from "@/config";
+
+// ── Types ────────────────────────────────────────────────────
+interface SessionMsg {
+  id: number;
+  role: string;
+  content: string;
+  subject_id: number | null;
+  timestamp: string;
+}
+
+interface SessionGroup {
+  session_id: string;
+  start_time: string;
+  subject_id: number | null;
+  turn_count: number;
+  preview: string;
+  messages: SessionMsg[];
+}
 
 // ── Nav items ───────────────────────────────────────────────
 const NAV_ITEMS: { view: NavView; rune: string; label: string }[] = [
@@ -38,6 +57,8 @@ interface SidebarProps {
   username:        string;
   examDate:        Date | null;
   onSetExamDate:   (d: Date | null) => void;
+  authToken?:      string | null;
+  onLoadSession?:  (messages: SessionMsg[]) => void;
 }
 
 /**
@@ -62,19 +83,54 @@ export default function Sidebar({
   view, onViewChange,
   subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,
   username, examDate, onSetExamDate,
+  authToken, onLoadSession,
 }: SidebarProps) {
   const [addingSubject, setAddingSubject]   = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [hoveredSubject, setHoveredSubject] = useState<string | null>(null);
   const [editingExamDate, setEditingExamDate] = useState(false);
+  // Sessions panel — which subjects are expanded, and their session data
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
+  const [subjectSessions, setSubjectSessions]   = useState<Record<string, SessionGroup[]>>({});
 
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const toggleSessions = useCallback(async (subjectId: string) => {
+    const next = new Set(expandedSubjects);
+    if (next.has(subjectId)) {
+      next.delete(subjectId);
+      setExpandedSubjects(next);
+      // Clear cache so re-expanding always fetches fresh sessions
+      setSubjectSessions((prev) => { const copy = { ...prev }; delete copy[subjectId]; return copy; });
+      return;
+    }
+    next.add(subjectId);
+    setExpandedSubjects(next);
+
+    // Fetch sessions if not yet loaded
+    if (!subjectSessions[subjectId] && authToken) {
+      try {
+        const res = await fetch(
+          `${API}/api/chronicle/sessions?subject_id=${subjectId}&limit=20`,
+          { headers: { Authorization: `Bearer ${authToken}` } },
+        );
+        if (res.ok) {
+          const data: SessionGroup[] = await res.json();
+          setSubjectSessions((prev) => ({ ...prev, [subjectId]: data }));
+        }
+      } catch { /* ignore — sessions stay empty */ }
+    }
+  }, [expandedSubjects, subjectSessions, authToken]);
+
+  const commitNewSubject = useCallback(() => {
     if (newSubjectName.trim()) {
       onAddSubject(newSubjectName.trim());
       setNewSubjectName("");
       setAddingSubject(false);
     }
+  }, [newSubjectName, onAddSubject]);
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    commitNewSubject();
   };
 
   const handleExamDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,39 +189,75 @@ export default function Sidebar({
       {/* ── Disciplines ── */}
       <div style={styles.sectionLabel}>Disciplines</div>
       <div style={styles.subjectList}>
-        {subjects.map((s) => (
-          <div
-            key={s.id}
-            style={styles.subjectRow}
-            onMouseEnter={() => setHoveredSubject(s.id)}
-            onMouseLeave={() => setHoveredSubject(null)}
-          >
-            <button
-              style={{
-                ...styles.subjectItem,
-                ...(activeSubject === s.id ? styles.subjectItemActive : {}),
-              }}
-              onClick={() => onSubjectChange(s.id)}
-            >
-              <span style={{ ...styles.diamond, background: s.color }} />
-              <span style={{
-                ...styles.subjectName,
-                ...(activeSubject === s.id ? styles.subjectNameActive : {}),
-              }}>
-                {s.name}
-              </span>
-            </button>
-            {hoveredSubject === s.id && (
-              <button
-                style={styles.deleteBtn}
-                title="Remove discipline"
-                onClick={(e) => { e.stopPropagation(); onDeleteSubject(s.id); }}
+        {subjects.map((s) => {
+          const isExpanded = expandedSubjects.has(s.id);
+          const sessions   = subjectSessions[s.id] ?? [];
+          return (
+            <div key={s.id}>
+              <div
+                style={styles.subjectRow}
+                onMouseEnter={() => setHoveredSubject(s.id)}
+                onMouseLeave={() => setHoveredSubject(null)}
               >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+                {/* Sessions toggle chevron */}
+                <button
+                  style={styles.chevronBtn}
+                  title={isExpanded ? "Collapse sessions" : "Expand sessions"}
+                  onClick={(e) => { e.stopPropagation(); void toggleSessions(s.id); }}
+                >
+                  {isExpanded ? "▾" : "▸"}
+                </button>
+
+                <button
+                  style={{
+                    ...styles.subjectItem,
+                    ...(activeSubject === s.id ? styles.subjectItemActive : {}),
+                  }}
+                  onClick={() => onSubjectChange(s.id)}
+                >
+                  <span style={{ ...styles.diamond, background: s.color }} />
+                  <span style={{
+                    ...styles.subjectName,
+                    ...(activeSubject === s.id ? styles.subjectNameActive : {}),
+                  }}>
+                    {s.name}
+                  </span>
+                </button>
+                {hoveredSubject === s.id && (
+                  <button
+                    style={styles.deleteBtn}
+                    title="Remove discipline"
+                    onClick={(e) => { e.stopPropagation(); onDeleteSubject(s.id); }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Collapsible sessions list */}
+              {isExpanded && (
+                <div style={styles.sessionsList}>
+                  {sessions.length === 0 ? (
+                    <div style={styles.sessionEmpty}>No sessions yet</div>
+                  ) : sessions.map((sess) => (
+                    <button
+                      key={sess.session_id}
+                      style={styles.sessionRow}
+                      onClick={() => onLoadSession?.(sess.messages)}
+                      title={`${sess.turn_count} turns — ${new Date(sess.start_time).toLocaleDateString()}`}
+                    >
+                      <div style={styles.sessionDate}>
+                        {new Date(sess.start_time).toLocaleDateString([], { month: "short", day: "numeric" })}
+                        <span style={styles.sessionCount}>{sess.turn_count}t</span>
+                      </div>
+                      <div style={styles.sessionPreview}>{sess.preview}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {addingSubject ? (
           <form onSubmit={handleAddSubmit} style={{ marginTop: 4 }}>
@@ -173,9 +265,17 @@ export default function Sidebar({
               autoFocus
               value={newSubjectName}
               onChange={(e) => setNewSubjectName(e.target.value)}
-              placeholder="Discipline name..."
+              placeholder="Discipline name…"
               style={styles.subjectInput}
-              onBlur={() => { setAddingSubject(false); setNewSubjectName(""); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter")  { e.preventDefault(); commitNewSubject(); }
+                if (e.key === "Escape") { setAddingSubject(false); setNewSubjectName(""); }
+              }}
+              onBlur={() => {
+                // Only dismiss on blur if nothing was typed; if there's a value,
+                // the user may have clicked the send button — let form submit handle it.
+                if (!newSubjectName.trim()) { setAddingSubject(false); setNewSubjectName(""); }
+              }}
             />
           </form>
         ) : (
@@ -285,7 +385,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   navItemActive: {
     background: "var(--stone-4)",
-    borderLeftColor: "var(--green-bright)",
+    borderLeft: "2px solid var(--green-bright)",
   },
   navRune: {
     fontFamily: "var(--font-header)",
@@ -315,6 +415,67 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     position: "relative" as const,
   },
+  chevronBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    fontSize: 9,
+    lineHeight: 1,
+    cursor: "pointer",
+    padding: "0 2px",
+    flexShrink: 0,
+    fontFamily: "monospace",
+  },
+  sessionsList: {
+    paddingLeft: 18,
+    paddingBottom: 2,
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 1,
+  },
+  sessionEmpty: {
+    fontFamily: "var(--font-body)",
+    fontSize: 11,
+    fontStyle: "italic",
+    color: "var(--text-dim)",
+    padding: "3px 6px",
+  },
+  sessionRow: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 1,
+    padding: "4px 6px",
+    background: "none",
+    border: "none",
+    borderLeft: "1px solid var(--green-dark)",
+    cursor: "pointer",
+    textAlign: "left" as const,
+    transition: "background 0.1s, border-color 0.1s",
+    width: "100%",
+  },
+  sessionDate: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontFamily: "var(--font-header)",
+    fontSize: 9,
+    letterSpacing: "0.1em",
+    color: "var(--gold-dim)",
+  },
+  sessionCount: {
+    color: "var(--text-dim)",
+    fontFamily: "var(--font-body)",
+    fontSize: 9,
+    fontStyle: "italic",
+  },
+  sessionPreview: {
+    fontFamily: "var(--font-body)",
+    fontSize: 11,
+    color: "var(--text-dim)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+    maxWidth: 140,
+  },
   subjectItem: {
     display: "flex",
     alignItems: "center",
@@ -328,7 +489,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "left" as const,
     transition: "all 0.12s",
   },
-  subjectItemActive: { borderLeftColor: "var(--green-bright)" },
+  subjectItemActive: { borderLeft: "2px solid var(--green-bright)" },
   diamond: {
     display: "inline-block",
     width: 6,

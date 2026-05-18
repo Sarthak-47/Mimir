@@ -336,7 +336,7 @@ export default function InputZone({
         </button>
       </div>
 
-      <div style={styles.hint}>Enter to send · Shift+Enter for newline · Paste or drop images to attach</div>
+      <div style={styles.hint}>Enter to send · Shift+Enter for newline · Paste or drop images · / for commands</div>
     </div>
   );
 }
@@ -355,7 +355,7 @@ const styles: Record<string, React.CSSProperties> = {
   engravingTop: { height: 1, background: "linear-gradient(90deg, transparent, var(--gold-dim) 30%, var(--gold-dim) 70%, transparent)", opacity: 0.3, marginBottom: 8 },
   runeStrip: { display: "flex", alignItems: "center", gap: 4, marginBottom: 6 },
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "4px 9px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },
-  runeBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)" },
+  runeBtnActive: { background: "var(--green-dark)", border: "1px solid var(--green)" },
   runeBtnDisabled: { opacity: 0.5, cursor: "not-allowed" },
   runeBtnIcon:  { fontSize: 17, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green-bright)" },
   runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-primary)", textTransform: "uppercase" as const },
@@ -365,7 +365,7 @@ const styles: Record<string, React.CSSProperties> = {
   inputRow: { display: "flex", gap: 6, alignItems: "flex-end" },
   textarea: { flex: 1, background: "var(--stone-1)", border: "1px solid var(--green-dark)", color: "var(--text-primary)", fontFamily: "var(--font-body)", fontSize: 15, padding: "8px 12px", outline: "none", resize: "none" as const, minHeight: 38, maxHeight: 130, lineHeight: 1.5 },
   sendBtn: { width: 38, height: 38, background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.5, transition: "all 0.15s" },
-  sendBtnActive: { background: "var(--green-dark)", borderColor: "var(--green)", cursor: "pointer", opacity: 1 },
+  sendBtnActive: { background: "var(--green-dark)", border: "1px solid var(--green)", cursor: "pointer", opacity: 1 },
   sendRune: { fontFamily: "var(--font-header)", fontSize: 18, color: "var(--green-bright)", lineHeight: 1 },
   hint: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-dim)", fontStyle: "italic", marginTop: 3, textAlign: "center" as const },
   lessonPicker: { display: "flex", alignItems: "center", gap: 6, padding: "5px 0 3px", borderBottom: "1px solid var(--green-dark)", marginBottom: 4 },

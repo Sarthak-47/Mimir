@@ -78,7 +78,7 @@ html, body, #root {
 }
 
 body {
-  background: var(--stone-0);
+  background-color: var(--stone-1);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 15px;
@@ -106,7 +106,7 @@ h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.15em; }
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: var(--stone-1);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -376,17 +376,32 @@ input:focus, textarea:focus {
 }
 
 /* ---------------------------------------------------------- */
-/* YGGDRASIL / CELTIC TREE OF LIFE WALLPAPER                   */
-/* Exact reference image, dimmed into the app stone theme via  */
-/* a dark overlay. Green tint preserves the Norse palette.    */
+/* YGGDRASIL WALLPAPER — rendered by a fixed div in App.tsx   */
+/* that spans only the main content column (between sidebar   */
+/* and right panel), so the tree is centered in that area.   */
+/* .runic-bg is a transparent passthrough for legacy refs.    */
 /* ---------------------------------------------------------- */
 .runic-bg {
-  background-color: var(--stone-1);
+  background: transparent;
+}
+
+/* The Yggdrasil fixed background div — injected by App.tsx */
+.yggdrasil-bg {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: var(--sidebar-width);
+  right: var(--right-panel-width);
   background-image:
+    /* Hard vignette on all four edges — wipes stock watermarks / edge artefacts */
+    linear-gradient(to right,  var(--stone-1) 0%, transparent 8%, transparent 92%, var(--stone-1) 100%),
+    linear-gradient(to bottom, var(--stone-1) 0%, transparent 8%, transparent 88%, var(--stone-1) 100%),
+    /* Main dark overlay — keeps the tree a faint ghost */
     linear-gradient(rgba(7, 13, 9, 0.93), rgba(7, 13, 9, 0.93)),
-    url('/bg-tree.jpg');
+    url('/bg-norse-raw.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: local;
+  pointer-events: none;
+  z-index: 0;
 }

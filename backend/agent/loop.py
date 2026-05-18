@@ -163,12 +163,34 @@ async def run_agent(
         ``__SOURCES__:<json>``      — source file names retrieved from memory
     """
 
+    # ── 0. Always-on user memory (document summaries + student facts) ──
+    user_memory_ctx = ""
+    try:
+        from memory.database import UserMemory as _UserMem
+        from sqlalchemy import select as _sel
+        async with AsyncSessionLocal() as _db:
+            _res = await _db.execute(
+                _sel(_UserMem)
+                .where(_UserMem.user_id == user_id)
+                .order_by(_UserMem.updated_at.desc())
+                .limit(12)
+            )
+            _mems = _res.scalars().all()
+            if _mems:
+                _parts = [
+                    f"[{m.memory_type.upper()}] {m.key}:\n{m.value[:400]}"
+                    for m in _mems
+                ]
+                user_memory_ctx = "\n\n".join(_parts)
+    except Exception:
+        pass   # table may not exist on first boot
+
     # ── 1. Hybrid memory recall (vector + BM25 RRF) ──────────
     past_docs, retrieved_sources = query_memory_hybrid(
         user_id, user_message, n_results=5, subject_id=subject_id,
         candidate_pool=20,
     )
-    memory_ctx = "\n".join(past_docs) if past_docs else "No relevant past sessions."
+    memory_ctx = "\n".join(past_docs) if past_docs else "No relevant documents or past sessions found."
 
     # ── 2. Build context prompt ──────────────────────────────
     history_text = "\n".join(
@@ -226,6 +248,33 @@ async def run_agent(
     except Exception:
         pass   # Misconception table may not exist yet on first boot
 
+    # ── Exam-question context (mark-weightage auto-scaling) ──
+    exam_ctx = ""
+    try:
+        from memory.database import ExamQuestion as _EQ
+        from sqlalchemy import select as _sel
+        from utils.exam_parser import mark_scaling_guide
+        async with AsyncSessionLocal() as _db:
+            _q = _sel(_EQ).where(_EQ.user_id == user_id)
+            if subject_id:
+                _q = _q.where(_EQ.subject_id == subject_id)
+            _q = _q.order_by(_EQ.file_id, _EQ.id).limit(40)
+            _res  = await _db.execute(_q)
+            _rows = _res.scalars().all()
+            if _rows:
+                _lines = [
+                    f"  • Q{r.question_number} ({r.marks} mark{'s' if r.marks != 1 else ''}): {r.question_text}"
+                    for r in _rows
+                ]
+                exam_ctx = (
+                    "[EXAM QUESTIONS DETECTED IN UPLOADED SCROLLS]\n"
+                    + mark_scaling_guide() + "\n\n"
+                    + "Questions found:\n"
+                    + "\n".join(_lines)
+                )
+    except Exception:
+        pass   # table may not exist on first boot
+
     # ── Vision pre-processing (if images attached) ──────────
     image_context = ""
     if images:
@@ -261,7 +310,8 @@ async def run_agent(
 
     context_prompt = (
         f"{image_context}"
-        f"[PAST SESSIONS]\n{memory_ctx}\n\n"
+        + (f"[WHAT I KNOW ABOUT YOU]\n{user_memory_ctx}\n\n" if user_memory_ctx else "")
+        + f"[RETRIEVED DOCUMENTS & HISTORY]\n{memory_ctx}\n\n"
         f"[RECENT CONVERSATION]\n{history_text}\n\n"
         f"[STUDENT CONTEXT]\n"
         f"Active subject: {subject_name or 'None'}\n"
@@ -270,16 +320,19 @@ async def run_agent(
         f"{adaptive_hint}\n"
         f"{misconception_ctx}\n"
         f"{confusion_hint}\n\n"
-        f"[STUDENT MESSAGE]\n{user_message}"
+        + (f"{exam_ctx}\n\n" if exam_ctx else "")
+        + f"[STUDENT MESSAGE]\n{user_message}"
     )
 
     # ── 3. Build messages ────────────────────────────────────
     active_prompt = _MODE_PROMPTS.get(mode, SYSTEM_PROMPT)
     react_system  = active_prompt + """
 
-You have access to the following tools. To use one, output EXACTLY:
+You have access to the following tools. When you need a tool, output ONLY these two lines — with absolutely NO preceding text or explanation:
 ACTION: <tool_name>
 ARGS: <JSON object>
+
+CRITICAL: The ACTION line must be the very first thing you output. Do not write any reasoning, summary, or text before it. Jump straight to ACTION.
 
 Available tools:
 - quiz(topic, subject, n)       — generate MCQ questions (returns JSON)
@@ -328,8 +381,19 @@ For everything else — explanations, revision schedules, recalling past session
                     peek_buf = []
 
         elif not is_tool:
-            # ── direct path — stream tokens live ─────────────
-            yield tok
+            # ── direct path — stream tokens live, but watch for late ACTION ─
+            # The model may output a long preamble before ACTION: (e.g. reasoning
+            # text explaining what it's about to do). Once ACTION: appears anywhere
+            # in the accumulated text, stop yielding and buffer the rest so the
+            # raw ACTION/ARGS scaffold is never sent to the user.
+            if re.search(r"\bACTION:\s*\w+", full):
+                # Late tool detection — switch modes, buffer remaining tokens
+                is_tool = True
+                peek_buf.append(tok)
+                if _args_complete(full):
+                    break
+            else:
+                yield tok
 
         else:
             # ── tool path — keep buffering until ARGS complete ─
@@ -379,16 +443,23 @@ For everything else — explanations, revision schedules, recalling past session
                     else observation
                 )
 
-                # Synthesis call — stream the tool result as prose
+                # Synthesis call — stream the tool result as prose.
+                # We send the tool result AND the quiz data itself so the model
+                # can describe it.  Crucially we forbid further tool calls so
+                # the model doesn't try to nest another ACTION: in its reply.
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({
                     "role": "user",
                     "content": (
                         f"[TOOL RESULT — {tool_name}]\n{obs_str}\n\n"
-                        "Now respond to the student using this result."
+                        "Now respond to the student using this result. "
+                        "Do NOT use any tools or output ACTION/ARGS lines. "
+                        "Just present the result conversationally."
                     ),
                 })
 
+                synth_buf = ""
+                action_in_synth = False
                 async for chunk in await _client.chat(
                     model=settings.ollama_model,
                     messages=messages,
@@ -396,7 +467,13 @@ For everything else — explanations, revision schedules, recalling past session
                     stream=True,
                     think=False,
                 ):
-                    yield chunk["message"]["content"]
+                    tok2 = chunk["message"]["content"]
+                    synth_buf += tok2
+                    # Suppress any ACTION/ARGS scaffold the model sneaks in
+                    if re.search(r"\bACTION:\s*\w*", synth_buf):
+                        action_in_synth = True
+                    if not action_in_synth:
+                        yield tok2
 
                 # Structured data marker for the WebSocket handler
                 if isinstance(observation, (list, dict)):

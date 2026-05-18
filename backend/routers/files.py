@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from config import settings
-from memory.database import File as FileModel, User, get_db
+from memory.database import File as FileModel, ExamQuestion as ExamQuestionModel, User, get_db
 from memory.vector import delete_document_memory
 from routers.users import get_current_user
 from utils.parser import parse_and_index_file
@@ -38,13 +38,27 @@ ALLOWED_TYPES = {
 }
 
 
-# ── Schema ───────────────────────────────────────────────────
+# ── Schemas ──────────────────────────────────────────────────
 class FileResponse(BaseModel):
     """Public representation of an uploaded file record."""
     id: int
     filename: str
     subject_id: int | None
     processed: bool
+    has_exam_questions: bool = False
+    question_count: int = 0   # populated by list_files
+
+    class Config:
+        from_attributes = True
+
+
+class ExamQuestionResponse(BaseModel):
+    """Public representation of one parsed exam question."""
+    id: int
+    question_number: str
+    question_text: str
+    marks: int
+    page_number: int
 
     class Config:
         from_attributes = True
@@ -156,10 +170,73 @@ async def list_files(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List files owned by the current user, newest first, optionally filtered by subject."""
+    """List files owned by the current user, newest first, optionally filtered by subject.
+
+    Each row includes ``question_count`` — the number of exam questions parsed
+    from that file (0 for non-exam documents).
+    """
+    from sqlalchemy import func as _func
     query = select(FileModel).where(FileModel.user_id == current_user.id)
     if subject_id is not None:
         query = query.where(FileModel.subject_id == subject_id)
 
     result = await db.execute(query.order_by(FileModel.created_at.desc()))
-    return result.scalars().all()
+    files = result.scalars().all()
+
+    # Attach question counts without N+1 queries
+    file_ids = [f.id for f in files]
+    count_rows: list = []
+    if file_ids:
+        count_res = await db.execute(
+            select(
+                ExamQuestionModel.file_id,
+                _func.count(ExamQuestionModel.id).label("cnt"),
+            )
+            .where(ExamQuestionModel.file_id.in_(file_ids))
+            .group_by(ExamQuestionModel.file_id)
+        )
+        count_rows = count_res.all()
+    count_map = {row.file_id: row.cnt for row in count_rows}
+
+    responses = []
+    for f in files:
+        r = FileResponse(
+            id=f.id,
+            filename=f.filename,
+            subject_id=f.subject_id,
+            processed=f.processed,
+            has_exam_questions=getattr(f, "has_exam_questions", False),
+            question_count=count_map.get(f.id, 0),
+        )
+        responses.append(r)
+    return responses
+
+
+# ── Exam questions for a file ─────────────────────────────────
+@router.get("/{file_id}/questions", response_model=list[ExamQuestionResponse])
+async def get_file_questions(
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all exam questions extracted from a specific file.
+
+    Raises 404 if the file does not belong to the current user.
+    Returns an empty list if the file has no parsed exam questions.
+    """
+    # Verify ownership
+    file_res = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    if not file_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    q_res = await db.execute(
+        select(ExamQuestionModel)
+        .where(ExamQuestionModel.file_id == file_id)
+        .order_by(ExamQuestionModel.id)
+    )
+    return q_res.scalars().all()

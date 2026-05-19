@@ -1,21 +1,41 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import Chat from "@/components/Chat";
 import InputZone from "@/components/InputZone";
 import RightPanel from "@/components/RightPanel";
 import Auth from "@/components/Auth";
-import TrialsView from "@/views/TrialsView";
-import ReckoningView from "@/views/ReckoningView";
-import ChronicleView from "@/views/ChronicleView";
-import ScrollsView from "@/views/ScrollsView";
 import CommandPalette from "@/components/CommandPalette";
+
+// Views are code-split — each chunk loads only when the user navigates to it.
+const TrialsView   = lazy(() => import("@/views/TrialsView"));
+const ReckoningView = lazy(() => import("@/views/ReckoningView"));
+const ChronicleView = lazy(() => import("@/views/ChronicleView"));
+const ScrollsView   = lazy(() => import("@/views/ScrollsView"));
 import TutorBar from "@/components/TutorBar";
 import HelpModal from "@/components/HelpModal";
 import AllChatsPanel from "@/components/AllChatsPanel";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
 import { API_BASE as API } from "@/config";
+
+/** Minimal fallback shown while a lazy view chunk is being loaded. */
+function ViewLoader() {
+  return (
+    <div style={{
+      flex: 1,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "var(--gold-dim)",
+      fontFamily: "var(--font-header)",
+      fontSize: 13,
+      letterSpacing: "0.3em",
+    }}>
+      ᚺ
+    </div>
+  );
+}
 
 /**
  * Full-screen loading screen displayed while the FastAPI backend is starting up.
@@ -627,34 +647,36 @@ export default function App() {
           </>
         )}
 
-        {view === "trials" && (
-          <TrialsView
-            subjects={subjects}
-            activeSubject={activeSubject}
-            authToken={authToken}
-          />
-        )}
+        <Suspense fallback={<ViewLoader />}>
+          {view === "trials" && (
+            <TrialsView
+              subjects={subjects}
+              activeSubject={activeSubject}
+              authToken={authToken}
+            />
+          )}
 
-        {view === "reckoning" && (
-          <ReckoningView
-            subjects={subjects}
-            authToken={authToken}
-            onExamDateChange={(dateStr) =>
-              handleSetExamDate(dateStr ? new Date(dateStr + "T00:00:00") : null)
-            }
-          />
-        )}
+          {view === "reckoning" && (
+            <ReckoningView
+              subjects={subjects}
+              authToken={authToken}
+              onExamDateChange={(dateStr) =>
+                handleSetExamDate(dateStr ? new Date(dateStr + "T00:00:00") : null)
+              }
+            />
+          )}
 
-        {view === "chronicle" && (
-          <ChronicleView authToken={authToken} username={username} />
-        )}
+          {view === "chronicle" && (
+            <ChronicleView authToken={authToken} username={username} />
+          )}
 
-        {view === "scrolls" && (
-          <ScrollsView
-            subjects={subjects}
-            authToken={authToken}
-          />
-        )}
+          {view === "scrolls" && (
+            <ScrollsView
+              subjects={subjects}
+              authToken={authToken}
+            />
+          )}
+        </Suspense>
       </main>
 
       <RightPanel

@@ -6,6 +6,7 @@ import InputZone from "@/components/InputZone";
 import RightPanel from "@/components/RightPanel";
 import Auth from "@/components/Auth";
 import CommandPalette from "@/components/CommandPalette";
+import SystemStatus, { type HealthStatus } from "@/components/SystemStatus";
 
 // Views are code-split — each chunk loads only when the user navigates to it.
 const TrialsView   = lazy(() => import("@/views/TrialsView"));
@@ -142,28 +143,40 @@ export default function App() {
   // (Blocking on the health fetch causes multi-second hangs in browser-
   // extension / Tauri-webview environments where the first localhost request
   // is slow to establish.)
-  const [backendReady, setBackendReady] = useState(false);
-  const [bootDots,     setBootDots]     = useState(0);
+  const [backendReady,  setBackendReady]  = useState(false);
+  const [bootDots,      setBootDots]      = useState(0);
+  const [systemHealth,  setSystemHealth]  = useState<HealthStatus | null>(null);
 
   useEffect(() => {
     let alive = true;
     const tick = setInterval(() => setBootDots((d) => d + 1), 500);
 
+    const fetchHealth = async (): Promise<boolean> => {
+      try {
+        const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) return false;
+        const data = await r.json() as HealthStatus;
+        if (alive) setSystemHealth(data);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     // Show the splash for at least 1.5 s (branding moment), then reveal UI.
-    // In parallel, try a health check; if it comes back sooner we fast-path.
     const minDelay = new Promise<void>((r) => setTimeout(r, 1500));
-
-    const healthCheck = fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) })
-      .then((r) => r.ok)
-      .catch(() => false);
-
-    Promise.all([minDelay, healthCheck]).then(() => {
+    Promise.all([minDelay, fetchHealth()]).then(() => {
       if (alive) setBackendReady(true);
     });
+
+    // Poll health every 30 s while the app is open — auto-clears the
+    // SystemStatus banner when Ollama comes back online.
+    const pollTimer = setInterval(fetchHealth, 30_000);
 
     return () => {
       alive = false;
       clearInterval(tick);
+      clearInterval(pollTimer);
     };
   }, []);
 
@@ -577,6 +590,9 @@ export default function App() {
           onAllChats={() => setShowAllChats(true)}
           onNewChat={handleNewChat}
         />
+
+        {/* ── System health banner (Ollama down / model not pulled) ── */}
+        <SystemStatus health={systemHealth} />
 
         {/* ── Review reminder banner ── */}
         {reviewAlert && (

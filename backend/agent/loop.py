@@ -98,6 +98,33 @@ _MODE_PROMPTS: dict[str, str] = {
 # ── Async Ollama client (singleton) ─────────────────────────
 _client = ollama.AsyncClient(host=settings.ollama_base_url)
 
+
+def _ollama_error_msg(exc: Exception) -> str:
+    """Convert a raw Ollama connection/model error into a user-friendly chat message.
+
+    Called when the LLM call itself fails so the student sees clear guidance
+    rather than a raw Python traceback.
+    """
+    msg = str(exc).lower()
+    if any(kw in msg for kw in ("refused", "10061", "connec", "unavailable", "not running", "cannot connect")):
+        return (
+            "**Ollama is not running.**\n\n"
+            "Start Ollama and try again. On Windows it runs in the system tray — "
+            "look for the llama icon. If it's not there, launch it from the Start menu "
+            "or run `ollama serve` in a terminal."
+        )
+    if "not found" in msg or "pull" in msg:
+        return (
+            f"**Model `{settings.ollama_model}` is not pulled.**\n\n"
+            f"Run this in a terminal and then try again:\n"
+            f"    ollama pull {settings.ollama_model}"
+        )
+    return (
+        f"**Ollama error:** {exc}\n\n"
+        f"Check that Ollama is running and `{settings.ollama_model}` is pulled."
+    )
+
+
 def _ollama_opts(**extra) -> dict:
     """Build an Ollama ``options`` dict, appending ``num_gpu`` only when explicitly configured."""
     opts = {"temperature": settings.ollama_temperature, **extra}
@@ -365,13 +392,19 @@ For everything else — explanations, revision schedules, recalling past session
     decided  = False       # True once we've passed _PEEK_CHARS
     is_tool  = False       # True when ACTION: was found
 
-    async for chunk in await _client.chat(
-        model=settings.ollama_model,
-        messages=messages,
-        options=_ollama_opts(),
-        stream=True,
-        think=False,
-    ):
+    try:
+        _stream1 = await _client.chat(
+            model=settings.ollama_model,
+            messages=messages,
+            options=_ollama_opts(),
+            stream=True,
+            think=False,
+        )
+    except Exception as conn_err:
+        yield _ollama_error_msg(conn_err)
+        return
+
+    async for chunk in _stream1:
         tok = chunk["message"]["content"]
         full += tok
 
@@ -467,13 +500,18 @@ For everything else — explanations, revision schedules, recalling past session
 
                 synth_buf = ""
                 action_in_synth = False
-                async for chunk in await _client.chat(
-                    model=settings.ollama_model,
-                    messages=messages,
-                    options=_ollama_opts(),
-                    stream=True,
-                    think=False,
-                ):
+                try:
+                    _stream2 = await _client.chat(
+                        model=settings.ollama_model,
+                        messages=messages,
+                        options=_ollama_opts(),
+                        stream=True,
+                        think=False,
+                    )
+                except Exception as conn_err2:
+                    yield _ollama_error_msg(conn_err2)
+                    return
+                async for chunk in _stream2:
                     tok2 = chunk["message"]["content"]
                     synth_buf += tok2
                     # Suppress any ACTION/ARGS scaffold the model sneaks in

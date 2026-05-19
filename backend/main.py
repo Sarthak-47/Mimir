@@ -101,5 +101,53 @@ app.include_router(tutor.router,    prefix="/api/tutor",     tags=["Tutor"])
 # ── Health check ─────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    """Return a simple liveness probe used by the frontend boot-splash to wait for uvicorn."""
-    return {"status": "ok", "model": settings.ollama_model}
+    """Liveness + readiness probe.
+
+    In addition to confirming that FastAPI is running, this checks whether
+    Ollama is reachable and the configured model is pulled. The frontend
+    polls this endpoint every 30 s and surfaces a banner when degraded.
+
+    Returns:
+        status:     "ok" | "degraded"
+        ollama_ok:  True if the Ollama HTTP API responded within 3 s
+        model_ok:   True if ``settings.ollama_model`` appears in the model list
+        error:      Human-readable problem description, or null when healthy
+        model:      The configured model name
+    """
+    import asyncio
+    import ollama as _ollama
+
+    ollama_ok = False
+    model_ok  = False
+    error: str | None = None
+
+    try:
+        _hc = _ollama.AsyncClient(host=settings.ollama_base_url)
+        response = await asyncio.wait_for(_hc.list(), timeout=3.0)
+        ollama_ok = True
+
+        available = [m.model for m in (response.models or [])]
+        configured = settings.ollama_model
+        # Accept exact match or "name" matching "name:tag" variants
+        model_ok = any(
+            name == configured or name.startswith(configured.split(":")[0] + ":")
+            for name in available
+        )
+        if not model_ok:
+            error = f"Model not found. Run: ollama pull {configured}"
+
+    except asyncio.TimeoutError:
+        error = "Ollama is not responding (timeout). Is it running?"
+    except Exception:
+        error = (
+            f"Ollama is not running. Start it, then run: "
+            f"ollama pull {settings.ollama_model}"
+        )
+
+    return {
+        "status":    "ok" if (ollama_ok and model_ok) else "degraded",
+        "model":     settings.ollama_model,
+        "ollama_ok": ollama_ok,
+        "model_ok":  model_ok,
+        "error":     error,
+    }

@@ -148,7 +148,10 @@ export function useWebSocket({
             if (msg.data !== undefined) onTutorQuizRef.current?.(msg.data);
             break;
           case "error":
-            console.error("[Mimir WS] Server error:", msg.content);
+            // Surface errors as a visible assistant message so the student
+            // sees what went wrong rather than a silent console log.
+            if (msg.content) onTokenRef.current(msg.content);
+            onDoneRef.current();
             break;
         }
       } catch {

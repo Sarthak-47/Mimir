@@ -17,6 +17,10 @@ python-jose[cryptography]>=3.3
 passlib[bcrypt]>=1.7
 bcrypt==4.0.1          # passlib 1.7.4 breaks with bcrypt>=4.1
 
+# Pulled in by main.py and the routers under test
+apscheduler>=3.10
+aiofiles>=23.2
+
 # Runtime packages imported by the modules under test
 ollama>=0.6
 chromadb>=0.5,<0.6

@@ -8,6 +8,7 @@ import Auth from "@/components/Auth";
 import CommandPalette from "@/components/CommandPalette";
 import SystemStatus, { type HealthStatus } from "@/components/SystemStatus";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import UpdateNotice from "@/components/UpdateNotice";
 
 // Views are code-split — each chunk loads only when the user navigates to it.
 const TrialsView    = lazy(() => import("@/views/TrialsView"));
@@ -608,6 +609,9 @@ export default function App() {
           onAllChats={() => setShowAllChats(true)}
           onNewChat={handleNewChat}
         />
+
+        {/* ── App update notice (shown when a new version is available) ── */}
+        <UpdateNotice />
 
         {/* ── System health banner (Ollama down / model not pulled) ── */}
         <SystemStatus health={systemHealth} />

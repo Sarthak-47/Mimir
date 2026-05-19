@@ -43,9 +43,9 @@ _MARK_PATTERNS: list[re.Pattern] = [
     re.compile(r"\((\d{1,2})\s+marks?\)",        re.IGNORECASE),  # (4 marks)
     re.compile(r"marks?\s*[=:]\s*(\d{1,2})",     re.IGNORECASE),  # marks: 4 / marks=4
     re.compile(r"\[(\d{1,2})\]"),                                  # [4]
-    re.compile(r"/\s*(\d{1,2})\s*$"),                              # /4  at end of line
+    re.compile(r"/\s*(\d{1,2})\s*$",   re.MULTILINE),             # /4  at end of line
     # (4) only at end of line — avoids grabbing "(a)" question labels
-    re.compile(r"\((\d{1,2})\)\s*$"),
+    re.compile(r"\((\d{1,2})\)\s*$",   re.MULTILINE),
 ]
 
 # ── Question-number prefix patterns ──────────────────────────
@@ -97,7 +97,13 @@ def is_exam_paper(text: str) -> bool:
     total_mark_tokens = sum(
         len(pat.findall(sample)) for pat in _MARK_PATTERNS
     )
-    q_hits = len(_QUESTION_START.findall(sample))
+    # Count lines that start with a question-number prefix.
+    # _QUESTION_START uses ^, so .match() is correct here (checks from the
+    # start of each stripped line rather than the whole sample string).
+    q_hits = sum(
+        1 for line in sample.split("\n")
+        if _QUESTION_START.match(line.strip())
+    )
 
     return total_mark_tokens >= 2 and q_hits >= 2
 

@@ -1,5 +1,7 @@
 # Mimir — The Well of Knowledge
 
+[![CI](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml)
+
 *[Watch the intro →](https://youtu.be/RXSExdHsypM?si=-I7pVcTdAVejo_ub)*
 
 

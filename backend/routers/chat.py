@@ -276,6 +276,14 @@ async def ws_chat(
                     subject_id=subject_id,
                 )
 
+                # ── Extract exam date for revision-plan awareness ──
+                exam_date_str: str | None = None
+                if user.exam_date:
+                    try:
+                        exam_date_str = user.exam_date.isoformat()
+                    except Exception:
+                        exam_date_str = str(user.exam_date)
+
                 # ── Run agent, stream response ────────────────
                 # Inner try: agent/LLM errors send an error message but keep
                 # the WebSocket open so the user can try again without re-login.
@@ -295,6 +303,7 @@ async def ws_chat(
                         subject_name=subject_name,
                         mode=mode,
                         images=images or None,
+                        exam_date=exam_date_str,
                     ):
                         # ── Tool invocation signal ─────────────────────
                         if "__ACTION__:" in chunk:

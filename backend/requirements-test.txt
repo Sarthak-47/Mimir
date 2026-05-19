@@ -1,0 +1,20 @@
+# Test-runner dependencies
+# Install with: pip install -r requirements-test.txt
+#
+# These are the minimum packages needed to run `pytest` in CI.
+# Heavy runtime deps (PyMuPDF, pytesseract, sentence-transformers) are
+# intentionally excluded — they are not needed for the test suite.
+
+pytest>=7.4
+pytest-asyncio>=0.23
+
+# Runtime packages imported by the modules under test
+ollama>=0.6
+chromadb>=0.5,<0.6
+numpy<2.0
+sqlalchemy>=2.0
+aiosqlite>=0.20
+pydantic>=2.7
+pydantic-settings>=2.2
+python-dotenv>=1.0
+rank_bm25>=0.2

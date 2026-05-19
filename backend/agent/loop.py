@@ -17,8 +17,11 @@ Tool path (≈20 % of requests):
 
 import asyncio
 import json
+import logging
 import re
 from typing import AsyncGenerator
+
+logger = logging.getLogger("mimir.agent")
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -183,8 +186,8 @@ async def run_agent(
                     for m in _mems
                 ]
                 user_memory_ctx = "\n\n".join(_parts)
-    except Exception:
-        pass   # table may not exist on first boot
+    except Exception as exc:
+        logger.debug("User memory fetch skipped: %s", exc)
 
     # ── 1. Hybrid memory recall (vector + BM25 RRF) ──────────
     past_docs, retrieved_sources = query_memory_hybrid(
@@ -246,8 +249,8 @@ async def run_agent(
                     for m in _miscs
                 ]
                 misconception_ctx = "Recurring misconceptions (student repeatedly struggles with): " + ", ".join(_parts)
-    except Exception:
-        pass   # Misconception table may not exist yet on first boot
+    except Exception as exc:
+        logger.debug("Misconception fetch skipped: %s", exc)
 
     # ── Exam-question context (mark-weightage auto-scaling) ──
     exam_ctx = ""
@@ -273,8 +276,8 @@ async def run_agent(
                     + "Questions found:\n"
                     + "\n".join(_lines)
                 )
-    except Exception:
-        pass   # table may not exist on first boot
+    except Exception as exc:
+        logger.debug("Exam question fetch skipped: %s", exc)
 
     # ── Vision pre-processing (if images attached) ──────────
     image_context = ""

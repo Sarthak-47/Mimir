@@ -142,6 +142,7 @@ async def run_agent(
     subject_name: str = "",
     mode: str = "detailed",
     images: list[str] | None = None,   # base64-encoded images attached to this message
+    exam_date: str | None = None,       # ISO date string e.g. "2025-06-12"
 ) -> AsyncGenerator[str, None]:
     """Run one ReAct iteration and stream response tokens.
 
@@ -308,6 +309,8 @@ async def run_agent(
         if vision_parts:
             image_context = "\n\n".join(vision_parts) + "\n\n"
 
+    exam_date_line = f"Exam date: {exam_date} — use this deadline when generating revision plans or study schedules.\n" if exam_date else ""
+
     context_prompt = (
         f"{image_context}"
         + (f"[WHAT I KNOW ABOUT YOU]\n{user_memory_ctx}\n\n" if user_memory_ctx else "")
@@ -315,6 +318,7 @@ async def run_agent(
         f"[RECENT CONVERSATION]\n{history_text}\n\n"
         f"[STUDENT CONTEXT]\n"
         f"Active subject: {subject_name or 'None'}\n"
+        f"{exam_date_line}"
         f"{weak_summary}\n"
         f"{difficulty_hint}\n"
         f"{adaptive_hint}\n"

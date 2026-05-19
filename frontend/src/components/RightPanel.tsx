@@ -73,16 +73,20 @@ export default function RightPanel({ activeSubject, authToken, examDate, onSetEx
 
   useEffect(() => {
     let cancelled = false;
+    let isFirstLoad = true;   // only show spinner on the very first fetch
     const load = async () => {
-      setLoading(true);
+      if (isFirstLoad) setLoading(true);
       try {
         const [s, w] = await Promise.all([
           fetchJson<Stats>(`${API}/stats`, authToken),
           fetchJson<Weakness[]>(`${API}/weaknesses`, authToken),
         ]);
         if (!cancelled) { setStats(s); setWeaknesses(w); }
-      } catch { /* backend offline or unauthorized — show dashes */ }
-      finally { if (!cancelled) setLoading(false); }
+      } catch { /* backend offline or unauthorized — keep previous values */ }
+      finally {
+        if (!cancelled) setLoading(false);
+        isFirstLoad = false;
+      }
     };
     load();
     const timer = setInterval(load, 30_000);

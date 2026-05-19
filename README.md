@@ -1,5 +1,8 @@
 # Mimir — The Well of Knowledge
 
+*[Watch the intro →](https://youtu.be/oFNaYBczVJc)*
+
+
 > *In Norse myth, Mimir guards the well beneath Yggdrasil — the source of all wisdom.
 > Odin sacrificed his eye just to drink from it.*
 >

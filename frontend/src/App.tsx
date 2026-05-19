@@ -9,10 +9,11 @@ import CommandPalette from "@/components/CommandPalette";
 import SystemStatus, { type HealthStatus } from "@/components/SystemStatus";
 
 // Views are code-split — each chunk loads only when the user navigates to it.
-const TrialsView   = lazy(() => import("@/views/TrialsView"));
+const TrialsView    = lazy(() => import("@/views/TrialsView"));
 const ReckoningView = lazy(() => import("@/views/ReckoningView"));
 const ChronicleView = lazy(() => import("@/views/ChronicleView"));
 const ScrollsView   = lazy(() => import("@/views/ScrollsView"));
+const SettingsView  = lazy(() => import("@/views/SettingsView"));
 import TutorBar from "@/components/TutorBar";
 import HelpModal from "@/components/HelpModal";
 import AllChatsPanel from "@/components/AllChatsPanel";
@@ -82,7 +83,7 @@ function BootSplash({ dots }: { dots: number }) {
 }
 
 // ── Types ──────────────────────────────────────────────────
-export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls";
+export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls" | "settings";
 
 export interface Message {
   id: string;
@@ -691,6 +692,10 @@ export default function App() {
               subjects={subjects}
               authToken={authToken}
             />
+          )}
+
+          {view === "settings" && (
+            <SettingsView authToken={authToken} />
           )}
         </Suspense>
       </main>

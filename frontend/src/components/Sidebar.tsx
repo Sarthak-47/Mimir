@@ -27,6 +27,7 @@ const NAV_ITEMS: { view: NavView; rune: string; label: string }[] = [
   { view: "reckoning", rune: "ᚢ", label: "The Reckoning" },
   { view: "chronicle", rune: "ᛊ", label: "Chronicle"     },
   { view: "scrolls",   rune: "ᚱ", label: "Scrolls"       },
+  { view: "settings",  rune: "ᛟ", label: "Settings"      },
 ];
 
 /** SVG eye-in-diamond logo mark rendered in gold. */

@@ -99,5 +99,21 @@ class Settings(BaseSettings):
 # Singleton
 settings = Settings()
 
+# ── Apply persisted user overrides ──────────────────────────
+# The system settings router writes to DATA_DIR/user_settings.json
+# when the user changes model/temperature/context_length from the
+# Settings panel.  We apply those here so they survive app restarts
+# without touching the .env file.
+_USER_SETTINGS_FILE = DATA_DIR / "user_settings.json"
+if _USER_SETTINGS_FILE.exists():
+    try:
+        import json as _json
+        _overrides = _json.loads(_USER_SETTINGS_FILE.read_text(encoding="utf-8"))
+        for _k, _v in _overrides.items():
+            if hasattr(settings, _k):
+                setattr(settings, _k, _v)
+    except Exception:
+        pass
+
 # Ensure upload dir exists
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)

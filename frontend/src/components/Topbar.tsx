@@ -6,6 +6,7 @@ const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string
   reckoning: { rune: "ᚢ", title: "The Reckoning", subtitle: "Behold your progress, warrior"         },
   chronicle: { rune: "ᛊ", title: "Chronicle",      subtitle: "Records of past sessions"              },
   scrolls:   { rune: "ᚱ", title: "Scrolls",        subtitle: "Your uploaded knowledge"               },
+  settings:  { rune: "ᛟ", title: "Settings",       subtitle: "Configure the oracle"                  },
 };
 
 interface TopbarProps {

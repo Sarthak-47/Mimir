@@ -7,6 +7,7 @@ import RightPanel from "@/components/RightPanel";
 import Auth from "@/components/Auth";
 import CommandPalette from "@/components/CommandPalette";
 import SystemStatus, { type HealthStatus } from "@/components/SystemStatus";
+import OnboardingWizard from "@/components/OnboardingWizard";
 
 // Views are code-split — each chunk loads only when the user navigates to it.
 const TrialsView    = lazy(() => import("@/views/TrialsView"));
@@ -104,9 +105,10 @@ export interface Subject {
 }
 
 // ── Constants ──────────────────────────────────────────────
-const STORAGE_TOKEN     = "mimir_token";
-const STORAGE_USERNAME  = "mimir_username";
-const STORAGE_EXAM_DATE = "mimir_exam_date";
+const STORAGE_TOKEN       = "mimir_token";
+const STORAGE_USERNAME    = "mimir_username";
+const STORAGE_EXAM_DATE   = "mimir_exam_date";
+const onboardingKey = (u: string) => `mimir_onboarding_done_${u}`;
 const SUBJECT_COLORS    = ["#6ab87a", "#c9a84c", "#7aaa84", "#e8c96a", "#4a8a5a"];
 
 /** Read persisted JWT and username from localStorage, or return null if absent. */
@@ -185,6 +187,11 @@ export default function App() {
   const stored = readStoredAuth();
   const [authToken, setAuthToken]         = useState<string | null>(stored?.token ?? null);
   const [username, setUsername]           = useState<string>(stored?.username ?? "");
+  // Onboarding wizard — shown once per user (tracked by localStorage key)
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    if (!stored) return false;
+    try { return !localStorage.getItem(onboardingKey(stored.username)); } catch { return false; }
+  });
   const [view, setView]                   = useState<NavView>("oracle");
   const [messages, setMessages]           = useState<Message[]>([]);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
@@ -212,6 +219,10 @@ export default function App() {
     } catch { /* ignore */ }
     setAuthToken(token);
     setUsername(user);
+    // Show wizard if this user hasn't completed onboarding yet
+    try {
+      setShowOnboarding(!localStorage.getItem(onboardingKey(user)));
+    } catch { /* ignore */ }
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -283,6 +294,12 @@ export default function App() {
     setSubjects((prev) => prev.filter((s) => s.id !== id));
     setActiveSubject((cur) => (cur === id ? null : cur));
   }, [authToken]);
+
+  // ── Onboarding handler ────────────────────────────────
+  const handleOnboardingComplete = useCallback(() => {
+    try { localStorage.setItem(onboardingKey(username), "1"); } catch { /* ignore */ }
+    setShowOnboarding(false);
+  }, [username]);
 
   // ── Exam date handler ──────────────────────────────────
   const handleSetExamDate = useCallback(async (d: Date | null) => {
@@ -716,6 +733,18 @@ export default function App() {
       />
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+
+      {/* ── Onboarding wizard — shown once per user, full-screen overlay ── */}
+      {showOnboarding && authToken && (
+        <OnboardingWizard
+          username={username}
+          authToken={authToken}
+          subjects={subjects}
+          onAddSubject={handleAddSubject}
+          onSetExamDate={handleSetExamDate}
+          onComplete={handleOnboardingComplete}
+        />
+      )}
 
       <AllChatsPanel
         isOpen={showAllChats}

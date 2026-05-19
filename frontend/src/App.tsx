@@ -259,6 +259,10 @@ export default function App() {
           const d = new Date(data.exam_date);
           setExamDate(d);
           try { localStorage.setItem(STORAGE_EXAM_DATE, d.toISOString()); } catch { /**/ }
+        } else {
+          // API says no exam date — clear any stale value left by a previous user
+          setExamDate(null);
+          try { localStorage.removeItem(STORAGE_EXAM_DATE); } catch { /**/ }
         }
       })
       .catch(() => { /* use localStorage value */ });

@@ -1,6 +1,6 @@
 # Mimir — The Well of Knowledge
 
-*[Watch the intro →](https://youtu.be/oFNaYBczVJc)*
+*[Watch the intro →](https://youtu.be/RXSExdHsypM?si=-I7pVcTdAVejo_ub)*
 
 
 > *In Norse myth, Mimir guards the well beneath Yggdrasil — the source of all wisdom.

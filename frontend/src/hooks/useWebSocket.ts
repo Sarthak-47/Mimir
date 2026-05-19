@@ -1,6 +1,37 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 import { WS_CHAT as WS_BASE_URL } from "@/config";
+
+// ── OS notification helper ───────────────────────────────────
+// Uses the Tauri notification plugin when running inside the desktop app,
+// falls back to the Web Notification API in browser / dev mode.
+async function _sendOsNotification(title: string, body: string): Promise<void> {
+  try {
+    // Tauri plugin path (production desktop)
+    const { isPermissionGranted, requestPermission, sendNotification } =
+      await import("@tauri-apps/plugin-notification");
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const perm = await requestPermission();
+      granted = perm === "granted";
+    }
+    if (granted) {
+      sendNotification({ title, body });
+      return;
+    }
+  } catch {
+    // Not inside Tauri (browser / dev server) — fall through to Web API
+  }
+  // Web Notification API fallback
+  if ("Notification" in window) {
+    if (Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+    if (Notification.permission === "granted") {
+      new Notification(title, { body });
+    }
+  }
+}
 const RECONNECT_DELAY_MS = 1500;
 const MAX_RECONNECT_DELAY_MS = 4000;
 
@@ -135,9 +166,20 @@ export function useWebSocket({
           case "sources":
             if (Array.isArray(msg.data)) onSourcesRef.current?.(msg.data as string[]);
             break;
-          case "review_reminder":
-            onReviewReminderRef.current?.(msg.topics ?? [], msg.count ?? 0);
+          case "review_reminder": {
+            const topics = msg.topics ?? [];
+            const count  = msg.count ?? 0;
+            onReviewReminderRef.current?.(topics, count);
+            // Fire an OS toast so the student is notified even when
+            // the window is minimised or behind other apps.
+            _sendOsNotification(
+              "Mimir — Review Reminder",
+              count === 1
+                ? `"${topics[0] ?? "a topic"}" is overdue for review.`
+                : `${count} topics are overdue for review — open Mimir to catch up.`,
+            );
             break;
+          }
           case "file_indexed":
             onFileIndexedRef.current?.(msg.filename ?? "", msg.chunks ?? 0);
             break;

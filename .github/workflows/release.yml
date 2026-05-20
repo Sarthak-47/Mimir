@@ -133,6 +133,7 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: false
           files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip.sig
             latest.json

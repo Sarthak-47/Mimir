@@ -114,10 +114,14 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           SIG_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${VERSION}_x64-setup.nsis.zip.sig"
-          python scripts/build-manifest.py \
-            --version "${VERSION}" \
-            --sig-path "${SIG_FILE}" \
-            --out latest.json
+          if [ -f "$SIG_FILE" ]; then
+            python scripts/build-manifest.py \
+              --version "${VERSION}" \
+              --sig-path "${SIG_FILE}" \
+              --out latest.json
+          else
+            echo "[manifest] No signature file — skipping (unsigned build, auto-updater disabled)"
+          fi
 
       # ── Upload artefacts to GitHub Release ──────────────────────
       - name: Upload installer and manifest
@@ -127,6 +131,7 @@ jobs:
           name: "Mimir v${{ steps.version.outputs.version }}"
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
           files: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip.sig

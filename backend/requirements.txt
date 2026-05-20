@@ -33,7 +33,7 @@ rank_bm25==0.2.2
 sentence-transformers==2.7.0   # cross-encoder reranker (ms-marco-MiniLM-L-6-v2)
 
 # ── Utilities ──────────────────────────────────────────────
-pydantic==2.7.1
+pydantic>=2.9.0,<3.0.0    # ollama>=0.6 requires pydantic>=2.9
 pydantic-settings==2.2.1
 python-dotenv==1.0.1
 aiofiles==23.2.1

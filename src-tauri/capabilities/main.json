@@ -7,7 +7,7 @@
     "core:default",
     "notification:default",
     "updater:default",
-    "process:allow-relaunch",
+    "process:allow-restart",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered"

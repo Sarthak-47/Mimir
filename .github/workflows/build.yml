@@ -68,9 +68,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName:       ${{ github.ref_name }}
-          releaseName:   "Mimir ${{ github.ref_name }}"
-          releaseBody:   "See CHANGELOG for details."
-          releaseDraft:  true
-          prerelease:    false
-          projectPath:   .
+          projectPath: .

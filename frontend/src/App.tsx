@@ -212,7 +212,7 @@ export default function App() {
       const update = await check().catch(() => null);
       if (!update?.available) return;
       setUpdateProgress(0);
-      await update.downloadAndInstall((evt) => {
+      await update.downloadAndInstall((evt: { event: string; data?: unknown }) => {
         if (evt.event === "Progress") {
           const data = evt.data as { chunkLength?: number; contentLength?: number };
           if (data.chunkLength) {

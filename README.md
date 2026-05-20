@@ -1,6 +1,7 @@
 # Mimir — The Well of Knowledge
 
 [![CI](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml)
+[![Release](https://github.com/Sarthak-47/Mimir/actions/workflows/release.yml/badge.svg)](https://github.com/Sarthak-47/Mimir/actions/workflows/release.yml)
 
 *[Watch the intro →](https://youtu.be/RXSExdHsypM?si=-I7pVcTdAVejo_ub)*
 
@@ -42,7 +43,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 ---
 
-## Current features — v0.2.0
+## Current features — v0.4.0
 
 ### Core chat & AI
 - **Oracle** — WebSocket-streamed chat with a local LLM; tokens appear as they arrive
@@ -52,6 +53,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **Chat hover actions** — copy, edit, or regenerate any message by hovering over it
 - **Streaming stop** — cancel a generation mid-response
 - **Thinking indicator** — Norse-themed status while the model reasons ("Consulting the Well of Urd…")
+- **Friendly error messages** — Ollama down or model not pulled shows a clear fix command, not a stack trace
 
 ### Memory & retrieval
 - **Hybrid memory recall** — ChromaDB vector search + BM25 keyword ranking fused via Reciprocal Rank Fusion, then reranked by a cross-encoder (`ms-marco-MiniLM`) for the final top-5 chunks
@@ -63,18 +65,31 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **PDF and image upload** — PyMuPDF extracts PDFs with heading-aware structure; Ollama vision model describes images with Tesseract OCR as fallback
 - **Semantic chunking** — paragraph-aware 800-char chunks with sentence-boundary overlap so retrieval never cuts across a key sentence
 - **Discipline filter** — filter your uploaded files by subject in the Scrolls view
-- **Exam paper auto-scaling** — upload any past-paper PDF and Mimir automatically detects questions with their mark allocations (`[4 marks]`, `(6 marks)`, `[8]`, etc.). Oracle answers are calibrated in depth to the marks at stake — 1–2 marks gets a concise point, 7+ marks gets a full structured response. Detected questions listed in Scrolls with a gold ▼ Q badge that expands to show each question and its mark count
+- **Exam paper auto-scaling** — upload any past-paper PDF and Mimir automatically detects questions with their mark allocations (`[4 marks]`, `(6 marks)`, `[8]`, etc.). Oracle answers are calibrated in depth to the marks at stake — 1–2 marks gets a concise point, 7+ marks gets a full structured response. Detected questions listed in Scrolls with a gold ▼ Q badge
 
 ### Study tools
-- **Trials** — dedicated quiz runner with subject and topic selector; inline interactive MCQ cards with correct/wrong state; full score card and SM-2 update on completion
+- **Trials (MCQ)** — dedicated quiz runner with subject and topic selector; inline interactive MCQ cards with correct/wrong state; full score card and SM-2 update on completion
+- **Trials (Written Answer)** — free-text answer mode; Mimir generates a question, evaluates your typed response against mark points, and updates SM-2 state
+- **AI Examiner** — upload a question + mark scheme, write your answer, receive examiner-style feedback with awarded and missed mark points broken down line by line
 - **Structured tutor sessions** — 5-stage lesson arc (INTRO → TEACH → CHECK → QUIZ → DEBRIEF) on any topic, driven by the LESSON button
 - **Flashcard decks** — appear in-chat with flip interaction and card navigation
 - **Diagram understanding** — paste or drop an image into the chat and the vision model extracts every label, formula, arrow, and relationship for discussion
 
 ### Spaced repetition
-- **SM-2 algorithm** — confidence scores, ease factors, repetition counts, and review intervals updated after every quiz submission
+- **SM-2 algorithm** — confidence scores, ease factors, repetition counts, and review intervals updated after every quiz submission (MCQ and written)
 - **Reckoning dashboard** — per-topic confidence bars, quiz history, total days studied, all-time accuracy, current streak
+- **Predicted grade** — Ebbinghaus decay + score trajectory → live letter grade estimate with confidence level and trend arrow
 - **Overdue review detection** — APScheduler hourly job flags topics past their `next_review` date
+
+### Settings & health
+- **Settings modal** — runtime overrides for model, temperature, and context window; persisted to `user_settings.json`
+- **Model switcher** — lists all Ollama models on your machine with size info
+- **System status banner** — live Ollama and model health check; red banner with exact fix command if something is wrong
+- **OS notifications** — review reminders delivered as native Windows notifications when topics are overdue
+
+### Onboarding & updates
+- **Onboarding wizard** — 5-step first-launch guide (Welcome → Ollama check → Model pull → Set exam date → Done)
+- **Auto-update** — app polls GitHub Releases, shows a gold download-progress banner, and restarts to apply the new installer automatically
 
 ### Navigation & UX
 - **Command palette** — Ctrl+K or `/` in an empty message box opens a fuzzy-searchable palette with navigation commands, chat shortcuts, and subject switchers
@@ -82,6 +97,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **Chronicle** — full paginated conversation history in the same bubble style as the live chat
 - **Sidebar disciplines** — create and delete subjects live; accordion of recent sessions per subject; active subject sets the RAG filter for all memory queries
 - **Exam countdown** — set your exam date in the sidebar; the Ragnarok countdown in the right panel is real
+- **System tray** — Mimir minimises to tray; click icon or right-click → Show to restore; Ctrl+Shift+M global hotkey toggles the window from anywhere on the desktop
 - **Yggdrasil background** — Norse tree rendered as a ghosted full-height wallpaper behind the chat column
 
 ### Auth & data
@@ -95,7 +111,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 | Layer | Technology |
 |-------|-----------|
-| Desktop shell | Tauri 2 (Rust) — native binary, ~10 MB shell |
+| Desktop shell | Tauri 2 (Rust) — native binary, ~16 MB shell |
 | Frontend | React 18 + TypeScript, bundled by Vite |
 | Styling | CSS custom properties — no component library |
 | Typography | Cinzel (headers) + Crimson Text (body) — Google Fonts |
@@ -108,6 +124,8 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Exam parsing | Custom regex pipeline (`utils/exam_parser.py`) |
 | Scheduling | APScheduler AsyncIOScheduler |
 | Auth | python-jose (JWT), passlib (bcrypt) |
+| Notifications | tauri-plugin-notification |
+| Auto-updater | tauri-plugin-updater |
 
 ---
 
@@ -115,26 +133,31 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 ```
 mimir/
-├── src-tauri/                  Rust shell — window, Tauri config, NSIS installer spec
+├── src-tauri/                  Rust shell — window, tray, global shortcut, Tauri config
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   ├── Sidebar.tsx     Disciplines, session accordion, exam date
-│       │   ├── Topbar.tsx      Breadcrumb, NEW button, All-Chats trigger
-│       │   ├── AllChatsPanel.tsx  Slide-in drawer of all past sessions
-│       │   ├── Chat.tsx        Message bubbles, streaming, hover actions
-│       │   ├── InputZone.tsx   Textarea, mode switcher, 5 action buttons
+│       │   ├── Sidebar.tsx         Disciplines, session accordion, exam date, settings/examiner buttons
+│       │   ├── Topbar.tsx          Breadcrumb, NEW button, All-Chats trigger
+│       │   ├── AllChatsPanel.tsx   Slide-in drawer of all past sessions
+│       │   ├── Chat.tsx            Message bubbles, streaming, hover actions
+│       │   ├── InputZone.tsx       Textarea, mode switcher, 5 action buttons
 │       │   ├── CommandPalette.tsx  Ctrl+K fuzzy command palette
-│       │   └── RightPanel.tsx  Stats, weaknesses, Ragnarok countdown
+│       │   ├── RightPanel.tsx      Stats, weaknesses, Ragnarok countdown
+│       │   ├── ExaminerModal.tsx   AI examiner — question + mark scheme + marking
+│       │   ├── SettingsModal.tsx   Model, temperature, context window overrides
+│       │   ├── OnboardingWizard.tsx 5-step first-launch guide
+│       │   ├── SystemStatus.tsx    Ollama/model health banner
+│       │   └── UpdateNotice.tsx    Auto-update download progress banner
 │       ├── views/
-│       │   ├── TrialsView.tsx      Quiz runner
-│       │   ├── ReckoningView.tsx   Progress dashboard
+│       │   ├── TrialsView.tsx      Quiz runner — MCQ + written answer modes
+│       │   ├── ReckoningView.tsx   Progress dashboard + predicted grade
 │       │   ├── ChronicleView.tsx   Session history
 │       │   └── ScrollsView.tsx     File library + exam question browser
 │       ├── hooks/              useWebSocket — streaming + tool_data routing
 │       ├── styles/globals.css  Full design system as CSS variables
 │       ├── config.ts           Centralised API/WS base URLs
-│       └── App.tsx             Root layout, auth gate, state, view routing
+│       └── App.tsx             Root layout, auth gate, state, view routing, update check
 ├── backend/
 │   ├── agent/
 │   │   ├── loop.py         ReAct loop — streaming, peek window, tool dispatch
@@ -148,10 +171,12 @@ mimir/
 │   │   └── summarizer.py   Daily session compression job
 │   ├── routers/
 │   │   ├── chat.py         WebSocket /ws/chat endpoint
+│   │   ├── examiner.py     AI examiner — mark written answers against mark schemes
 │   │   ├── files.py        Upload, delete, list, /questions endpoint
-│   │   ├── quiz.py         MCQ generation + SM-2 submission
-│   │   ├── progress.py     Stats, exam dates, topic scores
+│   │   ├── quiz.py         MCQ + written question generation + SM-2 submission
+│   │   ├── progress.py     Stats, exam dates, topic scores, predicted grade
 │   │   ├── chronicle.py    Paginated session history
+│   │   ├── system.py       Settings CRUD, model list, health check
 │   │   └── tutor.py        Tutor session CRUD
 │   ├── utils/
 │   │   ├── parser.py       PDF/image extraction, semantic chunking, indexing
@@ -167,7 +192,7 @@ mimir/
 
 ## Running from source
 
-You need Rust, Python 3.11+, Node.js, and Ollama.
+You need Rust, Python 3.11+, Node.js 20+, and Ollama.
 
 ```bash
 # Pull the models
@@ -195,65 +220,101 @@ To build the full installer locally:
 ```bash
 # 1. Build the Python backend bundle
 cd backend
-pyinstaller mimir-backend.spec
+pyinstaller mimir-backend.spec --noconfirm
 
-# 2. Copy bundle into Tauri resource directory
-xcopy /E /I dist\mimir-backend ..\src-tauri\binaries\mimir-backend
+# 2. Stage bundle into Tauri resource directories
+mkdir -p ..\src-tauri\binaries\mimir-backend
+copy dist\mimir-backend\mimir-backend.exe ..\src-tauri\binaries\mimir-backend\
 
-# 3. Zip _internal for the installer
-# (see build script or zip manually)
+# 3. Zip _internal for the installer (PowerShell)
+Compress-Archive -Path "dist/mimir-backend/_internal/*" `
+                 -DestinationPath "../src-tauri/resources/backend-internal.zip" -Force
 
 # 4. Build NSIS installer
 cd ..
 cargo tauri build
-# Output: src-tauri/target/release/bundle/nsis/Mimir_0.2.0_x64-setup.exe
+# Output: src-tauri/target/release/bundle/nsis/Mimir_0.4.0_x64-setup.exe
 ```
 
 ---
 
-## Roadmap — v1.0
+## Roadmap — v0.5 to v1.0
 
-v0.2 is a capable study tool. v1.0 is the goal: a complete study operating system that doesn't just answer questions — it plans your entire exam campaign, marks your answers like an examiner, and tells you your predicted grade every morning.
+v0.4 ships a capable AI study suite. The path to v1.0 turns Mimir into a complete exam-preparation operating system. Below is the plan, broken into milestones.
 
-### Must-have for 1.0
+---
 
-| # | Feature |
-|---|---------|
-| 1 | **Living study plan** — auto-generated day-by-day schedule from exam date + syllabus + weak topics; recalculates when you fall behind or improve |
-| 2 | **AI examiner / answer marking** — upload question paper + mark scheme, write your answer, get it marked with examiner-style feedback and assessment objective breakdown |
-| 3 | **Predicted grade** — calibrated daily estimate from SR intervals, quiz scores, topic coverage, and time remaining |
-| 4 | **Typed answer testing** — free-text answer mode alongside MCQ; Mimir evaluates against expected mark points |
-| 5 | **Past paper question database** — every question ever attempted tracked by topic and marks; coverage gaps surfaced automatically |
-| 6 | **Syllabus import** — paste or upload an A-Level / IB / GCSE / AP syllabus and Mimir structures your subjects around it |
-| 7 | **Auto-update** — app checks for and applies new releases without manual reinstall (Tauri updater plugin) |
-| 8 | **Onboarding flow** — first-launch wizard: add subjects, set exam dates, upload first scroll, do a calibration quiz |
-| 9 | **Notification system** — OS-level review reminders when topics are overdue (APScheduler already detects them; nowhere to send them yet) |
-| 10 | **Crash / error recovery** — graceful UI when Ollama is down, model is not pulled, or backend fails to start |
-
-### Strong differentiators
+### v0.5 — Living Study Plan
+*The app should know what you need to study today, not just what you've studied before.*
 
 | # | Feature |
 |---|---------|
-| 11 | **Knowledge graph** — topics linked to prerequisites so Mimir understands *why* you're weak, not just *that* you are |
-| 12 | **Voice input** — Whisper STT for hands-free quizzing and question asking |
-| 13 | **Voice output** — TTS so Mimir can read explanations back; full voice revision session mode |
-| 14 | **Mind map generator** — visual concept map from any topic or uploaded notes |
-| 15 | **Syllabus coverage map** — what percentage of each topic area you've actually studied |
-| 16 | **Formula / definition sheets** — auto-generated per subject from uploaded notes, always one click away |
+| 1 | **Syllabus import** — paste or upload an A-Level / IB / GCSE / AP syllabus; Mimir structures subjects and topics around it automatically |
+| 2 | **Day-by-day study schedule** — auto-generated plan from exam date + syllabus + weak-topic scores + Ebbinghaus decay; rendered as a calendar view |
+| 3 | **Adaptive rescheduling** — if you fall behind or improve faster than expected, the plan recalculates overnight |
+| 4 | **Syllabus coverage map** — visual heatmap of every topic area, coloured by how much you've studied each one |
+| 5 | **FATES view overhaul** — replace placeholder with the live schedule above; show today's tasks, overdue items, and tomorrow's forecast |
 
-### Polish & platform
+---
+
+### v0.6 — Voice
+*Hands-free revision — walk around the room and quiz yourself.*
 
 | # | Feature |
 |---|---------|
-| 17 | **Proper flashcard deck manager** — create, edit, organise decks; Anki import |
-| 18 | **Pomodoro / study session timer** — built-in, logs time-on-topic |
-| 19 | **Time-on-topic heatmap** — see where hours actually go vs where they should |
-| 20 | **Learning velocity** — improvement rate per topic, trend lines |
-| 21 | **Custom themes** — light mode, accent colour picker |
-| 22 | **Keybinding customisation** — remap anything from a settings panel |
-| 23 | **Frontend performance** — code-split the bundle (currently 523 kB, target ~150 kB) |
-| 24 | **Optional cloud sync** — encrypted backup of DB and notes to a self-hosted server |
-| 25 | **Mac and Linux builds** |
+| 6 | **Voice input (Whisper STT)** — press-and-hold to dictate a question or answer; Whisper transcribes locally, no cloud |
+| 7 | **Voice output (TTS)** — Mimir reads explanations and quiz questions aloud; configurable speed and voice |
+| 8 | **Voice revision mode** — dedicated hands-free session: Mimir asks a question, waits for spoken answer, marks it, moves to the next |
+
+---
+
+### v0.7 — Insight Engine
+*Understanding why you're weak, not just that you are.*
+
+| # | Feature |
+|---|---------|
+| 9  | **Knowledge graph** — topics linked to prerequisites; Mimir traces the dependency chain when you're weak to identify the root blocker, not just the symptom |
+| 10 | **Mind map generator** — visual concept map from any topic or uploaded document; exportable as PNG |
+| 11 | **Formula and definition sheets** — auto-generated per subject from uploaded notes; always one click away in the sidebar |
+| 12 | **Learning velocity** — per-topic improvement rate and trend lines; highlights topics in free-fall and topics you've already mastered |
+| 13 | **Time-on-topic heatmap** — shows where your study hours actually go vs where the schedule says they should |
+
+---
+
+### v0.8 — Polish & Workflow
+*The tools that turn occasional use into a daily habit.*
+
+| # | Feature |
+|---|---------|
+| 14 | **Flashcard deck manager** — create, edit, organise named decks; Anki `.apkg` import and export |
+| 15 | **Pomodoro / study session timer** — built-in timer with configurable work/break intervals; logs time-on-topic to the heatmap |
+| 16 | **Past paper question database** — every question attempted indexed by topic, paper, and year; coverage gaps surfaced as "unseen question types" |
+| 17 | **Custom themes** — light mode, dark mode, accent colour picker while keeping the core Norse design language |
+| 18 | **Keybinding customisation** — remap any action from a settings panel |
+| 19 | **Frontend performance** — code-split bundle (current ~523 kB → target ~150 kB); lazy-load heavy views |
+
+---
+
+### v0.9 — Platform
+*Get Mimir onto every machine, with optional safety-net backup.*
+
+| # | Feature |
+|---|---------|
+| 20 | **macOS build** — universal binary (Apple Silicon + Intel); notarised and code-signed |
+| 21 | **Linux build** — `.AppImage` and `.deb` packages |
+| 22 | **Optional encrypted cloud sync** — opt-in backup of DB and uploads to a self-hosted server or S3-compatible bucket; end-to-end encrypted with a user-supplied key |
+
+---
+
+### v1.0 — Completion
+*Everything above, stable, documented, and ready for daily use by anyone.*
+
+| # | Feature |
+|---|---------|
+| 23 | **Full test coverage** — every backend route, every SM-2 edge case, every RAG retrieval path covered by automated tests in CI |
+| 24 | **Comprehensive error recovery** — every failure mode (Ollama down, model missing, corrupted DB, disk full) has a clear in-app recovery path |
+| 25 | **In-app help and docs** — searchable help panel covering every feature, accessible from the command palette |
+| 26 | **Installer signing** — code-signed NSIS installer so Windows does not show an "unknown publisher" warning; enables auto-updater `.sig` verification |
 
 ---
 
@@ -267,7 +328,7 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 
 ## Status
 
-**v0.2.0** — released and working on Windows x64. The full feature set described above is written and tested end-to-end with Ollama running `qwen2.5:14b`. Mac and Linux builds are not yet available.
+**v0.4.0** — released and working on Windows x64. The full feature set described above is written and tested end-to-end with Ollama running `qwen2.5:14b`. Mac and Linux builds are planned for v0.9.
 
 If you find this useful or want to build on it, the code is yours. MIT licensed.
 

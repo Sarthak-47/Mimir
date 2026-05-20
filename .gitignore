@@ -27,7 +27,7 @@ frontend/.vite/
 
 # ── Rust / Cargo ──────────────────────────────────────────
 target/
-Cargo.lock
+# Cargo.lock IS committed for this application crate (locks CI to exact local versions)
 **/*.rs.bk
 
 # ── Tauri build output ────────────────────────────────────

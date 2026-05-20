@@ -250,7 +250,7 @@ fn main() {
                 .build(app)?;
 
             // ── Global shortcut: Ctrl+Shift+M → show/focus ────
-            use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+            use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
             app.global_shortcut().on_shortcut(
                 tauri_plugin_global_shortcut::Shortcut::new(
                     Some(Modifiers::CONTROL | Modifiers::SHIFT),

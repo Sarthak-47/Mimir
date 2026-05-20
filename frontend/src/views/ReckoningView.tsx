@@ -56,6 +56,14 @@ interface QuizHistoryRow {
   timestamp:  string;
 }
 
+interface PredictedGrade {
+  grade:      string;
+  percentage: number;
+  trend:      "improving" | "stable" | "declining";
+  confidence: "high" | "medium" | "low";
+  summary:    string;
+}
+
 interface ReckoningViewProps {
   subjects:          Subject[];
   authToken:         string;
@@ -144,32 +152,35 @@ function ExamCountdown({
 // ── Main component ───────────────────────────────────────────
 
 export default function ReckoningView({ subjects, authToken, onExamDateChange }: ReckoningViewProps) {
-  const [stats,     setStats]     = useState<Stats | null>(null);
-  const [readiness, setReadiness] = useState<ReadinessRow[]>([]);
-  const [schedule,  setSchedule]  = useState<ScheduleDay[]>([]);
-  const [history,   setHistory]   = useState<QuizHistoryRow[]>([]);
-  const [examDate,  setExamDate]  = useState<string | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [selSub,    setSelSub]    = useState<string>("all");
-  const [dateInput, setDateInput] = useState("");
-  const [savingDate, setSavingDate] = useState(false);
+  const [stats,          setStats]          = useState<Stats | null>(null);
+  const [readiness,      setReadiness]      = useState<ReadinessRow[]>([]);
+  const [schedule,       setSchedule]       = useState<ScheduleDay[]>([]);
+  const [history,        setHistory]        = useState<QuizHistoryRow[]>([]);
+  const [predictedGrade, setPredictedGrade] = useState<PredictedGrade | null>(null);
+  const [examDate,       setExamDate]       = useState<string | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [selSub,         setSelSub]         = useState<string>("all");
+  const [dateInput,      setDateInput]      = useState("");
+  const [savingDate,     setSavingDate]     = useState(false);
 
   // ── Data loading ─────────────────────────────────────────
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, r, sch, h, ed] = await Promise.all([
+      const [s, r, sch, h, ed, pg] = await Promise.all([
         getJson<Stats>(`${API_PROGRESS}/stats`, authToken),
         getJson<ReadinessRow[]>(`${API_PROGRESS}/readiness`, authToken),
         getJson<ScheduleDay[]>(`${API_PROGRESS}/schedule`, authToken),
         getJson<QuizHistoryRow[]>(`${API_QUIZ}/history?limit=10`, authToken),
         getJson<{ exam_date: string | null }>(`${API_PROGRESS}/exam-date`, authToken),
+        getJson<PredictedGrade>(`${API_PROGRESS}/predicted-grade`, authToken).catch(() => null),
       ]);
       setStats(s);
       setReadiness(r);
       setSchedule(sch);
       setHistory(h);
+      setPredictedGrade(pg);
       setExamDate(ed.exam_date);
       if (ed.exam_date) setDateInput(ed.exam_date);
     } catch {
@@ -284,6 +295,42 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
               </div>
             ))}
           </div>
+
+          {/* ── Predicted grade ── */}
+          {predictedGrade && predictedGrade.grade !== "?" && (() => {
+            const gcol =
+              predictedGrade.grade === "A" ? "var(--green-bright)" :
+              predictedGrade.grade === "B" ? "var(--gold-bright)" :
+              predictedGrade.grade === "C" ? "#d4934a" :
+              predictedGrade.grade === "D" ? "#c87a7a" : "#8a3a3a";
+            const trendIcon =
+              predictedGrade.trend === "improving" ? "↑" :
+              predictedGrade.trend === "declining" ? "↓" : "→";
+            const trendCol =
+              predictedGrade.trend === "improving" ? "var(--green-bright)" :
+              predictedGrade.trend === "declining" ? "#c87a7a" : "var(--text-dim)";
+            return (
+              <div style={{ ...S.gradeBanner, borderColor: gcol }}>
+                <div style={{ ...S.gradeLetterBox, color: gcol }}>
+                  {predictedGrade.grade}
+                </div>
+                <div style={S.gradeBody}>
+                  <span style={S.gradeTitle}>Predicted Grade</span>
+                  <span style={S.gradePct}>{predictedGrade.percentage.toFixed(0)}%</span>
+                  <span style={S.gradeSummary}>{predictedGrade.summary}</span>
+                </div>
+                <div style={S.gradeTrend}>
+                  <span style={{ ...S.trendIcon, color: trendCol }}>{trendIcon}</span>
+                  <span style={{ ...S.trendLabel, color: trendCol }}>
+                    {predictedGrade.trend}
+                  </span>
+                  <span style={S.confidenceLabel}>
+                    {predictedGrade.confidence} confidence
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={S.engraving} />
 
@@ -463,6 +510,18 @@ const S: Record<string, React.CSSProperties> = {
   scheduleTopicName: { display: "block", fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-primary)", whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis" },
   scheduleTopicSubject: { display: "block", fontFamily: "var(--font-body)", fontSize: 9, color: "var(--text-dim)", fontStyle: "italic" },
   scheduleReadiness: { fontFamily: "var(--font-header)", fontSize: 9, color: "var(--text-dim)", flexShrink: 0 },
+
+  // ── Predicted grade ──
+  gradeBanner:    { display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", background: "var(--stone-2)", border: "1px solid", marginBottom: 8 },
+  gradeLetterBox: { fontFamily: "var(--font-header)", fontSize: 48, fontWeight: 700, lineHeight: 1, flexShrink: 0, width: 56, textAlign: "center" as const },
+  gradeBody:      { flex: 1, display: "flex", flexDirection: "column" as const, gap: 2, minWidth: 0 },
+  gradeTitle:     { fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: "var(--text-dim)" },
+  gradePct:       { fontFamily: "var(--font-header)", fontSize: 16, color: "var(--gold-bright)", lineHeight: 1 },
+  gradeSummary:   { fontFamily: "var(--font-body)", fontSize: 10, fontStyle: "italic", color: "var(--text-dim)", lineHeight: 1.4 },
+  gradeTrend:     { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 2, flexShrink: 0 },
+  trendIcon:      { fontFamily: "var(--font-header)", fontSize: 20, lineHeight: 1 },
+  trendLabel:     { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase" as const },
+  confidenceLabel:{ fontFamily: "var(--font-body)", fontSize: 9, fontStyle: "italic", color: "var(--text-dim)" },
 
   // ── Trial history ──
   historyList:    { display: "flex", flexDirection: "column" as const, gap: 3 },

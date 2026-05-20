@@ -61,6 +61,8 @@ interface SidebarProps {
   onLoadSession?:   (messages: SessionMsg[]) => void;
   /** Opens the Settings modal overlay. */
   onOpenSettings?:  () => void;
+  /** Opens the AI Examiner modal overlay. */
+  onOpenExaminer?:  () => void;
 }
 
 /**
@@ -85,7 +87,7 @@ export default function Sidebar({
   view, onViewChange,
   subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,
   username, examDate, onSetExamDate,
-  authToken, onLoadSession, onOpenSettings,
+  authToken, onLoadSession, onOpenSettings, onOpenExaminer,
 }: SidebarProps) {
   const [addingSubject, setAddingSubject]   = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -318,6 +320,16 @@ export default function Sidebar({
             <div style={styles.profileName}>{username || "Seeker"}</div>
             <div style={styles.profileTitle}>Seeker of wisdom</div>
           </div>
+          {/* ᛉ — AI Examiner modal trigger */}
+          {onOpenExaminer && (
+            <button
+              style={styles.settingsBtn}
+              onClick={onOpenExaminer}
+              title="AI Examiner — Mark Written Answer"
+            >
+              ᛉ
+            </button>
+          )}
           {/* ᛟ — Settings modal trigger */}
           {onOpenSettings && (
             <button

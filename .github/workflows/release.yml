@@ -75,10 +75,20 @@ jobs:
 
       - name: Bundle backend with PyInstaller
         working-directory: backend
-        run: |
-          pyinstaller mimir-backend.spec --noconfirm
-          powershell Compress-Archive -Path dist/mimir-backend/_internal -DestinationPath ../resources/backend-internal.zip -Force
+        run: pyinstaller mimir-backend.spec --noconfirm
         continue-on-error: true
+
+      - name: Stage backend resources for Tauri bundle
+        shell: pwsh
+        run: |
+          # Place the exe where tauri.conf.json resources expects it
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries/mimir-backend | Out-Null
+          Copy-Item -Force "backend/dist/mimir-backend/mimir-backend.exe" `
+                           "src-tauri/binaries/mimir-backend/mimir-backend.exe"
+          # Zip _internal CONTENTS (no prefix) so main.rs can extract them correctly
+          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
+          Compress-Archive -Path "backend/dist/mimir-backend/_internal/*" `
+                           -DestinationPath "src-tauri/resources/backend-internal.zip" -Force
 
       # ── Tauri build + sign ──────────────────────────────────────
       - name: Build Tauri app

@@ -18,7 +18,11 @@ use std::io;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 use zip::ZipArchive;
 
 // Absolute backend path baked in at compile time by build.rs.
@@ -208,12 +212,67 @@ fn main() {
         procs.push(child);
     }
 
-    // 3. Tauri window — kill children on app exit ─────────────
+    // 3. Tauri window — system tray + global shortcut + kill children on exit ──
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Processes(Mutex::new(procs)))
+        .setup(|app| {
+            // ── System tray ────────────────────────────────────
+            let show_item = MenuItem::with_id(app, "show", "Show Mimir", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit",       true, None::<&str>)?;
+            let menu      = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+            TrayIconBuilder::new()
+                .menu(&menu)
+                .tooltip("Mimir")
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // ── Global shortcut: Ctrl+Shift+M → show/focus ────
+            use tauri_plugin_global_shortcut::{Code, Modifiers, ShortcutState};
+            app.global_shortcut().on_shortcut(
+                tauri_plugin_global_shortcut::Shortcut::new(
+                    Some(Modifiers::CONTROL | Modifiers::SHIFT),
+                    Code::KeyM,
+                ),
+                |app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let visible = win.is_visible().unwrap_or(false);
+                            if visible {
+                                let _ = win.hide();
+                            } else {
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                            }
+                        }
+                    }
+                },
+            )?;
+
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error building Mimir")
         .run(|app, event| {

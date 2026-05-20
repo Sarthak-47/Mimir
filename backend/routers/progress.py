@@ -113,6 +113,14 @@ class ScheduleDay(BaseModel):
     topics:          list[ScheduleTopicEntry]
 
 
+class PredictedGradeResponse(BaseModel):
+    grade:       str     # A / B / C / D / F
+    percentage:  float   # predicted exam score 0–100
+    trend:       str     # "improving" | "stable" | "declining"
+    confidence:  str     # "high" | "medium" | "low"
+    summary:     str     # one-line prose for the UI
+
+
 # ── Stats ────────────────────────────────────────────────────
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
@@ -389,3 +397,98 @@ async def get_schedule(
         )
         for d in raw_schedule
     ]
+
+
+# ── Predicted Grade ──────────────────────────────────────────
+
+@router.get("/predicted-grade", response_model=PredictedGradeResponse)
+async def get_predicted_grade(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Predict the user's likely exam performance based on:
+    - Average Ebbinghaus-decayed readiness across all topics
+    - Recent quiz trajectory (last 10 sessions vs previous 10)
+    - Days remaining until exam (less time = harder to improve)
+    """
+    user_id = current_user.id
+
+    topics_result = await db.execute(select(Topic).where(Topic.user_id == user_id))
+    topics = topics_result.scalars().all()
+
+    sessions_result = await db.execute(
+        select(QuizSession)
+        .where(QuizSession.user_id == user_id)
+        .order_by(QuizSession.timestamp.desc())
+    )
+    all_sessions = sessions_result.scalars().all()
+
+    if not topics:
+        return PredictedGradeResponse(
+            grade="?",
+            percentage=0.0,
+            trend="stable",
+            confidence="low",
+            summary="No topics tracked yet. Start studying to get a prediction.",
+        )
+
+    sessions_by_topic: dict[int, list[QuizSession]] = {}
+    for s in all_sessions:
+        sessions_by_topic.setdefault(s.topic_id, []).append(s)
+
+    now = datetime.utcnow()
+    readiness_scores = [
+        calculate_topic_readiness(t, sessions_by_topic.get(t.id, []), now=now)
+        for t in topics
+    ]
+    avg_readiness = sum(readiness_scores) / len(readiness_scores)
+
+    # Trajectory: compare average score of last-10 vs previous-10 sessions
+    trend = "stable"
+    confidence = "medium"
+    if len(all_sessions) >= 6:
+        recent_10 = all_sessions[:10]
+        older_10  = all_sessions[10:20]
+        recent_avg = sum(s.score / s.total * 100 for s in recent_10 if s.total > 0) / max(1, len(recent_10))
+        if older_10:
+            older_avg = sum(s.score / s.total * 100 for s in older_10 if s.total > 0) / max(1, len(older_10))
+            diff = recent_avg - older_avg
+            if diff > 5:
+                trend = "improving"
+            elif diff < -5:
+                trend = "declining"
+        confidence = "high" if len(all_sessions) >= 20 else "medium"
+    elif len(all_sessions) < 3:
+        confidence = "low"
+
+    # Blend readiness with trajectory
+    trend_bump = 3.0 if trend == "improving" else (-3.0 if trend == "declining" else 0.0)
+    raw_pct = min(100.0, max(0.0, avg_readiness + trend_bump))
+
+    # Days-to-exam penalty: few days left → harder to revise up
+    if current_user.exam_date:
+        days_left = (current_user.exam_date - now.date()).days
+        if 0 < days_left < 7:
+            raw_pct = min(raw_pct, raw_pct * 0.95)  # slight ceiling pressure
+    predicted = round(raw_pct, 1)
+
+    def _grade(pct: float) -> str:
+        if pct >= 85: return "A"
+        if pct >= 70: return "B"
+        if pct >= 55: return "C"
+        if pct >= 40: return "D"
+        return "F"
+
+    grade = _grade(predicted)
+
+    trend_text = {"improving": "on an upward trajectory", "declining": "declining recently", "stable": "holding steady"}.get(trend, "stable")
+    summary = f"Predicted {grade} ({predicted:.0f}%) — {len(topics)} topics tracked, {trend_text}."
+
+    return PredictedGradeResponse(
+        grade=grade,
+        percentage=predicted,
+        trend=trend,
+        confidence=confidence,
+        summary=summary,
+    )

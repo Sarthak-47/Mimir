@@ -16,6 +16,7 @@ import AllChatsPanel from "@/components/AllChatsPanel";
 import SystemStatus  from "@/components/SystemStatus";
 import UpdateNotice  from "@/components/UpdateNotice";
 import SettingsModal from "@/components/SettingsModal";
+import ExaminerModal from "@/components/ExaminerModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -170,6 +171,7 @@ export default function App() {
   const [showHelp,      setShowHelp]      = useState(false);
   const [showAllChats,  setShowAllChats]  = useState(false);
   const [showSettings,  setShowSettings]  = useState(false);
+  const [showExaminer,  setShowExaminer]  = useState(false);
   // Onboarding: shown on very first launch (tracked in localStorage)
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem("mimir_onboarding_done"); } catch { return false; }
@@ -632,6 +634,7 @@ export default function App() {
         authToken={authToken}
         onLoadSession={handleLoadSession}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenExaminer={() => setShowExaminer(true)}
       />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 1 }}>
@@ -785,6 +788,13 @@ export default function App() {
         <SettingsModal
           authToken={authToken}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showExaminer && authToken && (
+        <ExaminerModal
+          authToken={authToken}
+          onClose={() => setShowExaminer(false)}
         />
       )}
 

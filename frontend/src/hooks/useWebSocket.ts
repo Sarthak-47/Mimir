@@ -137,6 +137,23 @@ export function useWebSocket({
             break;
           case "review_reminder":
             onReviewReminderRef.current?.(msg.topics ?? [], msg.count ?? 0);
+            // OS notification — request permission if needed, then fire
+            if ("Notification" in window && Notification.permission !== "denied") {
+              const topics = msg.topics ?? [];
+              const count  = msg.count ?? 0;
+              const body   = `${count} topic${count !== 1 ? "s" : ""} overdue`
+                + (topics.length > 0 ? `: ${topics.slice(0, 3).join(", ")}` : "");
+              const show = () => {
+                try {
+                  new Notification("Mimir — Time to Review", { body, icon: "/favicon.ico" });
+                } catch { /* ignore — notifications blocked */ }
+              };
+              if (Notification.permission === "granted") {
+                show();
+              } else {
+                Notification.requestPermission().then((p) => { if (p === "granted") show(); });
+              }
+            }
             break;
           case "file_indexed":
             onFileIndexedRef.current?.(msg.filename ?? "", msg.chunks ?? 0);

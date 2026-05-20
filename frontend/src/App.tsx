@@ -13,8 +13,13 @@ import CommandPalette from "@/components/CommandPalette";
 import TutorBar from "@/components/TutorBar";
 import HelpModal from "@/components/HelpModal";
 import AllChatsPanel from "@/components/AllChatsPanel";
+import SystemStatus  from "@/components/SystemStatus";
+import UpdateNotice  from "@/components/UpdateNotice";
+import SettingsModal from "@/components/SettingsModal";
+import OnboardingWizard from "@/components/OnboardingWizard";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { QuizQuestion } from "@/components/Quiz";
+import type { HealthInfo } from "@/components/SystemStatus";
 import { API_BASE as API } from "@/config";
 
 /**
@@ -164,6 +169,17 @@ export default function App() {
   } | null>(null);
   const [showHelp,      setShowHelp]      = useState(false);
   const [showAllChats,  setShowAllChats]  = useState(false);
+  const [showSettings,  setShowSettings]  = useState(false);
+  // Onboarding: shown on very first launch (tracked in localStorage)
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try { return !localStorage.getItem("mimir_onboarding_done"); } catch { return false; }
+  });
+  // System health — polled every 30 s after login
+  const [systemHealth,    setSystemHealth]    = useState<HealthInfo | null>(null);
+  const [showSystemError, setShowSystemError] = useState(false);
+  // Updater — version string set when Tauri reports a pending update
+  const [pendingVersion,  setPendingVersion]  = useState<string | null>(null);
+  const [updateProgress,  setUpdateProgress]  = useState<number | undefined>(undefined);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -179,6 +195,37 @@ export default function App() {
     setAuthToken(token);
     setUsername(user);
   }, []);
+
+  const handleOnboardingComplete = useCallback(() => {
+    try { localStorage.setItem("mimir_onboarding_done", "1"); } catch { /**/ }
+    setShowOnboarding(false);
+  }, []);
+
+  const handleInstallUpdate = useCallback(async () => {
+    const tauri = (window as unknown as Record<string, unknown>).__TAURI__;
+    if (!tauri || !pendingVersion) return;
+    try {
+      const { check }  = await import("@tauri-apps/plugin-updater");
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      const update = await check().catch(() => null);
+      if (!update?.available) return;
+      setUpdateProgress(0);
+      await update.downloadAndInstall((evt) => {
+        if (evt.event === "Progress") {
+          const data = evt.data as { chunkLength?: number; contentLength?: number };
+          if (data.chunkLength) {
+            setUpdateProgress((p) =>
+              Math.min(99, (p ?? 0) + (data.chunkLength! / (data.contentLength ?? 1)) * 100)
+            );
+          }
+        }
+      });
+      setUpdateProgress(100);
+      setTimeout(() => relaunch(), 1500);
+    } catch {
+      setUpdateProgress(undefined);
+    }
+  }, [pendingVersion]);
 
   const handleLogout = useCallback(() => {
     try {
@@ -213,9 +260,50 @@ export default function App() {
           const d = new Date(data.exam_date);
           setExamDate(d);
           try { localStorage.setItem(STORAGE_EXAM_DATE, d.toISOString()); } catch { /**/ }
+        } else {
+          // API returned no exam date — clear any stale localStorage value so a
+          // different user logging in doesn't inherit the previous user's date.
+          setExamDate(null);
+          try { localStorage.removeItem(STORAGE_EXAM_DATE); } catch { /**/ }
         }
       })
-      .catch(() => { /* use localStorage value */ });
+      .catch(() => { /* keep the localStorage value on network failure */ });
+  }, [authToken]);
+
+  // ── System health polling (30 s) ───────────────────────
+  useEffect(() => {
+    if (!authToken) return;
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) });
+        if (!r.ok) return;
+        const data = await r.json() as HealthInfo;
+        setSystemHealth(data);
+        if (!data.ollama_ok || !data.model_ok) setShowSystemError(true);
+      } catch { /* backend offline — keep previous state */ }
+    };
+
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, [authToken]);
+
+  // ── Tauri update check (once, after login) ─────────────
+  useEffect(() => {
+    if (!authToken) return;
+    // Only attempt in a Tauri context (window.__TAURI__ is injected by Tauri)
+    const tauri = (window as unknown as Record<string, unknown>).__TAURI__;
+    if (!tauri) return;
+
+    import("@tauri-apps/plugin-updater")
+      .then(async ({ check }) => {
+        const update = await check().catch(() => null);
+        if (update?.available) {
+          setPendingVersion(update.version ?? "new");
+        }
+      })
+      .catch(() => { /* plugin not yet wired — skip silently */ });
   }, [authToken]);
 
   // ── Subject CRUD ───────────────────────────────────────
@@ -543,6 +631,7 @@ export default function App() {
         onSetExamDate={handleSetExamDate}
         authToken={authToken}
         onLoadSession={handleLoadSession}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 1 }}>
@@ -557,6 +646,24 @@ export default function App() {
           onAllChats={() => setShowAllChats(true)}
           onNewChat={handleNewChat}
         />
+
+        {/* ── Ollama / model error banner ── */}
+        {showSystemError && systemHealth && (
+          <SystemStatus
+            health={systemHealth}
+            onDismiss={() => setShowSystemError(false)}
+          />
+        )}
+
+        {/* ── Update available banner ── */}
+        {pendingVersion && (
+          <UpdateNotice
+            version={pendingVersion}
+            progress={updateProgress}
+            onInstall={handleInstallUpdate}
+            onDismiss={() => setPendingVersion(null)}
+          />
+        )}
 
         {/* ── Review reminder banner ── */}
         {reviewAlert && (
@@ -673,6 +780,21 @@ export default function App() {
       />
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+
+      {showSettings && authToken && (
+        <SettingsModal
+          authToken={authToken}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showOnboarding && authToken && (
+        <OnboardingWizard
+          authToken={authToken}
+          onComplete={handleOnboardingComplete}
+          onSetExamDate={handleSetExamDate}
+        />
+      )}
 
       <AllChatsPanel
         isOpen={showAllChats}

@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from memory.database import init_db
-from routers import chat, chronicle, files, quiz, users, progress, tutor
+from routers import chat, chronicle, files, quiz, users, progress, tutor, system
 from scheduler import review_check, streak_update
 from memory.summarizer import summarize_old_sessions
 
@@ -96,10 +96,47 @@ app.include_router(quiz.router,      prefix="/api/quiz",      tags=["Quiz"])
 app.include_router(progress.router,  prefix="/api/progress",  tags=["Progress"])
 app.include_router(chronicle.router, prefix="/api/chronicle", tags=["Chronicle"])
 app.include_router(tutor.router,    prefix="/api/tutor",     tags=["Tutor"])
+app.include_router(system.router,   prefix="/api/system",    tags=["System"])
 
 
 # ── Health check ─────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    """Return a simple liveness probe used by the frontend boot-splash to wait for uvicorn."""
-    return {"status": "ok", "model": settings.ollama_model}
+    """
+    Enhanced health probe used by the frontend every 30 s.
+    Checks Ollama reachability and model availability.
+    Returns:
+        status:    "ok" | "degraded"
+        ollama_ok: True if Ollama HTTP API responded within 3 s
+        model_ok:  True if settings.ollama_model is in the model list
+        model:     current model name
+        error:     error string or null
+    """
+    import asyncio as _asyncio
+    import ollama as _ollama
+
+    ollama_ok = False
+    model_ok  = False
+    error_msg = None
+
+    try:
+        _c = _ollama.AsyncClient(host=settings.ollama_base_url)
+        resp = await _asyncio.wait_for(_c.list(), timeout=3.0)
+        ollama_ok = True
+        model_ok  = any(
+            m.model == settings.ollama_model or
+            m.model.split(":")[0] == settings.ollama_model.split(":")[0]
+            for m in resp.models
+        )
+        if not model_ok:
+            error_msg = f"Model '{settings.ollama_model}' not found — run: ollama pull {settings.ollama_model}"
+    except Exception as exc:
+        error_msg = f"Ollama unreachable — run: ollama serve  ({type(exc).__name__})"
+
+    return {
+        "status":    "ok" if (ollama_ok and model_ok) else "degraded",
+        "model":     settings.ollama_model,
+        "ollama_ok": ollama_ok,
+        "model_ok":  model_ok,
+        "error":     error_msg,
+    }

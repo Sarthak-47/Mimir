@@ -48,17 +48,19 @@ function LogoMark() {
 // ── Props ───────────────────────────────────────────────────
 interface SidebarProps {
   view: NavView;
-  onViewChange:    (v: NavView) => void;
-  subjects:        Subject[];
-  activeSubject:   string | null;
-  onSubjectChange: (id: string) => void;
-  onAddSubject:    (name: string) => void;
-  onDeleteSubject: (id: string) => void;
-  username:        string;
-  examDate:        Date | null;
-  onSetExamDate:   (d: Date | null) => void;
-  authToken?:      string | null;
-  onLoadSession?:  (messages: SessionMsg[]) => void;
+  onViewChange:     (v: NavView) => void;
+  subjects:         Subject[];
+  activeSubject:    string | null;
+  onSubjectChange:  (id: string) => void;
+  onAddSubject:     (name: string) => void;
+  onDeleteSubject:  (id: string) => void;
+  username:         string;
+  examDate:         Date | null;
+  onSetExamDate:    (d: Date | null) => void;
+  authToken?:       string | null;
+  onLoadSession?:   (messages: SessionMsg[]) => void;
+  /** Opens the Settings modal overlay. */
+  onOpenSettings?:  () => void;
 }
 
 /**
@@ -83,7 +85,7 @@ export default function Sidebar({
   view, onViewChange,
   subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,
   username, examDate, onSetExamDate,
-  authToken, onLoadSession,
+  authToken, onLoadSession, onOpenSettings,
 }: SidebarProps) {
   const [addingSubject, setAddingSubject]   = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -312,10 +314,20 @@ export default function Sidebar({
         <div style={styles.engraving} />
         <div style={styles.profileContent}>
           <div style={styles.profileAvatar}>{avatarChar}</div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={styles.profileName}>{username || "Seeker"}</div>
             <div style={styles.profileTitle}>Seeker of wisdom</div>
           </div>
+          {/* ᛟ — Settings modal trigger */}
+          {onOpenSettings && (
+            <button
+              style={styles.settingsBtn}
+              onClick={onOpenSettings}
+              title="Forge — Model Settings"
+            >
+              ᛟ
+            </button>
+          )}
         </div>
       </div>
     </aside>
@@ -615,5 +627,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: "italic",
     color: "var(--text-dim)",
     marginTop: 1,
+  },
+  settingsBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--gold-dim)",
+    fontFamily: "var(--font-header)",
+    fontSize: 16,
+    cursor: "pointer",
+    padding: "2px 4px",
+    lineHeight: 1,
+    flexShrink: 0,
+    transition: "color 0.15s",
+    marginLeft: "auto",
   },
 };

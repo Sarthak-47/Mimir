@@ -1,0 +1,126 @@
+name: Release
+
+# Triggered manually or when a version tag is pushed.
+# Builds a signed Windows NSIS installer, generates the updater manifest,
+# and creates a GitHub Release with all artefacts attached.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag (e.g. v0.3.0)"
+        required: true
+
+permissions:
+  contents: write   # needed to create GitHub Releases
+
+jobs:
+  # ── 1. Backend tests ────────────────────────────────────────────
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+
+      - name: Install test dependencies
+        run: pip install -r backend/requirements-test.txt
+
+      - name: Run test suite
+        working-directory: backend
+        run: python -m pytest tests/ -v --tb=short
+
+  # ── 2. Tauri desktop build ──────────────────────────────────────
+  build-tauri:
+    name: Build Windows installer
+    needs: test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Rust toolchain ──────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      # ── Node.js + frontend ──────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ── Python backend PyInstaller bundle ───────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Bundle backend with PyInstaller
+        working-directory: backend
+        run: |
+          pyinstaller mimir-backend.spec --noconfirm
+          powershell Compress-Archive -Path dist/mimir-backend/_internal -DestinationPath ../resources/backend-internal.zip -Force
+        continue-on-error: true
+
+      # ── Tauri build + sign ──────────────────────────────────────
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "."
+          tauriScript: "npx tauri"
+          args: "--target x86_64-pc-windows-msvc"
+
+      # ── Generate updater manifest ───────────────────────────────
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate latest.json
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SIG_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${VERSION}_x64-setup.nsis.zip.sig"
+          python scripts/build-manifest.py \
+            --version "${VERSION}" \
+            --sig-path "${SIG_FILE}" \
+            --out latest.json
+
+      # ── Upload artefacts to GitHub Release ──────────────────────
+      - name: Upload installer and manifest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Mimir v${{ steps.version.outputs.version }}"
+          draft: false
+          prerelease: false
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip.sig
+            latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

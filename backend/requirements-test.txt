@@ -1,14 +1,22 @@
 # Test-runner dependencies
 # Install with: pip install -r requirements-test.txt
-#
-# These are the minimum packages needed to run `pytest` in CI.
-# Heavy runtime deps (PyMuPDF, pytesseract, sentence-transformers) are
-# intentionally excluded — they are not needed for the test suite.
 
 pytest>=7.4
 pytest-asyncio>=0.23
 
-# Runtime packages imported by the modules under test
+# API contract tests use httpx AsyncClient + ASGITransport
+httpx>=0.27
+fastapi>=0.111
+python-multipart>=0.0.9
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
+bcrypt==4.0.1
+
+# Pulled in by main.py and routers under test
+apscheduler>=3.10
+aiofiles>=23.2
+
+# Runtime packages imported by modules under test
 ollama>=0.6
 chromadb>=0.5,<0.6
 numpy<2.0

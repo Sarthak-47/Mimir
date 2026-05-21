@@ -64,6 +64,8 @@ interface SidebarProps {
   onOpenSettings?:  () => void;
   /** Opens the AI Examiner modal overlay. */
   onOpenExaminer?:  () => void;
+  /** Opens the Formula & Definition Sheet for the active subject. */
+  onOpenFormulas?:  () => void;
 }
 
 /**
@@ -88,7 +90,7 @@ export default function Sidebar({
   view, onViewChange,
   subjects, activeSubject, onSubjectChange, onAddSubject, onDeleteSubject,
   username, examDate, onSetExamDate,
-  authToken, onLoadSession, onOpenSettings, onOpenExaminer,
+  authToken, onLoadSession, onOpenSettings, onOpenExaminer, onOpenFormulas,
 }: SidebarProps) {
   const [addingSubject, setAddingSubject]   = useState(false);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -321,6 +323,16 @@ export default function Sidebar({
             <div style={styles.profileName}>{username || "Seeker"}</div>
             <div style={styles.profileTitle}>Seeker of wisdom</div>
           </div>
+          {/* ᛜ — Formula & Definition Sheet trigger */}
+          {onOpenFormulas && (
+            <button
+              style={styles.settingsBtn}
+              onClick={onOpenFormulas}
+              title="Formula Sheet — formulas & definitions from your notes"
+            >
+              ᛜ
+            </button>
+          )}
           {/* ᛉ — AI Examiner modal trigger */}
           {onOpenExaminer && (
             <button

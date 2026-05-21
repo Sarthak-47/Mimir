@@ -9,6 +9,7 @@ import TrialsView from "@/views/TrialsView";
 import ReckoningView from "@/views/ReckoningView";
 import ChronicleView from "@/views/ChronicleView";
 import ScrollsView from "@/views/ScrollsView";
+import FatesView from "@/views/FatesView";
 import CommandPalette from "@/components/CommandPalette";
 import TutorBar from "@/components/TutorBar";
 import HelpModal from "@/components/HelpModal";
@@ -67,7 +68,7 @@ function BootSplash({ dots }: { dots: number }) {
 }
 
 // ── Types ──────────────────────────────────────────────────
-export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls";
+export type NavView = "oracle" | "trials" | "reckoning" | "chronicle" | "scrolls" | "fates";
 
 export interface Message {
   id: string;
@@ -601,8 +602,7 @@ export default function App() {
   };
 
   const handleFates = () => {
-    const subj = subjects.find((s) => s.id === activeSubject);
-    handleSend(`Build a revision schedule for ${subj ? subj.name : "my subjects"}`);
+    setView("fates");
   };
 
   // ── Boot gate — wait for uvicorn ──────────────────────
@@ -764,6 +764,10 @@ export default function App() {
             subjects={subjects}
             authToken={authToken}
           />
+        )}
+
+        {view === "fates" && (
+          <FatesView authToken={authToken} />
         )}
       </main>
 

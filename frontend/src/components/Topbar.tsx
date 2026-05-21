@@ -1,11 +1,12 @@
 import type { NavView } from "@/App";
 
 const VIEW_META: Record<NavView, { rune: string; title: string; subtitle: string }> = {
-  oracle:    { rune: "ᚦ", title: "The Oracle",    subtitle: "Speak your question into the well" },
-  trials:    { rune: "ᛏ", title: "Trials",         subtitle: "Test your knowledge. Face the trial."  },
-  reckoning: { rune: "ᚢ", title: "The Reckoning", subtitle: "Behold your progress, warrior"         },
-  chronicle: { rune: "ᛊ", title: "Chronicle",      subtitle: "Records of past sessions"              },
-  scrolls:   { rune: "ᚱ", title: "Scrolls",        subtitle: "Your uploaded knowledge"               },
+  oracle:    { rune: "ᚦ", title: "The Oracle",    subtitle: "Speak your question into the well"        },
+  trials:    { rune: "ᛏ", title: "Trials",         subtitle: "Test your knowledge. Face the trial."    },
+  reckoning: { rune: "ᚢ", title: "The Reckoning", subtitle: "Behold your progress, warrior"           },
+  fates:     { rune: "ᚾ", title: "The Fates",      subtitle: "Study plan, schedule & syllabus coverage"},
+  chronicle: { rune: "ᛊ", title: "Chronicle",      subtitle: "Records of past sessions"                },
+  scrolls:   { rune: "ᚱ", title: "Scrolls",        subtitle: "Your uploaded knowledge"                 },
 };
 
 interface TopbarProps {

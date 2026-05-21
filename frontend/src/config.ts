@@ -30,4 +30,5 @@ export const API_PROGRESS = `${API_BASE}/api/progress`;
 export const API_QUIZ     = `${API_BASE}/api/quiz`;
 export const API_FILES    = `${API_BASE}/api/files`;
 export const API_CHRONICLE= `${API_BASE}/api/chronicle`;
+export const API_SYLLABUS = `${API_BASE}/api/syllabus`;
 export const WS_CHAT      = `${WS_BASE}/ws/chat`;

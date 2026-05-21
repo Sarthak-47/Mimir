@@ -25,6 +25,7 @@ const NAV_ITEMS: { view: NavView; rune: string; label: string }[] = [
   { view: "oracle",     rune: "ᚦ", label: "The Oracle"   },
   { view: "trials",    rune: "ᛏ", label: "Trials"        },
   { view: "reckoning", rune: "ᚢ", label: "The Reckoning" },
+  { view: "fates",     rune: "ᚾ", label: "The Fates"     },
   { view: "chronicle", rune: "ᛊ", label: "Chronicle"     },
   { view: "scrolls",   rune: "ᚱ", label: "Scrolls"       },
 ];

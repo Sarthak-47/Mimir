@@ -19,7 +19,9 @@ import UpdateNotice  from "@/components/UpdateNotice";
 import SettingsModal from "@/components/SettingsModal";
 import ExaminerModal from "@/components/ExaminerModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import VoiceSetupBanner from "@/components/VoiceSetupBanner";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { HealthInfo } from "@/components/SystemStatus";
 import { API_BASE as API } from "@/config";
@@ -183,12 +185,29 @@ export default function App() {
   // Updater — version string set when Tauri reports a pending update
   const [pendingVersion,  setPendingVersion]  = useState<string | null>(null);
   const [updateProgress,  setUpdateProgress]  = useState<number | undefined>(undefined);
+  // Voice — set true once VoiceSetupBanner reports both models ready
+  const [voiceReady,  setVoiceReady]  = useState(false);
+  const [autoRead,    setAutoRead]    = useState(false);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
       return stored ? new Date(stored) : null;
     } catch { return null; }
   });
+  // ── Voice (TTS) ────────────────────────────────────────
+  const { speak, stop: stopSpeaking, isSpeaking } = useTTS(authToken ?? "");
+
+  // Auto-read: speak new assistant messages as they arrive
+  const lastSpokenRef = useRef<string>("");
+  useEffect(() => {
+    if (!autoRead || !voiceReady) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return;
+    if (last.content === lastSpokenRef.current) return;
+    lastSpokenRef.current = last.content;
+    speak(last.content);
+  }, [messages, autoRead, voiceReady, speak]);
+
   // ── Auth handlers ──────────────────────────────────────
   const handleAuthenticated = useCallback((token: string, user: string) => {
     try {
@@ -648,7 +667,17 @@ export default function App() {
           onHelp={() => setShowHelp(true)}
           onAllChats={() => setShowAllChats(true)}
           onNewChat={handleNewChat}
+          autoRead={voiceReady ? autoRead : undefined}
+          onToggleAutoRead={voiceReady ? () => { stopSpeaking(); setAutoRead((v) => !v); } : undefined}
         />
+
+        {/* ── Voice model setup banner (first run) ── */}
+        {authToken && (
+          <VoiceSetupBanner
+            authToken={authToken}
+            onReady={() => setVoiceReady(true)}
+          />
+        )}
 
         {/* ── Ollama / model error banner ── */}
         {showSystemError && systemHealth && (
@@ -722,6 +751,8 @@ export default function App() {
               onStop={handleAbort}
               onEdit={handleEditMessage}
               onRegenerate={handleRegenerate}
+              onSpeak={voiceReady ? speak : undefined}
+              isSpeaking={isSpeaking}
             />
             <InputZone
               onSend={handleSend}
@@ -733,6 +764,7 @@ export default function App() {
               authToken={authToken}
               mode={mode}
               onModeChange={setMode}
+              voiceReady={voiceReady}
             />
           </>
         )}

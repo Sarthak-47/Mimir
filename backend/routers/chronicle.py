@@ -2,18 +2,20 @@
 Mimir — Chronicle Router.
 
 Endpoints:
-    GET /api/chronicle          — paginated conversation history (oldest first).
-    GET /api/chronicle/sessions — conversations grouped into sessions by 2-hour gaps.
+    GET  /api/chronicle              — paginated conversation history (oldest first).
+    GET  /api/chronicle/sessions     — conversations grouped into sessions by 2-hour gaps.
+    DELETE /api/chronicle/messages   — delete a list of conversation rows by ID.
 
 Used by the Chronicle view and the Sidebar session history panel.
 """
 
 from datetime import datetime, timedelta
+from typing import List
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 
 from memory.database import Conversation, User, get_db
 from routers.users import get_current_user
@@ -121,3 +123,39 @@ async def list_sessions(
         ))
 
     return groups
+
+
+# ── Delete session ────────────────────────────────────────────
+
+class DeleteMessagesRequest(BaseModel):
+    """Payload for bulk-deleting conversation rows."""
+    ids: List[int]
+
+
+@router.delete("/messages", status_code=200)
+async def delete_messages(
+    body: DeleteMessagesRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a set of conversation turns by ID.
+
+    Only rows belonging to the authenticated user are deleted — other IDs
+    are silently ignored for security.  The frontend passes the full ``ids``
+    list from the session it wants to remove.
+
+    Returns:
+        ``{"deleted": N}`` where N is the number of rows actually removed.
+    """
+    if not body.ids:
+        return {"deleted": 0}
+
+    result = await db.execute(
+        sa_delete(Conversation)
+        .where(
+            Conversation.user_id == current_user.id,
+            Conversation.id.in_(body.ids),
+        )
+    )
+    await db.commit()
+    return {"deleted": result.rowcount}

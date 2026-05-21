@@ -21,6 +21,7 @@ import ExaminerModal from "@/components/ExaminerModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import VoiceSetupBanner from "@/components/VoiceSetupBanner";
 import VoiceRevisionModal from "@/components/VoiceRevisionModal";
+import FormulaSheetModal  from "@/components/FormulaSheetModal";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -190,6 +191,7 @@ export default function App() {
   const [voiceReady,        setVoiceReady]        = useState(false);
   const [autoRead,          setAutoRead]          = useState(false);
   const [voiceRevisionOpen, setVoiceRevisionOpen] = useState(false);
+  const [formulaSheetOpen,  setFormulaSheetOpen]  = useState(false);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -656,6 +658,7 @@ export default function App() {
         onLoadSession={handleLoadSession}
         onOpenSettings={() => setShowSettings(true)}
         onOpenExaminer={() => setShowExaminer(true)}
+        onOpenFormulas={() => setFormulaSheetOpen(true)}
       />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 1 }}>
@@ -843,6 +846,15 @@ export default function App() {
           subjects={subjects}
           activeSubject={activeSubject}
           onClose={() => setVoiceRevisionOpen(false)}
+        />
+      )}
+
+      {formulaSheetOpen && authToken && (
+        <FormulaSheetModal
+          authToken={authToken}
+          subjectId={activeSubject}
+          subjectName={activeSubjectObj?.name ?? null}
+          onClose={() => setFormulaSheetOpen(false)}
         />
       )}
 

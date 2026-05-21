@@ -121,6 +121,18 @@ class PredictedGradeResponse(BaseModel):
     summary:     str     # one-line prose for the UI
 
 
+class VelocityEntry(BaseModel):
+    """Per-topic learning velocity derived from quiz session history."""
+    id:            int
+    name:          str
+    subject_id:    int
+    velocity:      str          # "mastered" | "rising" | "stable" | "falling" | "untested"
+    slope:         float        # percentage-points change per session (+ = improving)
+    recent_scores: list[float]  # last ≤8 session percentages, oldest first
+    session_count: int
+    latest_score:  float        # most recent session percentage (0 if untested)
+
+
 # ── Stats ────────────────────────────────────────────────────
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
@@ -492,3 +504,104 @@ async def get_predicted_grade(
         confidence=confidence,
         summary=summary,
     )
+
+
+# ── Velocity ─────────────────────────────────────────────────
+
+def _linear_slope(scores: list[float]) -> float:
+    """Least-squares slope of scores (percentage points per session)."""
+    n = len(scores)
+    if n < 2:
+        return 0.0
+    x_mean = (n - 1) / 2.0
+    y_mean = sum(scores) / n
+    num = sum((i - x_mean) * (scores[i] - y_mean) for i in range(n))
+    den = sum((i - x_mean) ** 2 for i in range(n))
+    return round(num / den, 2) if den else 0.0
+
+
+def _velocity_label(slope: float, latest: float, count: int) -> str:
+    """Map slope + latest score → human-readable velocity label."""
+    if count < 2:
+        return "untested"
+    if latest >= 85 and slope >= -2:
+        return "mastered"
+    if slope > 4:
+        return "rising"
+    if slope < -4:
+        return "falling"
+    return "stable"
+
+
+@router.get("/velocity", response_model=list[VelocityEntry])
+async def get_velocity(
+    subject_id: int | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return per-topic learning velocity derived from quiz session history.
+
+    For each topic, computes a linear regression slope over the last 8 sessions
+    (in % per session) and labels it as:
+
+    - **mastered** — latest score ≥ 85 % and not declining sharply
+    - **rising**   — slope > +4 pp/session
+    - **stable**   — slope between −4 and +4
+    - **falling**  — slope < −4 pp/session
+    - **untested** — fewer than 2 sessions recorded
+
+    Topics are sorted: falling first (needs attention), then stable, then
+    rising, then mastered, then untested.
+    """
+    user_id = current_user.id
+
+    # Load topics
+    topic_q = select(Topic).where(Topic.user_id == user_id)
+    if subject_id:
+        topic_q = topic_q.where(Topic.subject_id == subject_id)
+    topics_result = await db.execute(topic_q)
+    topics = topics_result.scalars().all()
+
+    if not topics:
+        return []
+
+    # Load all sessions for this user once
+    sessions_result = await db.execute(
+        select(QuizSession)
+        .where(QuizSession.user_id == user_id)
+        .order_by(QuizSession.timestamp.asc())   # oldest first → correct slope direction
+    )
+    all_sessions = sessions_result.scalars().all()
+
+    # Group by topic_id
+    by_topic: dict[int, list[QuizSession]] = {}
+    for s in all_sessions:
+        by_topic.setdefault(s.topic_id, []).append(s)
+
+    _ORDER = {"falling": 0, "stable": 1, "rising": 2, "mastered": 3, "untested": 4}
+
+    rows: list[VelocityEntry] = []
+    for t in topics:
+        sessions = by_topic.get(t.id, [])
+        # Take last 8, convert to percentage
+        recent = sessions[-8:]
+        scores = [
+            round(s.score / s.total * 100, 1) for s in recent if s.total > 0
+        ]
+        slope  = _linear_slope(scores)
+        latest = scores[-1] if scores else 0.0
+        label  = _velocity_label(slope, latest, len(scores))
+
+        rows.append(VelocityEntry(
+            id=t.id,
+            name=t.name,
+            subject_id=t.subject_id,
+            velocity=label,
+            slope=slope,
+            recent_scores=scores,
+            session_count=len(sessions),
+            latest_score=latest,
+        ))
+
+    rows.sort(key=lambda r: (_ORDER.get(r.velocity, 99), -abs(r.slope)))
+    return rows

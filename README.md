@@ -43,7 +43,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 ---
 
-## Current features — v0.4.0
+## Current features — v0.6.0
 
 ### Core chat & AI
 - **Oracle** — WebSocket-streamed chat with a local LLM; tokens appear as they arrive
@@ -100,6 +100,11 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **System tray** — Mimir minimises to tray; click icon or right-click → Show to restore; Ctrl+Shift+M global hotkey toggles the window from anywhere on the desktop
 - **Yggdrasil background** — Norse tree rendered as a ghosted full-height wallpaper behind the chat column
 
+### Voice (v0.6)
+- **Voice input (Whisper STT)** — press-and-hold the mic rune to dictate; `faster-whisper base.en` transcribes locally, no cloud; WebM/Opus audio, 10 MB upload cap, voice allowlist enforced server-side
+- **Voice output (TTS)** — speaker rune on any message reads it aloud; auto-read toggle speaks every Mimir response automatically; kokoro-onnx `bm_lewis` voice, 24 kHz PCM, 1.3× speed by default
+- **VIGIL — voice revision mode** — hands-free quiz loop: Mimir speaks a question, listens for your spoken answer, marks it, speaks feedback, then moves on; state machine with setup, active, and summary screens
+
 ### Auth & data
 - Register / log in with JWT auth and bcrypt passwords; token persisted for the session
 - All data — conversations, quiz history, files, subjects, memories — isolated per user account
@@ -124,6 +129,8 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Exam parsing | Custom regex pipeline (`utils/exam_parser.py`) |
 | Scheduling | APScheduler AsyncIOScheduler |
 | Auth | python-jose (JWT), passlib (bcrypt) |
+| Speech-to-text | faster-whisper (`base.en`, CTranslate2) + PyAV for WebM decode |
+| Text-to-speech | kokoro-onnx (`bm_lewis`, ONNX runtime) — 24 kHz PCM WAV |
 | Notifications | tauri-plugin-notification |
 | Auto-updater | tauri-plugin-updater |
 
@@ -329,7 +336,7 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 
 ## Status
 
-**v0.4.0** — released and working on Windows x64. The full feature set described above is written and tested end-to-end with Ollama running `qwen2.5:14b`. Mac and Linux builds are planned for v0.9.
+**v0.6.0** — released and working on Windows x64. All v0.4 through v0.6 features are written and tested end-to-end with Ollama running `qwen2.5:14b`. Includes voice input (Whisper STT), voice output (kokoro-onnx TTS), and hands-free voice revision mode. Mac and Linux builds are planned for v0.9.
 
 If you find this useful or want to build on it, the code is yours. MIT licensed.
 

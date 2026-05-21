@@ -13,8 +13,7 @@ bcrypt==4.0.1          # passlib 1.7.4 breaks with bcrypt>=4.1 (72-byte test vec
 ollama==0.6.2
 
 # ── Vector memory ──────────────────────────────────────────
-chromadb==0.5.0
-numpy<2.0            # chromadb 0.5.x uses np.float_ which was removed in NumPy 2.0
+chromadb>=1.5.9      # 1.x supports numpy 2.x (0.5.x used np.float_ removed in numpy 2.0)
 
 # ── Structured DB ──────────────────────────────────────────
 sqlalchemy==2.0.30

@@ -336,10 +336,7 @@ export default function InputZone({
 
         {/* Teaching mode cycle */}
         <button
-          style={{
-            ...styles.runeBtn,
-            marginLeft: 4,
-          }}
+          style={styles.runeBtn}
           title={currentMode.title}
           onClick={cycleMode}
         >

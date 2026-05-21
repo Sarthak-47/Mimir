@@ -20,6 +20,7 @@ import SettingsModal from "@/components/SettingsModal";
 import ExaminerModal from "@/components/ExaminerModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import VoiceSetupBanner from "@/components/VoiceSetupBanner";
+import VoiceRevisionModal from "@/components/VoiceRevisionModal";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -186,8 +187,9 @@ export default function App() {
   const [pendingVersion,  setPendingVersion]  = useState<string | null>(null);
   const [updateProgress,  setUpdateProgress]  = useState<number | undefined>(undefined);
   // Voice — set true once VoiceSetupBanner reports both models ready
-  const [voiceReady,  setVoiceReady]  = useState(false);
-  const [autoRead,    setAutoRead]    = useState(false);
+  const [voiceReady,        setVoiceReady]        = useState(false);
+  const [autoRead,          setAutoRead]          = useState(false);
+  const [voiceRevisionOpen, setVoiceRevisionOpen] = useState(false);
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -760,6 +762,7 @@ export default function App() {
               onRunes={handleRunes}
               onFates={handleFates}
               onStartLesson={handleStartLesson}
+              onVoiceRevision={voiceReady ? () => setVoiceRevisionOpen(true) : undefined}
               activeSubjectName={activeSubjectObj?.name ?? null}
               authToken={authToken}
               mode={mode}
@@ -831,6 +834,15 @@ export default function App() {
         <ExaminerModal
           authToken={authToken}
           onClose={() => setShowExaminer(false)}
+        />
+      )}
+
+      {voiceRevisionOpen && authToken && (
+        <VoiceRevisionModal
+          authToken={authToken}
+          subjects={subjects}
+          activeSubject={activeSubject}
+          onClose={() => setVoiceRevisionOpen(false)}
         />
       )}
 

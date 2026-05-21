@@ -12,11 +12,13 @@ import useAudioRecorder from "@/hooks/useAudioRecorder";
 import { API_VOICE } from "@/config";
 
 interface InputZoneProps {
-  onSend:         (text: string, mode: string, images?: string[]) => void;
-  onTrial:        () => void;
-  onRunes:        () => void;
-  onFates:        () => void;
-  onStartLesson:  (topicName: string) => void;
+  onSend:           (text: string, mode: string, images?: string[]) => void;
+  onTrial:          () => void;
+  onRunes:          () => void;
+  onFates:          () => void;
+  onStartLesson:    (topicName: string) => void;
+  /** Opens the Voice Revision modal. Only provided when voiceReady is true. */
+  onVoiceRevision?: () => void;
   activeSubjectName: string | null;
   authToken?: string | null;
   mode: string;
@@ -39,7 +41,8 @@ const UPLOAD_URL = `${API_FILES}/upload`;
  * @param authToken          - JWT forwarded with file upload requests.
  */
 export default function InputZone({
-  onSend, onTrial, onRunes, onFates, onStartLesson, activeSubjectName, authToken, mode, onModeChange,
+  onSend, onTrial, onRunes, onFates, onStartLesson, onVoiceRevision,
+  activeSubjectName, authToken, mode, onModeChange,
   voiceReady,
 }: InputZoneProps) {
   const [text,          setText]          = useState("");
@@ -235,11 +238,12 @@ export default function InputZone({
 
   // ── Rune action buttons config ───────────────────────────
   const ACTIONS = [
-    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image",              onClick: handleScrollClick, disabled: uploading },
-    { icon: "ᛚ", label: "LESSON", title: "Start an interactive tutor session",      onClick: handleLessonOpen,  disabled: false },
-    { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject",           onClick: onTrial,           disabled: false },
-    { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",                     onClick: onRunes,           disabled: false },
-    { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",               onClick: onFates,           disabled: false },
+    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image",                    onClick: handleScrollClick,   disabled: uploading },
+    { icon: "ᛚ", label: "LESSON", title: "Start an interactive tutor session",          onClick: handleLessonOpen,    disabled: false },
+    { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject",               onClick: onTrial,             disabled: false },
+    { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",                         onClick: onRunes,             disabled: false },
+    { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",                   onClick: onFates,             disabled: false },
+    ...(onVoiceRevision ? [{ icon: "ᛗ", label: "VIGIL", title: "Voice revision — hands-free quiz", onClick: onVoiceRevision, disabled: false }] : []),
   ];
 
   return (

@@ -54,7 +54,7 @@ export default function useTTS(authToken: string): UseTTSReturn {
     _cleanup();
   }, [_cleanup]);
 
-  const speak = useCallback(async (text: string, voice = "bm_lewis") => {
+  const speak = useCallback(async (text: string, voice = "bm_lewis"): Promise<void> => {
     // Cancel anything already playing
     _cleanup();
 
@@ -83,11 +83,14 @@ export default function useTTS(authToken: string): UseTTSReturn {
       const audio = new Audio(blobUrl);
       audioRef.current = audio;
 
-      audio.onended  = _cleanup;
-      audio.onerror  = _cleanup;
-
       setIsSpeaking(true);
-      await audio.play();
+
+      // Await full playback — callers can chain logic after audio ends.
+      await new Promise<void>((resolve) => {
+        audio.onended = () => { _cleanup(); resolve(); };
+        audio.onerror = () => { _cleanup(); resolve(); };
+        audio.play().catch(() => { _cleanup(); resolve(); });
+      });
     } catch (err) {
       console.warn("[useTTS] speak error:", err);
       _cleanup();

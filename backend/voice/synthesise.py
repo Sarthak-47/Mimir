@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 DEFAULT_VOICE = "bm_lewis"   # deep British male — closest to Norse/gruff feel
 DEFAULT_SPEED = 1.0
+# kokoro v1.0 uses lang codes; en-gb = British English (matches bm_* voices)
 DEFAULT_LANG  = "en-gb"
 SAMPLE_RATE   = 24_000        # kokoro outputs 24 kHz mono float32
 

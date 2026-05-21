@@ -32,8 +32,14 @@ KOKORO_DIR  = MODELS_DIR / "kokoro"
 
 WHISPER_MODEL_SIZE = "base.en"
 
-KOKORO_HF_REPO  = "thewh1teagle/kokoro-onnx"
-KOKORO_FILES    = ["kokoro-v0_19.onnx", "voices.bin"]
+KOKORO_RELEASE_BASE = (
+    "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+)
+# int8 quantised model — best CPU throughput, 92 MB
+KOKORO_FILES = [
+    ("kokoro-v1.0.int8.onnx", f"{KOKORO_RELEASE_BASE}/kokoro-v1.0.int8.onnx"),
+    ("voices-v1.0.bin",        f"{KOKORO_RELEASE_BASE}/voices-v1.0.bin"),
+]
 
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -70,15 +76,15 @@ _kokoro_lock    = threading.Lock()
 def _ensure_kokoro_files() -> tuple[Path, Path]:
     """Download kokoro ONNX model and voices file if not present.
 
+    Files are fetched from GitHub Releases (no auth required).
     Returns (onnx_path, voices_path).
-    Uses huggingface_hub which is already a transitive dependency via
-    sentence-transformers.
     """
-    KOKORO_DIR.mkdir(parents=True, exist_ok=True)
-    from huggingface_hub import hf_hub_download
+    import urllib.request
 
+    KOKORO_DIR.mkdir(parents=True, exist_ok=True)
     result_paths: list[Path] = []
-    for i, filename in enumerate(KOKORO_FILES):
+
+    for i, (filename, url) in enumerate(KOKORO_FILES):
         dest = KOKORO_DIR / filename
         if dest.exists():
             log.info("kokoro file already cached: %s", filename)
@@ -87,13 +93,9 @@ def _ensure_kokoro_files() -> tuple[Path, Path]:
 
         log.info("Downloading kokoro file: %s …", filename)
         _set(kokoro="downloading", progress=int(i / len(KOKORO_FILES) * 50))
-        downloaded = hf_hub_download(
-            repo_id=KOKORO_HF_REPO,
-            filename=filename,
-            local_dir=str(KOKORO_DIR),
-        )
-        result_paths.append(Path(downloaded))
-        log.info("Downloaded: %s", filename)
+        urllib.request.urlretrieve(url, dest)
+        log.info("Downloaded %s (%.1f MB)", filename, dest.stat().st_size / 1_048_576)
+        result_paths.append(dest)
 
     return result_paths[0], result_paths[1]
 

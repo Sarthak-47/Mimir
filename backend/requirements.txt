@@ -32,6 +32,12 @@ apscheduler==3.10.4
 rank_bm25==0.2.2
 sentence-transformers==2.7.0   # cross-encoder reranker (ms-marco-MiniLM-L-6-v2)
 
+# ── Voice (STT + TTS) ──────────────────────────────────────
+faster-whisper>=1.0.0      # STT — CTranslate2-optimised Whisper (base.en, ~290 MB)
+kokoro-onnx>=0.4.0         # TTS — kokoro-82M via ONNX Runtime (bm_lewis, ~310 MB)
+av>=12.0.0                 # PyAV — WebM/Opus decode, bundles FFmpeg DLLs on Windows
+soundfile>=0.12.0          # WAV encode for TTS output
+
 # ── Utilities ──────────────────────────────────────────────
 pydantic>=2.9.0,<3.0.0    # ollama>=0.6 requires pydantic>=2.9
 pydantic-settings==2.2.1

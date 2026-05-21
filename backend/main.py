@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from memory.database import init_db
-from routers import chat, chronicle, examiner, files, quiz, users, progress, tutor, system, syllabus
+from routers import chat, chronicle, examiner, files, quiz, users, progress, tutor, system, syllabus, voice
 from scheduler import review_check, streak_update
 from memory.summarizer import summarize_old_sessions
 
@@ -30,6 +30,10 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"[Mimir] Starting {settings.app_name}…")
     await init_db()
+
+    # Kick off voice model loading in background (non-blocking)
+    from voice.manager import prefetch_models
+    prefetch_models()
 
     # Register scheduled jobs
     _scheduler.add_job(
@@ -99,6 +103,7 @@ app.include_router(tutor.router,    prefix="/api/tutor",     tags=["Tutor"])
 app.include_router(system.router,   prefix="/api/system",    tags=["System"])
 app.include_router(examiner.router, prefix="/api/examiner",  tags=["Examiner"])
 app.include_router(syllabus.router, prefix="/api/syllabus",  tags=["Syllabus"])
+app.include_router(voice.router,    prefix="/api/voice",     tags=["Voice"])
 
 
 # ── Health check ─────────────────────────────────────────────

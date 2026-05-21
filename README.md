@@ -152,6 +152,7 @@ mimir/
 │       │   ├── CommandPalette.tsx  Ctrl+K fuzzy command palette
 │       │   ├── RightPanel.tsx      Stats, weaknesses, Ragnarok countdown
 │       │   ├── ExaminerModal.tsx   AI examiner — question + mark scheme + marking
+│       │   ├── VoiceRevisionModal.tsx  VIGIL — hands-free quiz loop (v0.6)
 │       │   ├── SettingsModal.tsx   Model, temperature, context window overrides
 │       │   ├── OnboardingWizard.tsx 5-step first-launch guide
 │       │   ├── SystemStatus.tsx    Ollama/model health banner
@@ -161,7 +162,11 @@ mimir/
 │       │   ├── ReckoningView.tsx   Progress dashboard + predicted grade
 │       │   ├── ChronicleView.tsx   Session history
 │       │   └── ScrollsView.tsx     File library + exam question browser
-│       ├── hooks/              useWebSocket — streaming + tool_data routing
+│       ├── hooks/
+│       │   ├── useWebSocket.ts     Streaming + tool_data routing
+│       │   ├── useTTS.ts           kokoro-onnx TTS — speak() returns Promise<void> (v0.6)
+│       │   ├── useAudioRecorder.ts WebM/Opus mic recording (v0.6)
+│       │   └── useVoiceRevision.ts VIGIL state machine (v0.6)
 │       ├── styles/globals.css  Full design system as CSS variables
 │       ├── config.ts           Centralised API/WS base URLs
 │       └── App.tsx             Root layout, auth gate, state, view routing, update check
@@ -184,7 +189,11 @@ mimir/
 │   │   ├── progress.py     Stats, exam dates, topic scores, predicted grade
 │   │   ├── chronicle.py    Paginated session history
 │   │   ├── system.py       Settings CRUD, model list, health check
-│   │   └── tutor.py        Tutor session CRUD
+│   │   ├── tutor.py        Tutor session CRUD
+│   │   └── voice.py        STT (/transcribe) + TTS (/speak) + health — JWT-gated (v0.6)
+│   ├── voice/
+│   │   ├── transcribe.py   faster-whisper base.en — WebM/Opus → text via PyAV (v0.6)
+│   │   └── synthesise.py   kokoro-onnx bm_lewis — text → 24 kHz PCM WAV (v0.6)
 │   ├── utils/
 │   │   ├── parser.py       PDF/image extraction, semantic chunking, indexing
 │   │   └── exam_parser.py  Regex pipeline — detect exam papers, extract Q + marks
@@ -240,19 +249,18 @@ Compress-Archive -Path "dist/mimir-backend/_internal/*" `
 # 4. Build NSIS installer
 cd ..
 cargo tauri build
-# Output: src-tauri/target/release/bundle/nsis/Mimir_0.4.0_x64-setup.exe
+# Output: src-tauri/target/release/bundle/nsis/Mimir_0.6.0_x64-setup.exe
 ```
 
 ---
 
-## Roadmap — v0.5 to v1.0
+## Roadmap — v0.7 to v1.0
 
-v0.4 ships a capable AI study suite. The path to v1.0 turns Mimir into a complete exam-preparation operating system. Below is the plan, broken into milestones.
+v0.6 ships a capable AI study suite with full voice support. The path to v1.0 turns Mimir into a complete exam-preparation operating system. Below is the plan.
 
 ---
 
-### v0.5 — Living Study Plan
-*The app should know what you need to study today, not just what you've studied before.*
+### ✅ v0.5 — Living Study Plan *(shipped)*
 
 | # | Feature |
 |---|---------|
@@ -265,14 +273,14 @@ v0.4 ships a capable AI study suite. The path to v1.0 turns Mimir into a complet
 
 ---
 
-### v0.6 — Voice
+### ✅ v0.6 — Voice *(shipped)*
 *Hands-free revision — walk around the room and quiz yourself.*
 
 | # | Feature |
 |---|---------|
-| 6 | **Voice input (Whisper STT)** — press-and-hold to dictate a question or answer; Whisper transcribes locally, no cloud |
-| 7 | **Voice output (TTS)** — Mimir reads explanations and quiz questions aloud; configurable speed and voice |
-| 8 | **Voice revision mode** — dedicated hands-free session: Mimir asks a question, waits for spoken answer, marks it, moves to the next |
+| 6 | **Voice input (Whisper STT)** — press-and-hold to dictate a question or answer; `faster-whisper base.en` transcribes locally, no cloud |
+| 7 | **Voice output (TTS)** — Mimir reads explanations and quiz questions aloud; kokoro-onnx `bm_lewis` voice at 1.3× speed |
+| 8 | **VIGIL — voice revision mode** — dedicated hands-free session: Mimir asks a question, waits for spoken answer, marks it, speaks feedback, moves to the next |
 
 ---
 

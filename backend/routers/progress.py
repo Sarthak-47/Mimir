@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from memory.database import (
-    Subject, Topic, QuizSession, User, get_db,
+    Subject, Topic, QuizSession, Conversation, User, get_db,
 )
 from memory.readiness import (
     calculate_topic_readiness, decay_days, priority_label, generate_schedule,
@@ -119,6 +119,25 @@ class PredictedGradeResponse(BaseModel):
     trend:       str     # "improving" | "stable" | "declining"
     confidence:  str     # "high" | "medium" | "low"
     summary:     str     # one-line prose for the UI
+
+
+class HeatmapDay(BaseModel):
+    date:       str   # YYYY-MM-DD
+    quiz_count: int
+    chat_count: int
+    total:      int
+
+
+class TopicActivity(BaseModel):
+    topic_id:   int
+    name:       str
+    subject_id: int
+    count:      int   # quiz sessions in window
+
+
+class HeatmapResponse(BaseModel):
+    days:     list[HeatmapDay]
+    by_topic: list[TopicActivity]
 
 
 class VelocityEntry(BaseModel):
@@ -605,3 +624,88 @@ async def get_velocity(
 
     rows.sort(key=lambda r: (_ORDER.get(r.velocity, 99), -abs(r.slope)))
     return rows
+
+
+# ── Heatmap ──────────────────────────────────────────────────
+
+@router.get("/heatmap", response_model=HeatmapResponse)
+async def get_heatmap(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return daily activity counts for the last N days plus per-topic quiz counts.
+
+    Activity = quiz sessions + user-role chat messages on that day.
+    Returns exactly ``days`` entries in chronological order (oldest first),
+    padded with zeros for days with no activity.
+    """
+    from datetime import timedelta, date as date_type
+
+    user_id = current_user.id
+    days    = max(7, min(90, days))
+    cutoff  = datetime.utcnow() - timedelta(days=days)
+    today   = datetime.utcnow().date()
+
+    # Quiz sessions in window
+    quiz_res = await db.execute(
+        select(QuizSession)
+        .where(QuizSession.user_id == user_id, QuizSession.timestamp >= cutoff)
+    )
+    quiz_sessions = quiz_res.scalars().all()
+
+    # Chat messages (user role only) in window
+    chat_res = await db.execute(
+        select(Conversation)
+        .where(
+            Conversation.user_id == user_id,
+            Conversation.role == "user",
+            Conversation.timestamp >= cutoff,
+        )
+    )
+    chat_msgs = chat_res.scalars().all()
+
+    # Build daily buckets
+    quiz_by_day: dict[date_type, int] = {}
+    for s in quiz_sessions:
+        d = s.timestamp.date()
+        quiz_by_day[d] = quiz_by_day.get(d, 0) + 1
+
+    chat_by_day: dict[date_type, int] = {}
+    for m in chat_msgs:
+        d = m.timestamp.date()
+        chat_by_day[d] = chat_by_day.get(d, 0) + 1
+
+    result_days: list[HeatmapDay] = []
+    from datetime import timedelta
+    for i in range(days - 1, -1, -1):
+        d = today - timedelta(days=i)
+        qc = quiz_by_day.get(d, 0)
+        cc = chat_by_day.get(d, 0)
+        result_days.append(HeatmapDay(
+            date=d.isoformat(),
+            quiz_count=qc,
+            chat_count=cc,
+            total=qc + cc,
+        ))
+
+    # Per-topic quiz counts in window
+    topics_res = await db.execute(select(Topic).where(Topic.user_id == user_id))
+    topics_map = {t.id: t for t in topics_res.scalars().all()}
+
+    topic_counts: dict[int, int] = {}
+    for s in quiz_sessions:
+        topic_counts[s.topic_id] = topic_counts.get(s.topic_id, 0) + 1
+
+    by_topic: list[TopicActivity] = []
+    for tid, count in sorted(topic_counts.items(), key=lambda x: -x[1]):
+        t = topics_map.get(tid)
+        if t:
+            by_topic.append(TopicActivity(
+                topic_id=t.id,
+                name=t.name,
+                subject_id=t.subject_id,
+                count=count,
+            ))
+
+    return HeatmapResponse(days=result_days, by_topic=by_topic)

@@ -204,6 +204,46 @@ class TutorSession(Base):
     subject: Mapped["Subject | None"] = relationship("Subject")
 
 
+class Syllabus(Base):
+    """A named syllabus imported by the user (e.g. "A-Level Chemistry 2026").
+
+    Contains a flat list of ``SyllabusItem`` rows, each representing one
+    topic or learning objective from the official specification.  Coverage is
+    computed at query time by matching item names against the ``Topic`` table.
+    """
+    __tablename__ = "syllabi"
+
+    id:         Mapped[int]      = mapped_column(Integer, primary_key=True)
+    user_id:    Mapped[int]      = mapped_column(ForeignKey("users.id"), nullable=False)
+    name:       Mapped[str]      = mapped_column(String(256), nullable=False)
+    exam_board: Mapped[str]      = mapped_column(String(64), default="")
+    level:      Mapped[str]      = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    user:  Mapped["User"]              = relationship("User")
+    items: Mapped[list["SyllabusItem"]]= relationship("SyllabusItem", back_populates="syllabus", cascade="all, delete")
+
+
+class SyllabusItem(Base):
+    """One topic / learning objective inside a syllabus.
+
+    ``section`` is an optional grouping header (e.g. "Organic Chemistry").
+    ``topic_name`` is the canonical name for the learning objective.
+    ``studied`` is set to True when the user has a matching ``Topic`` with
+    confidence_score > 0, computed at read time — not stored.
+    """
+    __tablename__ = "syllabus_items"
+
+    id:          Mapped[int]      = mapped_column(Integer, primary_key=True)
+    syllabus_id: Mapped[int]      = mapped_column(ForeignKey("syllabi.id"), nullable=False)
+    user_id:     Mapped[int]      = mapped_column(ForeignKey("users.id"), nullable=False)
+    section:     Mapped[str]      = mapped_column(String(256), default="")
+    topic_name:  Mapped[str]      = mapped_column(String(512), nullable=False)
+    order_index: Mapped[int]      = mapped_column(Integer, default=0)
+
+    syllabus: Mapped["Syllabus"] = relationship("Syllabus", back_populates="items")
+
+
 class Misconception(Base):
     """A tracked conceptual error — topics where the student repeatedly scores poorly.
 
@@ -264,6 +304,7 @@ async def init_db():
             # Exam-question feature — safe additive migrations for existing DBs.
             "ALTER TABLE files ADD COLUMN has_exam_questions BOOLEAN DEFAULT 0",
             # ExamQuestion table is created by create_all above; no ALTER needed.
+            # Syllabus tables are created by create_all above; no ALTER needed.
         ]
         for stmt in _migrations:
             try:

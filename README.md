@@ -254,6 +254,7 @@ v0.4 ships a capable AI study suite. The path to v1.0 turns Mimir into a complet
 | 3 | **Adaptive rescheduling** — if you fall behind or improve faster than expected, the plan recalculates overnight |
 | 4 | **Syllabus coverage map** — visual heatmap of every topic area, coloured by how much you've studied each one |
 | 5 | **FATES view overhaul** — replace placeholder with the live schedule above; show today's tasks, overdue items, and tomorrow's forecast |
+| 6 | **Delete chat** — delete individual sessions from the All-Chats panel and Chronicle view; clears the conversation, its summary, and associated vector memory chunks |
 
 ---
 

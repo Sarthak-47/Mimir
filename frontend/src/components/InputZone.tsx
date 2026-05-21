@@ -17,6 +17,8 @@ interface InputZoneProps {
   onRunes:          () => void;
   onFates:          () => void;
   onStartLesson:    (topicName: string) => void;
+  /** Opens the Mind Map modal for the given topic. */
+  onOpenMindMap?:   (topic: string) => void;
   /** Opens the Voice Revision modal. Only provided when voiceReady is true. */
   onVoiceRevision?: () => void;
   activeSubjectName: string | null;
@@ -41,7 +43,7 @@ const UPLOAD_URL = `${API_FILES}/upload`;
  * @param authToken          - JWT forwarded with file upload requests.
  */
 export default function InputZone({
-  onSend, onTrial, onRunes, onFates, onStartLesson, onVoiceRevision,
+  onSend, onTrial, onRunes, onFates, onStartLesson, onOpenMindMap, onVoiceRevision,
   activeSubjectName, authToken, mode, onModeChange,
   voiceReady,
 }: InputZoneProps) {
@@ -57,6 +59,10 @@ export default function InputZone({
   const [showLessonPicker, setShowLessonPicker] = useState(false);
   const [lessonTopic,      setLessonTopic]      = useState("");
   const lessonInputRef = useRef<HTMLInputElement>(null);
+  // Mind map topic picker state
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapTopic,      setMapTopic]      = useState("");
+  const mapInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,6 +177,25 @@ export default function InputZone({
     if (e.key === "Escape") { setShowLessonPicker(false); setLessonTopic(""); }
   };
 
+  // ── Mind map picker ──────────────────────────────────────
+  const handleMapOpen = () => {
+    setShowLessonPicker(false);
+    setShowMapPicker(true);
+    setTimeout(() => mapInputRef.current?.focus(), 50);
+  };
+
+  const handleMapConfirm = () => {
+    if (!mapTopic.trim()) return;
+    onOpenMindMap?.(mapTopic.trim());
+    setMapTopic("");
+    setShowMapPicker(false);
+  };
+
+  const handleMapKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleMapConfirm();
+    if (e.key === "Escape") { setShowMapPicker(false); setMapTopic(""); }
+  };
+
   /** Handle drop — accept image files. */
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -243,6 +268,7 @@ export default function InputZone({
     { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject",               onClick: onTrial,             disabled: false },
     { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",                         onClick: onRunes,             disabled: false },
     { icon: "ᚾ", label: "FATES",  title: "Build a revision schedule",                   onClick: onFates,             disabled: false },
+    ...(onOpenMindMap ? [{ icon: "ᚹ", label: "MAP", title: "Generate a mind map for a topic", onClick: handleMapOpen, disabled: false }] : []),
     ...(onVoiceRevision ? [{ icon: "ᛗ", label: "VIGIL", title: "Voice revision — hands-free quiz", onClick: onVoiceRevision, disabled: false }] : []),
   ];
 
@@ -312,6 +338,31 @@ export default function InputZone({
           <button
             style={styles.lessonCancel}
             onClick={() => { setShowLessonPicker(false); setLessonTopic(""); }}
+          >×</button>
+        </div>
+      )}
+
+      {/* ── Mind map topic picker ── */}
+      {showMapPicker && (
+        <div style={styles.lessonPicker}>
+          <span style={styles.lessonLabel}>ᚹ Topic:</span>
+          <input
+            ref={mapInputRef}
+            type="text"
+            value={mapTopic}
+            onChange={(e) => setMapTopic(e.target.value)}
+            onKeyDown={handleMapKeyDown}
+            placeholder="e.g. Neural Networks, The French Revolution…"
+            style={styles.lessonInput}
+          />
+          <button
+            style={{ ...styles.lessonBtn, ...(mapTopic.trim() ? styles.lessonBtnActive : {}) }}
+            onClick={handleMapConfirm}
+            disabled={!mapTopic.trim()}
+          >Map</button>
+          <button
+            style={styles.lessonCancel}
+            onClick={() => { setShowMapPicker(false); setMapTopic(""); }}
           >×</button>
         </div>
       )}

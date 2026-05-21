@@ -14,7 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from memory.database import init_db
-from routers import chat, chronicle, examiner, files, formulas, quiz, users, progress, tutor, system, syllabus, voice
+from routers import chat, chronicle, examiner, files, formulas, graph, mindmap, quiz, users, progress, tutor, system, syllabus, voice
 from scheduler import review_check, streak_update
 from memory.summarizer import summarize_old_sessions
 
@@ -105,6 +105,8 @@ app.include_router(examiner.router, prefix="/api/examiner",  tags=["Examiner"])
 app.include_router(syllabus.router, prefix="/api/syllabus",  tags=["Syllabus"])
 app.include_router(voice.router,    prefix="/api/voice",     tags=["Voice"])
 app.include_router(formulas.router, prefix="/api/formulas",  tags=["Formulas"])
+app.include_router(mindmap.router,  prefix="/api/mindmap",   tags=["MindMap"])
+app.include_router(graph.router,    prefix="/api/graph",     tags=["Graph"])
 
 
 # ── Health check ─────────────────────────────────────────────

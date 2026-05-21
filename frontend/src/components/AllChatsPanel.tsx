@@ -69,8 +69,10 @@ function shortDate(iso: string): string {
 export default function AllChatsPanel({
   isOpen, onClose, authToken, subjects, onLoadSession,
 }: AllChatsPanelProps) {
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [loading,  setLoading]  = useState(false);
+  const [sessions,      setSessions]      = useState<SessionRow[]>([]);
+  const [loading,       setLoading]       = useState(false);
+  const [deletingId,    setDeletingId]    = useState<string | null>(null);
+  const [hoveredSessId, setHoveredSessId] = useState<string | null>(null);
 
   // Fetch all sessions whenever the panel opens
   const load = useCallback(async () => {
@@ -82,6 +84,26 @@ export default function AllChatsPanel({
       if (res.ok) setSessions(await res.json() as SessionRow[]);
     } catch { /* backend offline — keep stale list */ }
     finally { setLoading(false); }
+  }, [authToken]);
+
+  const handleDelete = useCallback(async (sess: SessionRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingId(sess.session_id);
+    try {
+      const ids = sess.messages.map((m) => m.id);
+      const res = await fetch(`${API_CHRONICLE}/messages`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        setSessions((prev) => prev.filter((s) => s.session_id !== sess.session_id));
+      }
+    } catch { /* silent */ }
+    finally { setDeletingId(null); }
   }, [authToken]);
 
   useEffect(() => {
@@ -167,11 +189,15 @@ export default function AllChatsPanel({
               <div style={S.bucketLabel}>{bucket}</div>
 
               {groups[bucket]!.map((sess) => (
-                <button
+                <div
                   key={sess.session_id}
-                  style={S.sessionBtn}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--stone-3)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  style={{
+                    ...S.sessionBtn,
+                    background: hoveredSessId === sess.session_id ? "var(--stone-3)" : "transparent",
+                    position: "relative",
+                  }}
+                  onMouseEnter={() => setHoveredSessId(sess.session_id)}
+                  onMouseLeave={() => setHoveredSessId(null)}
                   onClick={() => { onLoadSession(sess.messages); onClose(); }}
                 >
                   {/* Top row: discipline dot + name + date */}
@@ -185,7 +211,20 @@ export default function AllChatsPanel({
                         {subjectName(sess.subject_id)}
                       </span>
                     </div>
-                    <span style={S.dateLabel}>{shortDate(sess.start_time)}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={S.dateLabel}>{shortDate(sess.start_time)}</span>
+                      {/* Delete button — visible on hover */}
+                      {hoveredSessId === sess.session_id && (
+                        <button
+                          title="Delete session"
+                          style={S.deleteBtn}
+                          onClick={(e) => handleDelete(sess, e)}
+                          disabled={deletingId === sess.session_id}
+                        >
+                          {deletingId === sess.session_id ? "…" : "✕"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Preview text */}
@@ -193,7 +232,7 @@ export default function AllChatsPanel({
 
                   {/* Turn count */}
                   <div style={S.turnCount}>{sess.turn_count} turns</div>
-                </button>
+                </div>
               ))}
             </div>
           ))}
@@ -287,5 +326,13 @@ const S: Record<string, React.CSSProperties> = {
   turnCount: {
     fontFamily: "var(--font-header)", fontSize: 9,
     letterSpacing: "0.08em", color: "var(--text-dim)",
+  },
+  deleteBtn: {
+    background: "none", border: "none",
+    color: "var(--text-dim)", cursor: "pointer",
+    fontFamily: "var(--font-header)", fontSize: 10,
+    padding: "1px 3px", lineHeight: 1,
+    transition: "color 0.12s",
+    flexShrink: 0,
   },
 };

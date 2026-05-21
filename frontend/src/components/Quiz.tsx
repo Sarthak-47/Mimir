@@ -79,7 +79,7 @@ export default function Quiz({ questions, onComplete }: QuizProps) {
           }
           return (
             <button
-              key={idx}
+              key={`${current}-${idx}`}
               style={{
                 ...styles.option,
                 ...(variant === "correct" ? styles.optionCorrect : {}),
@@ -168,6 +168,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "6px 10px",
     background: "var(--stone-2)",
     border: "1px solid var(--green-dark)",
+    outline: "none",
     cursor: "pointer",
     fontFamily: "var(--font-body)",
     fontSize: 13,

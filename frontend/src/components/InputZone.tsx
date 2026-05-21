@@ -8,6 +8,8 @@
  */
 
 import { useState, useRef, useCallback } from "react";
+import useAudioRecorder from "@/hooks/useAudioRecorder";
+import { API_VOICE } from "@/config";
 
 interface InputZoneProps {
   onSend:         (text: string, mode: string, images?: string[]) => void;
@@ -19,6 +21,8 @@ interface InputZoneProps {
   authToken?: string | null;
   mode: string;
   onModeChange: (mode: string) => void;
+  /** Set true once the voice models are ready to enable the mic button. */
+  voiceReady?: boolean;
 }
 
 import { API_FILES } from "@/config";
@@ -36,9 +40,12 @@ const UPLOAD_URL = `${API_FILES}/upload`;
  */
 export default function InputZone({
   onSend, onTrial, onRunes, onFates, onStartLesson, activeSubjectName, authToken, mode, onModeChange,
+  voiceReady,
 }: InputZoneProps) {
   const [text,          setText]          = useState("");
   const [uploading,     setUploading]     = useState(false);
+  const [transcribing,  setTranscribing]  = useState(false);
+  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   // Pending images to attach to the next message — stored as {base64, dataUrl} objects.
   // dataUrl is used for the preview thumbnail; base64 is sent to the backend.
   const [pendingImages, setPendingImages] = useState<{ base64: string; dataUrl: string }[]>([]);
@@ -68,6 +75,39 @@ export default function InputZone({
     if (textareaRef.current) textareaRef.current.style.height = "34px";
     textareaRef.current?.focus();
   };
+
+  // ── Voice mic handler ────────────────────────────────────
+  const handleMicClick = useCallback(async () => {
+    if (!authToken) return;
+    if (isRecording) {
+      // Stop recording and transcribe
+      const blob = await stopRecording();
+      if (!blob) return;
+      setTranscribing(true);
+      try {
+        const formData = new FormData();
+        formData.append("audio", blob, "recording.webm");
+        const res = await fetch(`${API_VOICE}/transcribe`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+          body: formData,
+        });
+        if (res.ok) {
+          const { text: transcript } = await res.json();
+          if (transcript) {
+            setText((prev) => prev ? `${prev} ${transcript}` : transcript);
+            textareaRef.current?.focus();
+          }
+        }
+      } catch (e) {
+        console.warn("[InputZone] transcription failed:", e);
+      } finally {
+        setTranscribing(false);
+      }
+    } else {
+      await startRecording();
+    }
+  }, [authToken, isRecording, startRecording, stopRecording]);
 
   // ── Image helpers ────────────────────────────────────────
 
@@ -323,6 +363,25 @@ export default function InputZone({
           style={styles.textarea}
           rows={1}
         />
+        {/* Mic button — visible only when voice models are ready */}
+        {voiceReady && (
+          <button
+            style={{
+              ...styles.sendBtn,
+              ...(isRecording ? styles.micBtnRecording : {}),
+              ...(transcribing ? styles.micBtnProcessing : {}),
+              opacity: transcribing ? 0.7 : 1,
+            }}
+            onClick={handleMicClick}
+            disabled={transcribing}
+            title={isRecording ? "Stop recording" : "Speak your query (ᛗ)"}
+          >
+            <span style={styles.sendRune}>
+              {transcribing ? "…" : "ᛗ"}
+            </span>
+          </button>
+        )}
+
         <button
           style={{
             ...styles.sendBtn,
@@ -366,6 +425,8 @@ const styles: Record<string, React.CSSProperties> = {
   textarea: { flex: 1, background: "var(--stone-1)", border: "1px solid var(--green-dark)", color: "var(--text-primary)", fontFamily: "var(--font-body)", fontSize: 15, padding: "8px 12px", outline: "none", resize: "none" as const, minHeight: 38, maxHeight: 130, lineHeight: 1.5 },
   sendBtn: { width: 38, height: 38, background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.5, transition: "all 0.15s" },
   sendBtnActive: { background: "var(--green-dark)", border: "1px solid var(--green)", cursor: "pointer", opacity: 1 },
+  micBtnRecording:   { background: "#5a1a1a", border: "1px solid #8a3a3a", cursor: "pointer", opacity: 1, boxShadow: "0 0 6px rgba(180,60,60,0.5)" },
+  micBtnProcessing:  { background: "var(--stone-3)", border: "1px solid var(--gold-dark)", cursor: "wait", opacity: 0.7 },
   sendRune: { fontFamily: "var(--font-header)", fontSize: 18, color: "var(--green-bright)", lineHeight: 1 },
   hint: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--text-dim)", fontStyle: "italic", marginTop: 3, textAlign: "center" as const },
   lessonPicker: { display: "flex", alignItems: "center", gap: 6, padding: "5px 0 3px", borderBottom: "1px solid var(--green-dark)", marginBottom: 4 },

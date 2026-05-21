@@ -89,11 +89,16 @@ interface ChatProps {
   onStop?:       () => void;
   onEdit?:       (msgId: string, newContent: string) => void;
   onRegenerate?: () => void;
+  /** Called when the user clicks the speaker rune on an assistant message. */
+  onSpeak?:      (text: string) => void;
+  /** True while TTS is actively playing audio. */
+  isSpeaking?:   boolean;
 }
 
 export default function Chat({
   messages, onSuggestion, username,
   isWaiting, isStreaming, onStop, onEdit, onRegenerate,
+  onSpeak, isSpeaking,
 }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const isActive  = isWaiting || isStreaming;
@@ -122,6 +127,8 @@ export default function Chat({
             username={username}
             onEdit={onEdit}
             onRegenerate={!isActive && idx === lastAssistantIdx ? onRegenerate : undefined}
+            onSpeak={onSpeak}
+            isSpeaking={isSpeaking}
           />
         ))}
 
@@ -187,12 +194,14 @@ function ThinkingBubble() {
 }
 
 function MessageBubble({
-  msg, username, onEdit, onRegenerate,
+  msg, username, onEdit, onRegenerate, onSpeak, isSpeaking,
 }: {
   msg:           Message;
   username?:     string;
   onEdit?:       (msgId: string, newContent: string) => void;
   onRegenerate?: () => void;
+  onSpeak?:      (text: string) => void;
+  isSpeaking?:   boolean;
 }) {
   const isUser       = msg.role === "user";
   const userInitial  = (username?.[0] ?? "?").toUpperCase();
@@ -252,6 +261,19 @@ function MessageBubble({
                   {!isUser && onRegenerate && (
                     <button style={styles.actionBtn} title="Regenerate" onClick={onRegenerate}>
                       ↻
+                    </button>
+                  )}
+                  {/* Speak (assistant messages, when voice is available) */}
+                  {!isUser && onSpeak && (
+                    <button
+                      style={{
+                        ...styles.actionBtn,
+                        ...(isSpeaking ? { color: "var(--gold-dim)" } : {}),
+                      }}
+                      title={isSpeaking ? "Speaking…" : "Read aloud (ᛗ)"}
+                      onClick={() => onSpeak(msg.content)}
+                    >
+                      ᛗ
                     </button>
                   )}
                 </div>

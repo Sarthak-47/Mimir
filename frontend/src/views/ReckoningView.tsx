@@ -64,6 +64,17 @@ interface PredictedGrade {
   summary:    string;
 }
 
+interface VelocityEntry {
+  id:            number;
+  name:          string;
+  subject_id:    number;
+  velocity:      "mastered" | "rising" | "stable" | "falling" | "untested";
+  slope:         number;
+  recent_scores: number[];
+  session_count: number;
+  latest_score:  number;
+}
+
 interface ReckoningViewProps {
   subjects:          Subject[];
   authToken:         string;
@@ -125,6 +136,39 @@ function PriorityBadge({ p }: { p: ReadinessRow["priority"] }) {
   );
 }
 
+/** Mini SVG sparkline for a series of 0–100 scores. */
+function Sparkline({ scores, color }: { scores: number[]; color: string }) {
+  if (scores.length < 2) {
+    return <div style={{ width: 72, height: 24, flexShrink: 0 }} />;
+  }
+  const W = 72, H = 24, pad = 2;
+  const n   = scores.length;
+  const pts = scores.map((v, i) => {
+    const x = pad + (i / (n - 1)) * (W - pad * 2);
+    const y = H - pad - ((v / 100) * (H - pad * 2));
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return (
+    <svg width={W} height={H} style={{ flexShrink: 0, display: "block" }}>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Latest score dot */}
+      {(() => {
+        const last = pts.split(" ").pop()!.split(",");
+        return (
+          <circle cx={last[0]} cy={last[1]} r="2.5" fill={color} />
+        );
+      })()}
+    </svg>
+  );
+}
+
 /** Exam countdown widget shown at the top when exam_date is set. */
 function ExamCountdown({
   examDate, daysLeft, onClear,
@@ -157,6 +201,7 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
   const [schedule,       setSchedule]       = useState<ScheduleDay[]>([]);
   const [history,        setHistory]        = useState<QuizHistoryRow[]>([]);
   const [predictedGrade, setPredictedGrade] = useState<PredictedGrade | null>(null);
+  const [velocity,       setVelocity]       = useState<VelocityEntry[]>([]);
   const [examDate,       setExamDate]       = useState<string | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [selSub,         setSelSub]         = useState<string>("all");
@@ -168,19 +213,21 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, r, sch, h, ed, pg] = await Promise.all([
+      const [s, r, sch, h, ed, pg, vel] = await Promise.all([
         getJson<Stats>(`${API_PROGRESS}/stats`, authToken),
         getJson<ReadinessRow[]>(`${API_PROGRESS}/readiness`, authToken),
         getJson<ScheduleDay[]>(`${API_PROGRESS}/schedule`, authToken),
         getJson<QuizHistoryRow[]>(`${API_QUIZ}/history?limit=10`, authToken),
         getJson<{ exam_date: string | null }>(`${API_PROGRESS}/exam-date`, authToken),
         getJson<PredictedGrade>(`${API_PROGRESS}/predicted-grade`, authToken).catch(() => null),
+        getJson<VelocityEntry[]>(`${API_PROGRESS}/velocity`, authToken).catch(() => [] as VelocityEntry[]),
       ]);
       setStats(s);
       setReadiness(r);
       setSchedule(sch);
       setHistory(h);
       setPredictedGrade(pg);
+      setVelocity(vel);
       setExamDate(ed.exam_date);
       if (ed.exam_date) setDateInput(ed.exam_date);
     } catch {
@@ -228,6 +275,11 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
   const filteredReadiness = selSub === "all"
     ? readiness
     : readiness.filter((t) => String(t.subject_id) === selSub);
+
+  const filteredVelocity = (selSub === "all"
+    ? velocity
+    : velocity.filter((t) => String(t.subject_id) === selSub)
+  ).filter((t) => t.session_count >= 2);   // hide untested topics from velocity section
 
   const subjectName = (id: number) =>
     subjects.find((s) => s.id === String(id))?.name ?? `Discipline ${id}`;
@@ -371,6 +423,75 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
               );
             })}
           </div>
+
+          {/* ── Learning velocity ── */}
+          {filteredVelocity.length > 0 && (() => {
+            const freeFall = filteredVelocity.filter((t) => t.velocity === "falling");
+            const mastered = filteredVelocity.filter((t) => t.velocity === "mastered");
+            return (
+              <>
+                <div style={S.engraving} />
+                <div style={S.sectionTitle}>Learning Velocity</div>
+                <div style={S.readinessCap}>
+                  Slope = percentage-point change per quiz session. Based on last 8 sessions per topic.
+                </div>
+
+                {/* Free-fall callout */}
+                {freeFall.length > 0 && (
+                  <div style={S.velocityAlert}>
+                    <span style={S.alertRune}>↓</span>
+                    <span style={S.alertText}>
+                      {freeFall.length} topic{freeFall.length > 1 ? "s" : ""} in free-fall:{" "}
+                      {freeFall.map((t) => t.name).join(", ")}
+                    </span>
+                  </div>
+                )}
+                {/* Mastered callout */}
+                {mastered.length > 0 && (
+                  <div style={{ ...S.velocityAlert, ...S.velocityAlertGood }}>
+                    <span style={S.alertRune}>★</span>
+                    <span style={S.alertText}>
+                      {mastered.length} topic{mastered.length > 1 ? "s" : ""} mastered:{" "}
+                      {mastered.map((t) => t.name).join(", ")}
+                    </span>
+                  </div>
+                )}
+
+                <div style={S.velocityList}>
+                  {filteredVelocity.map((t) => {
+                    const velColor =
+                      t.velocity === "mastered" ? "var(--green-bright)" :
+                      t.velocity === "rising"   ? "var(--gold-bright)"  :
+                      t.velocity === "falling"  ? "#c87a7a"             :
+                                                   "var(--text-dim)";
+                    const velArrow =
+                      t.velocity === "mastered" ? "★" :
+                      t.velocity === "rising"   ? (t.slope > 8 ? "↑↑" : "↑") :
+                      t.velocity === "falling"  ? (t.slope < -8 ? "↓↓" : "↓") :
+                                                   "→";
+                    const slopeStr = t.slope > 0
+                      ? `+${t.slope.toFixed(1)}`
+                      : t.slope.toFixed(1);
+                    return (
+                      <div key={t.id} style={S.velocityRow}>
+                        <div style={S.topicMeta}>
+                          <span style={S.topicName}>{t.name}</span>
+                          <span style={S.topicSubject}>{subjectName(t.subject_id)}</span>
+                        </div>
+                        <Sparkline scores={t.recent_scores} color={velColor} />
+                        <span style={{ ...S.velArrow, color: velColor }}>{velArrow}</span>
+                        <span style={{ ...S.velSlope, color: velColor }}>{slopeStr} pp</span>
+                        <span style={S.velLatest}>{t.latest_score.toFixed(0)}%</span>
+                        <span style={{ ...S.velocityBadge, color: velColor }}>
+                          {t.velocity.toUpperCase()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
 
           {/* ── 7-day schedule ── */}
           {schedule.length > 0 && (
@@ -522,6 +643,18 @@ const S: Record<string, React.CSSProperties> = {
   trendIcon:      { fontFamily: "var(--font-header)", fontSize: 20, lineHeight: 1 },
   trendLabel:     { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase" as const },
   confidenceLabel:{ fontFamily: "var(--font-body)", fontSize: 9, fontStyle: "italic", color: "var(--text-dim)" },
+
+  // ── Velocity ──
+  velocityList:       { display: "flex", flexDirection: "column" as const, gap: 4 },
+  velocityRow:        { display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: "var(--stone-2)", border: "1px solid var(--green-dark)" },
+  velocityAlert:      { display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#2a1a1a", border: "1px solid #5a2a2a", marginBottom: 6 },
+  velocityAlertGood:  { background: "#1a2a1a", border: "1px solid #2a5a2a" },
+  alertRune:          { fontFamily: "var(--font-header)", fontSize: 14, color: "#c87a7a", flexShrink: 0 },
+  alertText:          { fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-secondary)", flex: 1 },
+  velArrow:           { fontFamily: "var(--font-header)", fontSize: 14, lineHeight: 1, width: 20, textAlign: "center" as const, flexShrink: 0 },
+  velSlope:           { fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.06em", width: 46, textAlign: "right" as const, flexShrink: 0 },
+  velLatest:          { fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-dim)", width: 30, textAlign: "right" as const, flexShrink: 0 },
+  velocityBadge:      { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.12em", width: 64, textAlign: "right" as const, flexShrink: 0 },
 
   // ── Trial history ──
   historyList:    { display: "flex", flexDirection: "column" as const, gap: 3 },

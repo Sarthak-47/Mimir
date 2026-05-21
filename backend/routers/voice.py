@@ -35,7 +35,7 @@ class TranscribeResponse(BaseModel):
 class SpeakRequest(BaseModel):
     text:  str             = Field(..., min_length=1, max_length=4000)
     voice: str             = Field(default="bm_lewis")
-    speed: float           = Field(default=1.0, ge=0.5, le=2.0)
+    speed: float           = Field(default=1.3, ge=0.5, le=2.0)
 
 
 class VoiceStatusResponse(BaseModel):

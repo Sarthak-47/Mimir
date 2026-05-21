@@ -24,6 +24,18 @@ from memory.database import User
 log    = logging.getLogger(__name__)
 router = APIRouter()
 
+# Hard cap on audio uploads: 10 MB is well above any browser mic clip.
+_MAX_AUDIO_BYTES = 10 * 1024 * 1024   # 10 MB
+
+# Explicit allowlist of supported kokoro voice IDs.
+_ALLOWED_VOICES = {
+    "bm_lewis",   # British male   — default
+    "bm_george",  # British male
+    "af_sarah",   # American female
+    "af_sky",     # American female
+    "am_adam",    # American male
+}
+
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -76,6 +88,11 @@ async def transcribe_audio(
     audio_bytes = await audio.read()
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="Empty audio upload")
+    if len(audio_bytes) > _MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Audio too large ({len(audio_bytes) // 1024} KB > {_MAX_AUDIO_BYTES // 1024} KB)",
+        )
 
     try:
         result = await asyncio.to_thread(transcribe, audio_bytes)
@@ -100,6 +117,12 @@ async def speak_text(
     Returns 400 for empty text, 503 if the model is unavailable or synthesis
     produces no audio.
     """
+    if req.voice not in _ALLOWED_VOICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown voice '{req.voice}'. Allowed: {sorted(_ALLOWED_VOICES)}",
+        )
+
     from voice.synthesise import synthesise
 
     try:

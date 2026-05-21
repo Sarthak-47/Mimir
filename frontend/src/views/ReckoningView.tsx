@@ -75,11 +75,32 @@ interface VelocityEntry {
   latest_score:  number;
 }
 
+interface HeatmapDay {
+  date:       string;
+  quiz_count: number;
+  chat_count: number;
+  total:      number;
+}
+
+interface TopicActivity {
+  topic_id:   number;
+  name:       string;
+  subject_id: number;
+  count:      number;
+}
+
+interface HeatmapData {
+  days:     HeatmapDay[];
+  by_topic: TopicActivity[];
+}
+
 interface ReckoningViewProps {
   subjects:          Subject[];
   authToken:         string;
   /** Called whenever the exam date is saved or cleared, so App-level state stays in sync. */
   onExamDateChange?: (date: string | null) => void;
+  /** Opens the knowledge graph modal for the current subject filter. */
+  onOpenGraph?:      (subjectId: string | null) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -195,13 +216,14 @@ function ExamCountdown({
 
 // ── Main component ───────────────────────────────────────────
 
-export default function ReckoningView({ subjects, authToken, onExamDateChange }: ReckoningViewProps) {
+export default function ReckoningView({ subjects, authToken, onExamDateChange, onOpenGraph }: ReckoningViewProps) {
   const [stats,          setStats]          = useState<Stats | null>(null);
   const [readiness,      setReadiness]      = useState<ReadinessRow[]>([]);
   const [schedule,       setSchedule]       = useState<ScheduleDay[]>([]);
   const [history,        setHistory]        = useState<QuizHistoryRow[]>([]);
   const [predictedGrade, setPredictedGrade] = useState<PredictedGrade | null>(null);
   const [velocity,       setVelocity]       = useState<VelocityEntry[]>([]);
+  const [heatmap,        setHeatmap]        = useState<HeatmapData | null>(null);
   const [examDate,       setExamDate]       = useState<string | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [selSub,         setSelSub]         = useState<string>("all");
@@ -213,7 +235,7 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, r, sch, h, ed, pg, vel] = await Promise.all([
+      const [s, r, sch, h, ed, pg, vel, hm] = await Promise.all([
         getJson<Stats>(`${API_PROGRESS}/stats`, authToken),
         getJson<ReadinessRow[]>(`${API_PROGRESS}/readiness`, authToken),
         getJson<ScheduleDay[]>(`${API_PROGRESS}/schedule`, authToken),
@@ -221,6 +243,7 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
         getJson<{ exam_date: string | null }>(`${API_PROGRESS}/exam-date`, authToken),
         getJson<PredictedGrade>(`${API_PROGRESS}/predicted-grade`, authToken).catch(() => null),
         getJson<VelocityEntry[]>(`${API_PROGRESS}/velocity`, authToken).catch(() => [] as VelocityEntry[]),
+        getJson<HeatmapData>(`${API_PROGRESS}/heatmap?days=30`, authToken).catch(() => null),
       ]);
       setStats(s);
       setReadiness(r);
@@ -228,6 +251,7 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
       setHistory(h);
       setPredictedGrade(pg);
       setVelocity(vel);
+      setHeatmap(hm);
       setExamDate(ed.exam_date);
       if (ed.exam_date) setDateInput(ed.exam_date);
     } catch {
@@ -389,10 +413,19 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
           {/* ── Readiness ── */}
           <div style={S.sectionHeader}>
             <span style={S.sectionTitle}>Discipline Readiness</span>
-            <select value={selSub} onChange={(e) => setSelSub(e.target.value)} style={S.subSelect}>
-              <option value="all">All disciplines</option>
-              {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {onOpenGraph && (
+                <button
+                  style={S.graphBtn}
+                  onClick={() => onOpenGraph(selSub === "all" ? null : selSub)}
+                  title="View prerequisite knowledge graph"
+                >ᚷ GRAPH</button>
+              )}
+              <select value={selSub} onChange={(e) => setSelSub(e.target.value)} style={S.subSelect}>
+                <option value="all">All disciplines</option>
+                {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
           </div>
           <div style={S.readinessCap}>
             Readiness accounts for time elapsed since last study (forgetting curve).
@@ -489,6 +522,64 @@ export default function ReckoningView({ subjects, authToken, onExamDateChange }:
                     );
                   })}
                 </div>
+              </>
+            );
+          })()}
+
+          {/* ── Activity heatmap ── */}
+          {heatmap && heatmap.days.some((d) => d.total > 0) && (() => {
+            const maxTotal = Math.max(...heatmap.days.map((d) => d.total), 1);
+            return (
+              <>
+                <div style={S.engraving} />
+                <div style={S.sectionTitle}>Study Activity — Last 30 Days</div>
+                <div style={S.readinessCap}>
+                  Each cell = one day. Darker = more activity (quizzes + chat messages).
+                </div>
+
+                {/* Heatmap grid — 7 columns × up to 5 rows */}
+                <div style={S.heatGrid}>
+                  {heatmap.days.map((day) => {
+                    const frac  = day.total / maxTotal;
+                    const bg    =
+                      frac === 0   ? "var(--stone-3)" :
+                      frac < 0.25  ? "#1a3a1a" :
+                      frac < 0.5   ? "#2a5a2a" :
+                      frac < 0.75  ? "#3a7a3a" :
+                                     "#4a9a4a";
+                    const label = new Date(day.date + "T00:00:00")
+                      .toLocaleDateString([], { month: "short", day: "numeric" });
+                    return (
+                      <div
+                        key={day.date}
+                        style={{ ...S.heatCell, background: bg }}
+                        title={`${label}: ${day.quiz_count} quiz${day.quiz_count !== 1 ? "zes" : ""}, ${day.chat_count} message${day.chat_count !== 1 ? "s" : ""}`}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div style={S.heatLegend}>
+                  <span style={S.heatLegendLabel}>Less</span>
+                  {["var(--stone-3)", "#1a3a1a", "#2a5a2a", "#3a7a3a", "#4a9a4a"].map((c) => (
+                    <div key={c} style={{ ...S.heatCell, background: c, flexShrink: 0 }} />
+                  ))}
+                  <span style={S.heatLegendLabel}>More</span>
+                </div>
+
+                {/* Top topics */}
+                {heatmap.by_topic.length > 0 && (
+                  <div style={S.heatTopics}>
+                    <span style={S.heatTopicsLabel}>Most studied:</span>
+                    {heatmap.by_topic.slice(0, 5).map((t) => (
+                      <span key={t.topic_id} style={S.heatTopicChip}>
+                        {t.name}
+                        <span style={S.heatTopicCount}>{t.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -655,6 +746,19 @@ const S: Record<string, React.CSSProperties> = {
   velSlope:           { fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.06em", width: 46, textAlign: "right" as const, flexShrink: 0 },
   velLatest:          { fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-dim)", width: 30, textAlign: "right" as const, flexShrink: 0 },
   velocityBadge:      { fontFamily: "var(--font-header)", fontSize: 8, letterSpacing: "0.12em", width: 64, textAlign: "right" as const, flexShrink: 0 },
+
+  // ── GRAPH button ──
+  graphBtn:       { background: "var(--stone-3)", border: "1px solid var(--gold-dim)", color: "var(--gold-bright)", fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.12em", cursor: "pointer", padding: "4px 10px", transition: "all 0.15s" },
+
+  // ── Activity heatmap ──
+  heatGrid:       { display: "flex", flexWrap: "wrap" as const, gap: 3, marginBottom: 6 },
+  heatCell:       { width: 14, height: 14, borderRadius: 2, flexShrink: 0 },
+  heatLegend:     { display: "flex", alignItems: "center", gap: 3, marginBottom: 8 },
+  heatLegendLabel:{ fontFamily: "var(--font-body)", fontSize: 9, fontStyle: "italic", color: "var(--text-dim)" },
+  heatTopics:     { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" as const, marginBottom: 4 },
+  heatTopicsLabel:{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.1em", color: "var(--text-dim)", flexShrink: 0 },
+  heatTopicChip:  { display: "flex", alignItems: "center", gap: 4, padding: "2px 6px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-secondary)" },
+  heatTopicCount: { fontFamily: "var(--font-header)", fontSize: 9, color: "var(--gold-dim)", marginLeft: 2 },
 
   // ── Trial history ──
   historyList:    { display: "flex", flexDirection: "column" as const, gap: 3 },

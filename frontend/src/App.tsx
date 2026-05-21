@@ -20,8 +20,10 @@ import SettingsModal from "@/components/SettingsModal";
 import ExaminerModal from "@/components/ExaminerModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import VoiceSetupBanner from "@/components/VoiceSetupBanner";
-import VoiceRevisionModal from "@/components/VoiceRevisionModal";
-import FormulaSheetModal  from "@/components/FormulaSheetModal";
+import VoiceRevisionModal    from "@/components/VoiceRevisionModal";
+import FormulaSheetModal     from "@/components/FormulaSheetModal";
+import MindMapModal          from "@/components/MindMapModal";
+import KnowledgeGraphModal   from "@/components/KnowledgeGraphModal";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -192,6 +194,10 @@ export default function App() {
   const [autoRead,          setAutoRead]          = useState(false);
   const [voiceRevisionOpen, setVoiceRevisionOpen] = useState(false);
   const [formulaSheetOpen,  setFormulaSheetOpen]  = useState(false);
+  // Mind map: { topic, subject }
+  const [mindMapTopic,      setMindMapTopic]      = useState<{ topic: string; subject: string } | null>(null);
+  // Knowledge graph: subject id to show (null = all subjects)
+  const [graphSubjectId,    setGraphSubjectId]    = useState<string | null | undefined>(undefined); // undefined = closed
   const [examDate, setExamDate]           = useState<Date | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_EXAM_DATE);
@@ -765,6 +771,7 @@ export default function App() {
               onRunes={handleRunes}
               onFates={handleFates}
               onStartLesson={handleStartLesson}
+              onOpenMindMap={(topic) => setMindMapTopic({ topic, subject: activeSubjectObj?.name ?? "" })}
               onVoiceRevision={voiceReady ? () => setVoiceRevisionOpen(true) : undefined}
               activeSubjectName={activeSubjectObj?.name ?? null}
               authToken={authToken}
@@ -790,6 +797,7 @@ export default function App() {
             onExamDateChange={(dateStr) =>
               handleSetExamDate(dateStr ? new Date(dateStr + "T00:00:00") : null)
             }
+            onOpenGraph={(subjectId) => setGraphSubjectId(subjectId)}
           />
         )}
 
@@ -855,6 +863,28 @@ export default function App() {
           subjectId={activeSubject}
           subjectName={activeSubjectObj?.name ?? null}
           onClose={() => setFormulaSheetOpen(false)}
+        />
+      )}
+
+      {mindMapTopic && authToken && (
+        <MindMapModal
+          authToken={authToken}
+          topic={mindMapTopic.topic}
+          subject={mindMapTopic.subject}
+          onClose={() => setMindMapTopic(null)}
+        />
+      )}
+
+      {graphSubjectId !== undefined && authToken && (
+        <KnowledgeGraphModal
+          authToken={authToken}
+          subjectId={graphSubjectId}
+          subjectName={
+            graphSubjectId
+              ? (subjects.find((s) => s.id === graphSubjectId)?.name ?? null)
+              : null
+          }
+          onClose={() => setGraphSubjectId(undefined)}
         />
       )}
 

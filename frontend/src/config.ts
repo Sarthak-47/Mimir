@@ -33,4 +33,6 @@ export const API_CHRONICLE= `${API_BASE}/api/chronicle`;
 export const API_SYLLABUS = `${API_BASE}/api/syllabus`;
 export const API_VOICE    = `${API_BASE}/api/voice`;
 export const API_FORMULAS = `${API_BASE}/api/formulas`;
+export const API_MINDMAP  = `${API_BASE}/api/mindmap`;
+export const API_GRAPH    = `${API_BASE}/api/graph`;
 export const WS_CHAT      = `${WS_BASE}/ws/chat`;

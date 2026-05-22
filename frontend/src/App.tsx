@@ -170,6 +170,8 @@ export default function App() {
   const [subjects, setSubjects]           = useState<Subject[]>([]);
   const [reviewAlert, setReviewAlert]       = useState<{ topics: string[]; count: number } | null>(null);
   const [fileIndexedAlert, setFileIndexedAlert] = useState<{ filename: string; chunks: number } | null>(null);
+  // Pre-fill for Trials when navigating from the due-today queue
+  const [trialsInitial, setTrialsInitial]   = useState<{ topic: string; subjectId: string } | null>(null);
   const [mode, setMode]                   = useState<string>("detailed");
   // Active tutor session — null when not in a lesson
   const [activeTutorSession, setActiveTutorSession] = useState<{
@@ -634,6 +636,12 @@ export default function App() {
     setView("fates");
   };
 
+  /** Called from FatesView's due-today queue — jump straight to Trials pre-filled. */
+  const handleBeginReview = (topicName: string, subjectId: string) => {
+    setTrialsInitial({ topic: topicName, subjectId });
+    setView("trials");
+  };
+
   // ── Boot gate — wait for uvicorn ──────────────────────
   if (!backendReady) {
     return <BootSplash dots={bootDots} />;
@@ -787,6 +795,9 @@ export default function App() {
             subjects={subjects}
             activeSubject={activeSubject}
             authToken={authToken}
+            initialTopic={trialsInitial?.topic}
+            initialSubjectId={trialsInitial?.subjectId}
+            onConsumeInitial={() => setTrialsInitial(null)}
           />
         )}
 
@@ -813,7 +824,7 @@ export default function App() {
         )}
 
         {view === "fates" && (
-          <FatesView authToken={authToken} />
+          <FatesView authToken={authToken} onBeginReview={handleBeginReview} />
         )}
       </main>
 

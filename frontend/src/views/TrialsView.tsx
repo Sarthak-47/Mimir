@@ -1,15 +1,16 @@
 /**
  * Trials View — dedicated quiz runner.
  *
- * Supports three modes:
+ * Supports four modes:
  *   MCQ          — classic multiple-choice (existing behaviour)
  *   Written      — AI-generated question, free-text textarea, LLM marking
  *   Flashcard    — card-flip deck with Easy/Good/Hard/Forgot ratings feeding SM-2
+ *   Exam         — timed mock exam: silent answering, full breakdown at the end
  *
  * All modes persist results to the backend for spaced-repetition tracking.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { Subject } from "@/App";
@@ -27,8 +28,8 @@ interface TrialsViewProps {
   onConsumeInitial?: () => void;
 }
 
-type TrialMode = "mcq" | "written" | "flashcard";
-type Phase     = "setup" | "loading" | "quiz" | "written-answer" | "marking" | "result" | "error" | "flashcard-deck";
+type TrialMode = "mcq" | "written" | "flashcard" | "exam";
+type Phase     = "setup" | "loading" | "quiz" | "written-answer" | "marking" | "result" | "error" | "flashcard-deck" | "exam-running";
 
 interface WrittenQuestion {
   question:     string;
@@ -97,6 +98,15 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
   const [flipped,      setFlipped]     = useState(false);
   const [cardGrades,   setCardGrades]  = useState<number[]>([]);   // grade per card
   const [nCards,       setNCards]      = useState<10 | 15 | 20>(10);
+
+  // Exam mode state
+  const [examQuestions,  setExamQuestions]  = useState<QuizQuestion[]>([]);
+  const [examAnswers,    setExamAnswers]    = useState<(number | null)[]>([]);  // one per question
+  const [examCurrent,    setExamCurrent]    = useState(0);
+  const [examTimeLimit,  setExamTimeLimit]  = useState<number>(30);   // minutes; 0 = unlimited
+  const [examSecsLeft,   setExamSecsLeft]   = useState(0);
+  const [examNQuestions, setExamNQuestions] = useState<10 | 15 | 20>(15);
+  const examTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const activeSubjectObj = subjects.find((s) => s.id === subjectId);
   const subjectName = activeSubjectObj?.name ?? "";
@@ -280,13 +290,84 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
     }
   };
 
+  // ── Exam flow ─────────────────────────────────────────────
+
+  const handleSubmitExam = useCallback(async (answers: (number | null)[], qs: QuizQuestion[]) => {
+    if (examTimerRef.current) { clearInterval(examTimerRef.current); examTimerRef.current = null; }
+    const got = answers.filter((a, i) => a === qs[i].answer).length;
+    setScore({ got, total: qs.length });
+    setPhase("result");
+    try {
+      const topicId = await resolveTopicId();
+      if (topicId !== null) {
+        await fetch(`${API_QUIZ}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify({ topic_id: topicId, score: got, total: qs.length }),
+        });
+      }
+    } catch { /* silent */ }
+  }, [authToken, topic, subjectId, subjects]);
+
+  const handleBeginExam = async () => {
+    const topicText = topic.trim() || subjectName || "General Knowledge";
+    setPhase("loading");
+    setErrMsg("");
+    setExamAnswers([]);
+    setExamCurrent(0);
+    try {
+      const res = await fetch(`${API_QUIZ}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ topic: topicText, subject: subjectName, n: examNQuestions, difficulty: "hard" }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail ?? `Server error ${res.status}`);
+      }
+      const data: QuizQuestion[] = await res.json();
+      if (!data.length) throw new Error("No questions returned.");
+      setExamQuestions(data);
+      setExamAnswers(new Array(data.length).fill(null));
+      // Start timer
+      if (examTimeLimit > 0) {
+        const secs = examTimeLimit * 60;
+        setExamSecsLeft(secs);
+        if (examTimerRef.current) clearInterval(examTimerRef.current);
+        examTimerRef.current = setInterval(() => {
+          setExamSecsLeft((s) => {
+            if (s <= 1) {
+              if (examTimerRef.current) { clearInterval(examTimerRef.current); examTimerRef.current = null; }
+              // Collect current answers state and force submit
+              setExamAnswers((prevAnswers) => {
+                setExamQuestions((prevQs) => {
+                  void handleSubmitExam(prevAnswers, prevQs);
+                  return prevQs;
+                });
+                return prevAnswers;
+              });
+              return 0;
+            }
+            return s - 1;
+          });
+        }, 1000);
+      }
+      setPhase("exam-running");
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Unknown error");
+      setPhase("error");
+    }
+  };
+
   // ── Reset ─────────────────────────────────────────────────
 
   const handleReset = () => {
+    if (examTimerRef.current) { clearInterval(examTimerRef.current); examTimerRef.current = null; }
     setPhase("setup");
     setQuestions([]); setScore(null); setErrMsg("");
     setTopic(""); setWrittenQ(null); setUserAnswer(""); setMarkResult(null);
     setFlashcards([]); setCardIndex(0); setFlipped(false); setCardGrades([]);
+    setExamQuestions([]); setExamAnswers([]); setExamCurrent(0); setExamSecsLeft(0);
   };
 
   // ── Render phases ─────────────────────────────────────────
@@ -329,6 +410,67 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
         </div>
       );
     }
+    // Exam result — detailed per-question breakdown
+    if (mode === "exam" && score && examQuestions.length > 0) {
+      const pct = Math.round((score.got / score.total) * 100);
+      const msg =
+        pct >= 80 ? "Outstanding performance. You are exam-ready." :
+        pct >= 60 ? "Solid effort — strengthen the weak areas." :
+        pct >= 40 ? "More revision needed before the exam." :
+                    "Critical gaps. Return to fundamentals.";
+      return (
+        <div style={{ ...styles.wrapper, alignItems: "flex-start" }}>
+          <div style={{ ...styles.resultCard, maxWidth: 560, textAlign: "left" as const }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <div style={{ fontFamily: "var(--font-header)", fontSize: 30, color: "var(--gold)" }}>ᛞ</div>
+              <div>
+                <div style={{ fontFamily: "var(--font-header)", fontSize: 20, fontWeight: 700, color: pct >= 60 ? "var(--gold-bright)" : "#c87a7a" }}>
+                  {score.got}/{score.total} — {pct}%
+                </div>
+                <div style={{ fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-secondary)" }}>{msg}</div>
+              </div>
+            </div>
+            <div style={styles.engraving} />
+
+            {/* Per-question breakdown */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "55vh", overflowY: "auto", marginBottom: 14 }}>
+              {examQuestions.map((q, qi) => {
+                const userAns = examAnswers[qi];
+                const correct = userAns === q.answer;
+                return (
+                  <div key={qi} style={{ background: "var(--stone-1)", border: `1px solid ${correct ? "var(--green-dark)" : "#5a2020"}`, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+                      <span style={{ fontFamily: "var(--font-header)", fontSize: 10, color: correct ? "var(--green-bright)" : "#c87a7a", flexShrink: 0, marginTop: 2 }}>
+                        {correct ? "✓" : "✗"}
+                      </span>
+                      <div style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-primary)", lineHeight: 1.5 }}>
+                        Q{qi + 1}. {q.question}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: correct ? "var(--green-bright)" : "#c87a7a", marginLeft: 18 }}>
+                      Your answer: {userAns !== null ? q.options[userAns] : "— skipped"}
+                    </div>
+                    {!correct && (
+                      <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--green-bright)", marginLeft: 18 }}>
+                        Correct: {q.options[q.answer]}
+                      </div>
+                    )}
+                    {q.explanation && (
+                      <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-dim)", marginLeft: 18, marginTop: 4, lineHeight: 1.5 }}>
+                        {q.explanation}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button style={styles.primaryBtn} onClick={handleReset}>Begin Another Trial</button>
+          </div>
+        </div>
+      );
+    }
+
     // Flashcard result
     if (mode === "flashcard" && cardGrades.length > 0) {
       const avgGrade = cardGrades.reduce((a, b) => a + b, 0) / cardGrades.length;
@@ -560,6 +702,133 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
     );
   }
 
+  // ── Exam running phase ────────────────────────────────────
+  if (phase === "exam-running" && examQuestions.length > 0) {
+    const eq = examQuestions[examCurrent];
+    const mm = String(Math.floor(examSecsLeft / 60)).padStart(2, "0");
+    const ss = String(examSecsLeft % 60).padStart(2, "0");
+    const timerColor = examSecsLeft > 0 && examSecsLeft < 120 ? "#c87a7a" : "var(--gold-dim)";
+    const answered   = examAnswers.filter((a) => a !== null).length;
+
+    return (
+      <div style={styles.wrapper}>
+        <div style={{ ...styles.setupCard, maxWidth: 560 }}>
+          {/* Exam header */}
+          <div style={styles.cardHeader}>
+            <span style={styles.headerRune}>ᛞ</span>
+            <span style={styles.headerTitle}>Mock Exam</span>
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-dim)" }}>
+              {answered}/{examQuestions.length} answered
+            </span>
+            {examTimeLimit > 0 && (
+              <span style={{ fontFamily: "var(--font-header)", fontSize: 13, color: timerColor, marginLeft: 10 }}>
+                {mm}:{ss}
+              </span>
+            )}
+          </div>
+          <div style={styles.engraving} />
+
+          {/* Question counter */}
+          <div style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.14em", color: "var(--text-dim)", marginBottom: 10 }}>
+            Q{examCurrent + 1} of {examQuestions.length}
+          </div>
+
+          {/* Question text */}
+          <div style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6, marginBottom: 12 }}>
+            {eq.question}
+          </div>
+
+          {/* Options — no feedback, just silent selection */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14 }}>
+            {eq.options.map((opt, oi) => {
+              const isSelected = examAnswers[examCurrent] === oi;
+              return (
+                <button
+                  key={oi}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    padding: "7px 10px", width: "100%", textAlign: "left",
+                    background: isSelected ? "var(--stone-4)" : "var(--stone-2)",
+                    border: isSelected ? "1px solid var(--gold-dim)" : "1px solid var(--green-dark)",
+                    color: isSelected ? "var(--text-primary)" : "var(--text-secondary)",
+                    fontFamily: "var(--font-body)", fontSize: 13,
+                    cursor: "pointer", outline: "none", transition: "all 0.12s",
+                  }}
+                  onClick={() => {
+                    setExamAnswers((prev) => {
+                      const next = [...prev];
+                      next[examCurrent] = oi;
+                      return next;
+                    });
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-header)", fontSize: 10, color: "var(--gold-dim)", flexShrink: 0, marginTop: 1 }}>
+                    {String.fromCharCode(65 + oi)}.
+                  </span>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Navigation */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{ ...styles.primaryBtn, flex: 1, opacity: examCurrent > 0 ? 0.8 : 0.3 }}
+              disabled={examCurrent === 0}
+              onClick={() => setExamCurrent((c) => c - 1)}
+            >
+              ← Prev
+            </button>
+
+            {examCurrent < examQuestions.length - 1 ? (
+              <button
+                style={{ ...styles.primaryBtn, flex: 2 }}
+                onClick={() => setExamCurrent((c) => c + 1)}
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                style={{ ...styles.primaryBtn, flex: 2, background: "var(--gold-dark)", borderColor: "var(--gold)", color: "var(--stone-0)" }}
+                onClick={() => handleSubmitExam(examAnswers, examQuestions)}
+              >
+                Submit Exam ᛞ
+              </button>
+            )}
+          </div>
+
+          {/* Question navigator dots */}
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 12, justifyContent: "center" }}>
+            {examQuestions.map((_, qi) => (
+              <button
+                key={qi}
+                style={{
+                  width: 22, height: 22, padding: 0,
+                  background: qi === examCurrent ? "var(--gold-dark)" : examAnswers[qi] !== null ? "var(--stone-4)" : "var(--stone-2)",
+                  border: qi === examCurrent ? "1px solid var(--gold)" : "1px solid var(--stone-3)",
+                  color: qi === examCurrent ? "var(--gold-bright)" : examAnswers[qi] !== null ? "var(--text-secondary)" : "var(--text-dim)",
+                  fontFamily: "var(--font-header)", fontSize: 9, cursor: "pointer",
+                }}
+                onClick={() => setExamCurrent(qi)}
+                title={`Q${qi + 1}${examAnswers[qi] !== null ? " (answered)" : ""}`}
+              >
+                {qi + 1}
+              </button>
+            ))}
+          </div>
+
+          <button style={{ ...styles.primaryBtn, marginTop: 10, opacity: 0.4, fontSize: 10 }} onClick={handleReset}>
+            Abandon Exam
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Exam result (detailed breakdown) rendered as part of the main result phase ──
+  // handled below alongside MCQ result
+
   // ── Setup form ───────────────────────────────────────────────
   return (
     <div style={styles.wrapper}>
@@ -575,13 +844,13 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
         <div style={styles.field}>
           <label style={styles.label}>Trial Mode</label>
           <div style={styles.nRow}>
-            {(["mcq", "written", "flashcard"] as TrialMode[]).map((m) => (
+            {(["mcq", "written", "flashcard", "exam"] as TrialMode[]).map((m) => (
               <button
                 key={m}
                 style={{ ...styles.nBtn, ...(mode === m ? styles.nBtnActive : {}) }}
                 onClick={() => setMode(m)}
               >
-                {m === "mcq" ? "MCQ" : m === "written" ? "Written" : "ᚱ Cards"}
+                {m === "mcq" ? "MCQ" : m === "written" ? "Written" : m === "flashcard" ? "ᚱ Cards" : "ᛞ Exam"}
               </button>
             ))}
           </div>
@@ -593,6 +862,11 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
           {mode === "flashcard" && (
             <div style={styles.modeHint}>
               Flip cards and rate recall (Easy / Good / Hard / Forgot). Updates spaced repetition.
+            </div>
+          )}
+          {mode === "exam" && (
+            <div style={styles.modeHint}>
+              Timed mock exam — no feedback during. Full breakdown and score at the end.
             </div>
           )}
         </div>
@@ -664,6 +938,45 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
           </div>
         )}
 
+        {/* Exam options */}
+        {mode === "exam" && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.label}>Number of Questions</label>
+              <div style={styles.nRow}>
+                {([10, 15, 20] as const).map((n) => (
+                  <button
+                    key={n}
+                    style={{ ...styles.nBtn, ...(examNQuestions === n ? styles.nBtnActive : {}) }}
+                    onClick={() => setExamNQuestions(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>Time Limit</label>
+              <div style={styles.nRow}>
+                {[
+                  { label: "20 min", value: 20 },
+                  { label: "30 min", value: 30 },
+                  { label: "45 min", value: 45 },
+                  { label: "No limit", value: 0 },
+                ].map(({ label, value }) => (
+                  <button
+                    key={value}
+                    style={{ ...styles.nBtn, ...(examTimeLimit === value ? styles.nBtnActive : {}) }}
+                    onClick={() => setExamTimeLimit(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         <div style={styles.engraving} />
 
         <button
@@ -671,11 +984,13 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
           onClick={
             mode === "mcq"       ? handleBeginMCQ :
             mode === "flashcard" ? handleBeginFlashcard :
+            mode === "exam"      ? handleBeginExam :
                                    handleBeginWritten
           }
         >
           {mode === "mcq"       ? "Enter the Trial — ᛏ" :
            mode === "flashcard" ? "Draw the Rune Cards — ᚱ" :
+           mode === "exam"      ? "Begin Mock Exam — ᛞ" :
                                   "Generate Question — ᛉ"}
         </button>
       </div>

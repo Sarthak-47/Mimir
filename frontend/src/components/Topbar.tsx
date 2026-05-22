@@ -25,6 +25,10 @@ interface TopbarProps {
   autoRead?: boolean;
   /** Toggle auto-read on/off. */
   onToggleAutoRead?: () => void;
+  /** Toggle the Pomodoro timer widget. */
+  onPomodoro?: () => void;
+  /** Whether the Pomodoro widget is currently open. */
+  pomodoroActive?: boolean;
 }
 
 /**
@@ -40,7 +44,7 @@ interface TopbarProps {
  * @param username           - Display name shown in the user badge.
  * @param onLogout           - Called when the user clicks the logout rune.
  */
-export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp, onAllChats, onNewChat, autoRead, onToggleAutoRead }: TopbarProps) {
+export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp, onAllChats, onNewChat, autoRead, onToggleAutoRead, onPomodoro, pomodoroActive }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -84,6 +88,20 @@ export default function Topbar({ view, isConnected, isConnecting, activeSubjectN
             title={autoRead ? "Auto-read ON — click to disable" : "Auto-read OFF — click to enable"}
           >
             ᛗ
+          </button>
+        )}
+
+        {onPomodoro && (
+          <button
+            style={{
+              ...styles.helpBtn,
+              color: pomodoroActive ? "var(--gold-bright)" : "var(--text-dim)",
+              borderColor: pomodoroActive ? "var(--gold-dark)" : "var(--green-dark)",
+            }}
+            onClick={onPomodoro}
+            title={pomodoroActive ? "Hide Pomodoro timer" : "Show Pomodoro timer"}
+          >
+            ᛋ
           </button>
         )}
 

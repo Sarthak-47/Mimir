@@ -2,9 +2,9 @@
  * PomodoroWidget — persistent floating study-session timer.
  *
  * Implements the classic Pomodoro Technique:
- *   - 25 min focus (work) sessions
- *   - 5 min short break after each session
- *   - 15 min long break after every 4 sessions
+ *   - Configurable focus / short-break / long-break durations (read from
+ *     the "mimir_study_prefs" localStorage key written by SettingsModal).
+ *   - Long break after every 4 focus sessions.
  *
  * Controls: Start/Pause, Skip (→ next phase), Reset, Close.
  * The widget floats above all other content at the bottom-right of the
@@ -17,18 +17,30 @@ import { notifyDesktop } from "@/utils/notify";
 type PomodoroPhase = "focus" | "short-break" | "long-break";
 
 interface PomodoroConfig {
-  focus:       number;   // seconds
-  shortBreak:  number;
-  longBreak:   number;
-  longBreakAfter: number;  // work sessions before long break
+  focus:          number;   // seconds
+  shortBreak:     number;
+  longBreak:      number;
+  longBreakAfter: number;   // work sessions before long break
 }
 
-const DEFAULT_CONFIG: PomodoroConfig = {
-  focus:          25 * 60,
-  shortBreak:      5 * 60,
-  longBreak:      15 * 60,
-  longBreakAfter:  4,
-};
+const PREFS_KEY = "mimir_study_prefs";
+
+/** Read Pomodoro durations from SettingsModal's localStorage entry, or fall back to defaults. */
+function loadConfig(): PomodoroConfig {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        focus:          ((p.pomodoro_focus  as number | undefined) ?? 25) * 60,
+        shortBreak:     ((p.pomodoro_short  as number | undefined) ??  5) * 60,
+        longBreak:      ((p.pomodoro_long   as number | undefined) ?? 15) * 60,
+        longBreakAfter: 4,
+      };
+    }
+  } catch { /* private browsing or corrupt value */ }
+  return { focus: 25 * 60, shortBreak: 5 * 60, longBreak: 15 * 60, longBreakAfter: 4 };
+}
 
 const PHASE_META: Record<PomodoroPhase, { rune: string; label: string; color: string }> = {
   "focus":       { rune: "ᛋ", label: "Focus",        color: "var(--green-bright)" },
@@ -41,7 +53,8 @@ interface PomodoroWidgetProps {
 }
 
 export default function PomodoroWidget({ onClose }: PomodoroWidgetProps) {
-  const cfg = DEFAULT_CONFIG;
+  // Load config once on mount — picks up prefs saved by SettingsModal.
+  const cfg = useRef<PomodoroConfig>(loadConfig()).current;
 
   const [phase,       setPhase]       = useState<PomodoroPhase>("focus");
   const [secsLeft,    setSecsLeft]    = useState(cfg.focus);

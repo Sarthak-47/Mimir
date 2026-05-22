@@ -14,7 +14,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "Mimir \u2014 The Well of Knowledge",
+        "title": "Mimir — The Well of Knowledge",
         "width": 1100,
         "height": 680,
         "minWidth": 900,
@@ -28,12 +28,6 @@
   "plugins": {
     "notification": {
       "all": true
-    },
-    "updater": {
-      "endpoints": [
-        "https://github.com/Sarthak-47/mimir/releases/latest/download/latest.json"
-      ],
-      "pubkey": "PLACEHOLDER_TAURI_PUBLIC_KEY"
     }
   },
   "bundle": {

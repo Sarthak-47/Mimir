@@ -24,6 +24,7 @@ import VoiceRevisionModal    from "@/components/VoiceRevisionModal";
 import FormulaSheetModal     from "@/components/FormulaSheetModal";
 import MindMapModal          from "@/components/MindMapModal";
 import KnowledgeGraphModal   from "@/components/KnowledgeGraphModal";
+import PomodoroWidget        from "@/components/PomodoroWidget";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
@@ -172,6 +173,8 @@ export default function App() {
   const [fileIndexedAlert, setFileIndexedAlert] = useState<{ filename: string; chunks: number } | null>(null);
   // Pre-fill for Trials when navigating from the due-today queue
   const [trialsInitial, setTrialsInitial]   = useState<{ topic: string; subjectId: string } | null>(null);
+  // Pomodoro timer overlay
+  const [showPomodoro, setShowPomodoro]     = useState(false);
   const [mode, setMode]                   = useState<string>("detailed");
   // Active tutor session — null when not in a lesson
   const [activeTutorSession, setActiveTutorSession] = useState<{
@@ -688,6 +691,8 @@ export default function App() {
           onNewChat={handleNewChat}
           autoRead={voiceReady ? autoRead : undefined}
           onToggleAutoRead={voiceReady ? () => { stopSpeaking(); setAutoRead((v) => !v); } : undefined}
+          onPomodoro={() => setShowPomodoro((v) => !v)}
+          pomodoroActive={showPomodoro}
         />
 
         {/* ── Voice model setup banner (first run) ── */}
@@ -914,6 +919,11 @@ export default function App() {
         subjects={subjects}
         onLoadSession={(msgs) => { handleLoadSession(msgs); setShowAllChats(false); }}
       />
+
+      {/* ── Pomodoro timer widget — floats above all views ── */}
+      {showPomodoro && (
+        <PomodoroWidget onClose={() => setShowPomodoro(false)} />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MathText } from "@/components/MathRenderer";
 
 // ── Types ───────────────────────────────────────────────────
 export interface QuizQuestion {
@@ -67,7 +68,7 @@ export default function Quiz({ questions, onComplete }: QuizProps) {
       <div style={styles.engraving} />
 
       {/* Question */}
-      <div style={styles.question}>{q.question}</div>
+      <div style={styles.question}><MathText text={q.question} /></div>
 
       {/* Options */}
       <div style={styles.options}>
@@ -90,7 +91,7 @@ export default function Quiz({ questions, onComplete }: QuizProps) {
               disabled={revealed}
             >
               <span style={styles.optionKey}>{String.fromCharCode(65 + idx)}.</span>
-              {opt}
+              <MathText text={opt} />
             </button>
           );
         })}
@@ -98,7 +99,7 @@ export default function Quiz({ questions, onComplete }: QuizProps) {
 
       {/* Explanation */}
       {revealed && q.explanation && (
-        <div style={styles.explanation}>{q.explanation}</div>
+        <div style={styles.explanation}><MathText text={q.explanation} /></div>
       )}
 
       {/* Next / Finish */}

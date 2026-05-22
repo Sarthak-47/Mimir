@@ -52,10 +52,11 @@ export default function ChronicleView({ authToken, username }: ChronicleViewProp
   const [rows,    setRows]    = useState<ConvRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  const [query,   setQuery]   = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API}?limit=100`, {
+    fetch(`${API}?limit=200`, {
       headers: { Authorization: `Bearer ${authToken}` },
     })
       .then((r) => {
@@ -73,14 +74,32 @@ export default function ChronicleView({ authToken, username }: ChronicleViewProp
       hour: "2-digit", minute: "2-digit",
     });
 
+  const filtered = query.trim()
+    ? rows.filter((r) => r.content.toLowerCase().includes(query.toLowerCase()))
+    : rows;
+
   return (
     <div style={styles.page} className="scroll-area">
       {/* ── Header ── */}
       <div style={styles.pageHeader}>
         <span style={styles.headerRune}>ᛊ</span>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={styles.headerTitle}>Chronicle</div>
           <div style={styles.headerSub}>Records of past sessions</div>
+        </div>
+        {/* Search input */}
+        <div style={styles.searchWrap}>
+          <span style={styles.searchRune}>ᚦ</span>
+          <input
+            style={styles.searchInput}
+            type="text"
+            placeholder="Search messages…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button style={styles.clearBtn} onClick={() => setQuery("")}>×</button>
+          )}
         </div>
       </div>
       <div style={styles.engraving} />
@@ -94,8 +113,14 @@ export default function ChronicleView({ authToken, username }: ChronicleViewProp
         </div>
       )}
 
+      {query && !loading && (
+        <div style={{ fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-dim)", marginBottom: 8 }}>
+          {filtered.length} result{filtered.length !== 1 ? "s" : ""} for "{query}"
+        </div>
+      )}
+
       <div style={styles.messageList}>
-        {rows.map((row) => {
+        {filtered.map((row) => {
           const isUser = row.role === "user";
           return (
             <div
@@ -130,7 +155,11 @@ export default function ChronicleView({ authToken, username }: ChronicleViewProp
 
 const styles: Record<string, React.CSSProperties> = {
   page:        { flex: 1, padding: "16px 20px", overflowY: "auto", background: "transparent", display: "flex", flexDirection: "column", gap: 0 },
-  pageHeader:  { display: "flex", alignItems: "center", gap: 12, marginBottom: 4 },
+  pageHeader:  { display: "flex", alignItems: "center", gap: 12, marginBottom: 4, flexWrap: "wrap" as const },
+  searchWrap:  { display: "flex", alignItems: "center", gap: 4, background: "var(--stone-2)", border: "1px solid var(--green-dark)", padding: "3px 6px", marginLeft: "auto" },
+  searchRune:  { fontFamily: "var(--font-header)", fontSize: 11, color: "var(--text-dim)", flexShrink: 0 },
+  searchInput: { background: "none", border: "none", outline: "none", fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-primary)", width: 160 },
+  clearBtn:    { background: "none", border: "none", color: "var(--text-dim)", fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1 },
   headerRune:  { fontFamily: "var(--font-header)", fontSize: 24, color: "var(--gold-dim)", lineHeight: 1 },
   headerTitle: { fontFamily: "var(--font-header)", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", color: "var(--gold-bright)" },
   headerSub:   { fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-dim)", marginTop: 2 },

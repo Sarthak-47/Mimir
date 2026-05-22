@@ -22,6 +22,24 @@ interface Settings {
   ollama_context_length: number;
 }
 
+interface StudyPrefs {
+  quiz_count:    number;   // 5 | 10 | 15
+  difficulty:    string;   // "easy" | "medium" | "hard"
+  pomodoro_focus:  number; // minutes
+  pomodoro_short:  number; // minutes
+  pomodoro_long:   number; // minutes
+}
+
+const PREFS_KEY = "mimir_study_prefs";
+
+function loadPrefs(): StudyPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (raw) return JSON.parse(raw) as StudyPrefs;
+  } catch { /* ignore */ }
+  return { quiz_count: 5, difficulty: "medium", pomodoro_focus: 25, pomodoro_short: 5, pomodoro_long: 15 };
+}
+
 interface SettingsModalProps {
   authToken: string;
   onClose:   () => void;
@@ -43,6 +61,11 @@ export default function SettingsModal({ authToken, onClose }: SettingsModalProps
   const [temp,       setTemp]       = useState(0.7);
   const [ctxLen,     setCtxLen]     = useState(8192);
   const [saveState,  setSaveState]  = useState<SaveState>("idle");
+
+  // ── Study preferences (localStorage) ─────────────────────
+  const [prefs, setPrefs] = useState<StudyPrefs>(loadPrefs);
+  const updatePref = <K extends keyof StudyPrefs>(k: K, v: StudyPrefs[K]) =>
+    setPrefs((p) => ({ ...p, [k]: v }));
 
   // ── Fetch on mount ────────────────────────────────────────
   useEffect(() => {
@@ -74,6 +97,8 @@ export default function SettingsModal({ authToken, onClose }: SettingsModalProps
   // ── Save ──────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     setSaveState("saving");
+    // Always persist study prefs to localStorage
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
     try {
       const res = await fetch(`${API}/api/system/settings`, {
         method:  "PATCH",
@@ -94,13 +119,20 @@ export default function SettingsModal({ authToken, onClose }: SettingsModalProps
       setTimeout(() => setSaveState("idle"), 3000);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, model, temp, ctxLen]);
+  }, [authToken, model, temp, ctxLen, prefs]);
 
   // ── Dirty check ───────────────────────────────────────────
-  const isDirty = settings !== null && (
+  const savedPrefs = loadPrefs();
+  const isDirty = (settings !== null && (
     model !== settings.ollama_model ||
     temp  !== settings.ollama_temperature ||
     ctxLen !== settings.ollama_context_length
+  )) || (
+    prefs.quiz_count     !== savedPrefs.quiz_count     ||
+    prefs.difficulty     !== savedPrefs.difficulty     ||
+    prefs.pomodoro_focus !== savedPrefs.pomodoro_focus ||
+    prefs.pomodoro_short !== savedPrefs.pomodoro_short ||
+    prefs.pomodoro_long  !== savedPrefs.pomodoro_long
   );
 
   // ── Render ────────────────────────────────────────────────
@@ -209,6 +241,78 @@ export default function SettingsModal({ authToken, onClose }: SettingsModalProps
                   onChange={(e) => setCtxLen(Math.max(512, Math.min(32768, Number(e.target.value))))}
                   style={styles.input}
                 />
+              </div>
+
+              {/* ── Study Preferences ── */}
+              <div style={{ height: 1, background: "linear-gradient(90deg, transparent, var(--gold-dim) 40%, transparent)", opacity: 0.35 }} />
+
+              <div style={styles.field}>
+                <label style={styles.label}>
+                  <span style={styles.labelRune}>ᛏ</span> Default Quiz Length
+                  <span style={styles.labelValue}>{prefs.quiz_count} questions</span>
+                </label>
+                <div style={styles.hint}>Used as default when opening the Trials view.</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {([5, 10, 15] as const).map((n) => (
+                    <button
+                      key={n}
+                      style={{
+                        flex: 1, padding: "5px",
+                        background: prefs.quiz_count === n ? "var(--stone-4)" : "var(--stone-3)",
+                        border: prefs.quiz_count === n ? "1px solid var(--green)" : "1px solid var(--green-dark)",
+                        color: prefs.quiz_count === n ? "var(--text-primary)" : "var(--text-dim)",
+                        fontFamily: "var(--font-header)", fontSize: 10, cursor: "pointer",
+                      }}
+                      onClick={() => updatePref("quiz_count", n)}
+                    >{n}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>
+                  <span style={styles.labelRune}>ᚢ</span> Default Difficulty
+                  <span style={styles.labelValue}>{prefs.difficulty}</span>
+                </label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {(["easy", "medium", "hard"] as const).map((d) => (
+                    <button
+                      key={d}
+                      style={{
+                        flex: 1, padding: "5px",
+                        background: prefs.difficulty === d ? "var(--stone-4)" : "var(--stone-3)",
+                        border: prefs.difficulty === d ? "1px solid var(--green)" : "1px solid var(--green-dark)",
+                        color: prefs.difficulty === d ? "var(--text-primary)" : "var(--text-dim)",
+                        fontFamily: "var(--font-header)", fontSize: 10, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.08em",
+                      }}
+                      onClick={() => updatePref("difficulty", d)}
+                    >{d}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>
+                  <span style={styles.labelRune}>ᛋ</span> Pomodoro Durations (minutes)
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {([
+                    { key: "pomodoro_focus" as const,  label: "Focus",        options: [20, 25, 30, 45] },
+                    { key: "pomodoro_short" as const,  label: "Short Break",  options: [3, 5, 10] },
+                    { key: "pomodoro_long"  as const,  label: "Long Break",   options: [10, 15, 20] },
+                  ]).map(({ key, label, options }) => (
+                    <div key={key}>
+                      <div style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.1em", color: "var(--text-dim)", marginBottom: 4 }}>{label}</div>
+                      <select
+                        style={{ ...styles.select, fontSize: 11 }}
+                        value={prefs[key]}
+                        onChange={(e) => updatePref(key, parseInt(e.target.value, 10))}
+                      >
+                        {options.map((o) => <option key={o} value={o}>{o} min</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Save feedback */}

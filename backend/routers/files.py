@@ -163,6 +163,43 @@ async def delete_file(
     await db.commit()
 
 
+# ── Patch file (reassign discipline) ────────────────────────
+class FilePatch(BaseModel):
+    """Fields that can be updated on an existing file record."""
+    subject_id: int | None = None
+
+
+@router.patch("/{file_id}", response_model=FileResponse)
+async def patch_file(
+    file_id: int,
+    body: FilePatch,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a file's metadata — currently supports reassigning the discipline (subject_id)."""
+    result = await db.execute(
+        select(FileModel).where(
+            FileModel.id == file_id,
+            FileModel.user_id == current_user.id,
+        )
+    )
+    file_row = result.scalar_one_or_none()
+    if not file_row:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_row.subject_id = body.subject_id
+    await db.commit()
+    await db.refresh(file_row)
+    return FileResponse(
+        id=file_row.id,
+        filename=file_row.filename,
+        subject_id=file_row.subject_id,
+        processed=file_row.processed,
+        has_exam_questions=getattr(file_row, "has_exam_questions", False),
+        question_count=0,
+    )
+
+
 # ── List files ───────────────────────────────────────────────
 @router.get("/", response_model=list[FileResponse])
 async def list_files(

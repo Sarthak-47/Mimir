@@ -48,9 +48,11 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
   const [uploading,      setUploading]      = useState(false);
   const [uploadSubject,  setUploadSubject]  = useState<string>("");
   const [filterSubject,  setFilterSubject]  = useState<string>("");
+  const [searchQuery,    setSearchQuery]    = useState<string>("");
   const [isDragOver,     setIsDragOver]     = useState(false);
   const [expandedFile,   setExpandedFile]   = useState<number | null>(null);
   const [fileQuestions,  setFileQuestions]  = useState<Record<number, ExamQRow[]>>({});
+  const [reassigning,    setReassigning]    = useState<number | null>(null);  // file id being reassigned
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleQuestions = useCallback(async (fileId: number) => {
@@ -112,6 +114,22 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
         setFiles((prev) => prev.filter((f) => f.id !== id));
       }
     } catch { /* ignore */ }
+  };
+
+  const handleReassign = async (fileId: number, newSubjectId: string) => {
+    try {
+      const body = { subject_id: newSubjectId ? parseInt(newSubjectId, 10) : null };
+      const res = await fetch(`${API}/${fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const updated = await res.json() as FileRow;
+        setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, subject_id: updated.subject_id } : f));
+      }
+    } catch { /* ignore */ }
+    finally { setReassigning(null); }
   };
 
   // ── Drag-and-drop upload ─────────────────────────────────
@@ -234,10 +252,31 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
         </div>
       )}
 
+      {/* Search bar */}
+      {!loading && files.length > 0 && (
+        <div style={styles.searchRow}>
+          <span style={styles.searchRune}>ᚦ</span>
+          <input
+            style={styles.searchInput}
+            type="text"
+            placeholder="Search scrolls by name…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button style={styles.clearSearch} onClick={() => setSearchQuery("")}>×</button>
+          )}
+        </div>
+      )}
+
       {!loading && files.length > 0 && (() => {
-        const visible = filterSubject
+        let visible = filterSubject
           ? files.filter((f) => String(f.subject_id) === filterSubject)
           : files;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          visible = visible.filter((f) => f.filename.toLowerCase().includes(q));
+        }
         return (
         <div style={styles.fileList}>
           {/* Column headers */}
@@ -258,8 +297,32 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
             <div key={f.id}>
               <div style={styles.fileRow}>
                 <span style={styles.fileIcon}>{extRune(f.filename)}</span>
-                <span style={styles.fileName}>{f.filename}</span>
-                <span style={styles.fileSubject}>{subjectName(f.subject_id)}</span>
+                <span style={styles.fileName} title={f.filename}>{f.filename}</span>
+
+                {/* Discipline — click to reassign inline */}
+                {reassigning === f.id ? (
+                  <select
+                    style={{ ...styles.subjectSelect, width: 100, flexShrink: 0 }}
+                    autoFocus
+                    defaultValue={String(f.subject_id ?? "")}
+                    onChange={(e) => handleReassign(f.id, e.target.value)}
+                    onBlur={() => setReassigning(null)}
+                  >
+                    <option value="">— none —</option>
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    style={styles.fileSubjectBtn}
+                    title="Click to reassign discipline"
+                    onClick={() => setReassigning(f.id)}
+                  >
+                    {subjectName(f.subject_id)}
+                  </button>
+                )}
+
                 {/* Question badge — only shown for exam papers */}
                 {f.has_exam_questions && f.question_count > 0 ? (
                   <button
@@ -341,6 +404,11 @@ const styles: Record<string, React.CSSProperties> = {
   fileStatus:   { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", width: 50, flexShrink: 0, textAlign: "right" as const },
   deleteBtn:    { background: "none", border: "none", color: "var(--text-dim)", fontSize: 14, lineHeight: 1, cursor: "pointer", padding: "0 2px", flexShrink: 0, transition: "color 0.1s" },
   hint:         { fontFamily: "var(--font-body)", fontSize: 11, fontStyle: "italic", color: "var(--text-dim)", marginTop: "auto", paddingTop: 12 },
+  searchRow:    { display: "flex", alignItems: "center", gap: 6, background: "var(--stone-2)", border: "1px solid var(--green-dark)", padding: "4px 8px", marginBottom: 8 },
+  searchRune:   { fontFamily: "var(--font-header)", fontSize: 11, color: "var(--text-dim)", flexShrink: 0 },
+  searchInput:  { background: "none", border: "none", outline: "none", fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-primary)", flex: 1 },
+  clearSearch:  { background: "none", border: "none", color: "var(--text-dim)", fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1 },
+  fileSubjectBtn: { fontFamily: "var(--font-body)", fontSize: 10, color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer", width: 100, flexShrink: 0, whiteSpace: "nowrap" as const, overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" as const, padding: 0, transition: "color 0.1s" },
   // Exam question badge & panel
   qBadge:       { background: "var(--gold-dark)", border: "1px solid var(--gold-dim)", color: "var(--gold)", fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.08em", padding: "2px 5px", cursor: "pointer", width: 44, flexShrink: 0, whiteSpace: "nowrap" as const },
   qBadgeEmpty:  { width: 44, flexShrink: 0 },

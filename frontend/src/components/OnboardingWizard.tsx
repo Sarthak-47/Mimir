@@ -120,7 +120,7 @@ export default function OnboardingWizard({
     try {
       await Promise.all(
         subjects.map((s) =>
-          fetch(`${API}/progress/subjects`, {
+          fetch(`${API}/api/progress/subjects`, {
             method:  "POST",
             headers: {
               "Content-Type": "application/json",

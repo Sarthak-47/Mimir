@@ -272,7 +272,19 @@ ${histRows ? `<h2>Recent Trials (Last 15)</h2>
 </body></html>`;
 
   const win = window.open("", "_blank", "width=900,height=700");
-  if (!win) { alert("Please allow pop-ups to export the report."); return; }
+  if (!win) {
+    // Pop-up blocked — fall back to a data-URI download instead of alert()
+    const blob = new Blob([html], { type: "text/html" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `mimir-report-${new Date().toISOString().slice(0,10)}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return;
+  }
   win.document.write(html);
   win.document.close();
   win.onload = () => win.print();

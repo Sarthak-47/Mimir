@@ -15,8 +15,9 @@
  * @param onComplete     - Called when the user clicks "Enter the Well" on step 6.
  * @param onSetExamDate  - Called with the chosen exam date (or null to skip).
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { API_BASE as API } from "@/config";
+import { isTauri } from "@/utils/notify";
 
 interface OnboardingWizardProps {
   authToken:     string;
@@ -79,6 +80,19 @@ export default function OnboardingWizard({
 
   const advance = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
   const back    = () => setStep((s) => Math.max(s - 1, 1));
+
+  // ── Request desktop notification permission on Done step ──────
+  // Doing this here (before "Enter the Well") keeps the OS permission
+  // dialog in context — the user just set up the app, so it's expected.
+  useEffect(() => {
+    if (step !== TOTAL_STEPS) return;
+    if (!isTauri()) return;
+    import("@tauri-apps/plugin-notification").then(({ isPermissionGranted, requestPermission }) => {
+      isPermissionGranted().then((granted) => {
+        if (!granted) requestPermission().catch(() => { /* user denied — silent */ });
+      });
+    }).catch(() => { /* plugin unavailable */ });
+  }, [step]);
 
   const handleExamSet = () => {
     if (examInput) {

@@ -7,8 +7,10 @@
 #   Stage 3: Build the Tauri NSIS installer
 #
 # Usage:
-#   .\scripts\build.ps1             # full build
+#   .\scripts\build.ps1              # full build
 #   .\scripts\build.ps1 -SkipBackend # skip PyInstaller (use existing dist/)
+#   .\scripts\build.ps1 -Check       # dry-run: only validate spec imports
+#   .\scripts\build.ps1 -Debug       # Tauri debug build (no minification)
 #
 # Prerequisites:
 #   - Rust stable toolchain  (rustup)
@@ -20,7 +22,8 @@
 
 param(
     [switch]$SkipBackend,
-    [switch]$Debug
+    [switch]$Debug,
+    [switch]$Check   # validate all PyInstaller hidden imports without building
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +41,50 @@ function Banner([string]$text) {
 # ── Stage 0: Read version ─────────────────────────────────────
 $conf    = Get-Content (Join-Path $repo "src-tauri\tauri.conf.json") | ConvertFrom-Json
 $version = $conf.version
+
+# ── -Check: validate hidden imports ──────────────────────────
+if ($Check) {
+    Banner "Mimir v$version — Spec Import Validation"
+
+    # Parse hidden imports from mimir-backend.spec
+    $specPath = Join-Path $repo "backend\mimir-backend.spec"
+    $imports  = Select-String -Path $specPath -Pattern '"([a-zA-Z_][a-zA-Z0-9_.]+)"' |
+        ForEach-Object { $_.Matches } |
+        ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -match '\.' } |  # only dotted module names
+        Sort-Object -Unique
+
+    Write-Host "Found $($imports.Count) hidden imports to check" -ForegroundColor Yellow
+    Write-Host ""
+
+    $backendDir = Join-Path $repo "backend"
+    $python = Join-Path $backendDir ".venv\Scripts\python.exe"
+    if (-not (Test-Path $python)) { $python = "python" }
+
+    $failed  = @()
+    $passed  = 0
+
+    foreach ($mod in $imports) {
+        $result = & $python -c "import $mod" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $passed++
+        } else {
+            $failed += $mod
+            Write-Host "  MISSING  $mod" -ForegroundColor Red
+        }
+    }
+
+    Write-Host ""
+    if ($failed.Count -eq 0) {
+        Write-Host "All $passed imports OK" -ForegroundColor Green
+        exit 0
+    } else {
+        Write-Host "$($failed.Count) import(s) missing — fix the spec or install the packages:" -ForegroundColor Red
+        $failed | ForEach-Object { Write-Host "  pip install $_" -ForegroundColor Yellow }
+        exit 1
+    }
+}
+
 Banner "Mimir v$version — Release Build"
 
 # ── Stage 1: PyInstaller backend ─────────────────────────────

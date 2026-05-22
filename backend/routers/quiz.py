@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from memory.database import QuizSession, Topic, User, Misconception, get_db
-from agent.tools import tool_quiz, compute_sm2, _llm
+from agent.tools import tool_quiz, tool_flashcards, compute_sm2, _llm
 from routers.users import get_current_user
 
 router = APIRouter()
@@ -392,6 +392,85 @@ async def mark_text_answer(
         next_review      = next_review,
         message          = msg,
     )
+
+
+# ── Flashcards ───────────────────────────────────────────────
+
+class FlashcardRequest(BaseModel):
+    """Payload for ``POST /api/quiz/flashcards``."""
+    topic:   str
+    subject: str = ""
+    n:       int = 10
+
+
+class Flashcard(BaseModel):
+    """A single flashcard — term on the front, definition/answer on the back."""
+    front: str
+    back:  str
+
+
+class FlashcardResultRequest(BaseModel):
+    """Payload for recording a flashcard session result for SM-2."""
+    topic_id: int
+    # SM-2 grade 1–5: 5=easy, 4=good, 3=hard, 1=forgot
+    avg_grade: float
+
+
+@router.post("/flashcards", response_model=list[Flashcard])
+async def generate_flashcards(
+    req: FlashcardRequest,
+    _: User = Depends(get_current_user),
+):
+    """Generate flashcard pairs (front/back) using the LLM via ``tool_flashcards``."""
+    try:
+        cards = await asyncio.to_thread(
+            tool_flashcards, topic=req.topic if not req.subject else f"{req.topic} ({req.subject})", n=req.n
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable: {exc}") from exc
+    if not cards:
+        raise HTTPException(status_code=503, detail="Flashcard generation failed — is Ollama running?")
+    return [Flashcard(front=c.get("front", ""), back=c.get("back", "")) for c in cards]
+
+
+@router.post("/flashcard-result", response_model=SubmitResponse)
+async def submit_flashcard_result(
+    req: FlashcardResultRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Record a flashcard session outcome and update SM-2 for the topic."""
+    topic = await db.get(Topic, req.topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    ease      = topic.sm2_ease_factor  if topic.sm2_ease_factor  is not None else 2.5
+    reps      = topic.sm2_repetitions  if topic.sm2_repetitions  is not None else 0
+    sm2_int   = topic.sm2_interval     if topic.sm2_interval      is not None else 1
+
+    grade = max(1, min(5, round(req.avg_grade)))
+    new_ease, new_reps, new_interval, next_review = compute_sm2(
+        grade=grade,
+        ease=ease,
+        repetitions=reps,
+        interval=sm2_int,
+    )
+
+    topic.sm2_ease_factor  = new_ease
+    topic.sm2_repetitions  = new_reps
+    topic.sm2_interval     = new_interval
+    topic.next_review      = next_review
+    topic.confidence_score = round((req.avg_grade / 5.0) * 100, 1)
+    topic.last_studied     = datetime.utcnow()
+    await db.commit()
+
+    pct = topic.confidence_score
+    if   pct >= 80: msg = f"Excellent recall! Next review in {new_interval} days."
+    elif pct >= 60: msg = f"Good work. Next review in {new_interval} days."
+    elif pct >= 40: msg = f"Needs practice. Review again soon."
+    else:           msg = f"Keep drilling. Review again tomorrow."
+
+    return SubmitResponse(confidence_score=pct, next_review=next_review, message=msg)
 
 
 @router.get("/history", response_model=list[SessionResponse])

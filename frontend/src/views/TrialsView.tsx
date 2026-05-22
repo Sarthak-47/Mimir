@@ -1,11 +1,12 @@
 /**
  * Trials View — dedicated quiz runner.
  *
- * Supports two modes:
+ * Supports three modes:
  *   MCQ          — classic multiple-choice (existing behaviour)
  *   Written      — AI-generated question, free-text textarea, LLM marking
+ *   Flashcard    — card-flip deck with Easy/Good/Hard/Forgot ratings feeding SM-2
  *
- * Both modes persist results to the backend for spaced-repetition tracking.
+ * All modes persist results to the backend for spaced-repetition tracking.
  */
 
 import { useState, useEffect } from "react";
@@ -26,8 +27,8 @@ interface TrialsViewProps {
   onConsumeInitial?: () => void;
 }
 
-type TrialMode = "mcq" | "written";
-type Phase     = "setup" | "loading" | "quiz" | "written-answer" | "marking" | "result" | "error";
+type TrialMode = "mcq" | "written" | "flashcard";
+type Phase     = "setup" | "loading" | "quiz" | "written-answer" | "marking" | "result" | "error" | "flashcard-deck";
 
 interface WrittenQuestion {
   question:     string;
@@ -45,6 +46,19 @@ interface MarkResult {
   missed_points:  string[];
   message:        string;
 }
+
+interface Flashcard {
+  front: string;
+  back:  string;
+}
+
+// Rating labels & their SM-2 grade values
+const RATINGS: { label: string; grade: number; color: string }[] = [
+  { label: "Forgot",  grade: 1, color: "#c87a7a" },
+  { label: "Hard",    grade: 3, color: "#d4934a" },
+  { label: "Good",    grade: 4, color: "var(--gold-bright)" },
+  { label: "Easy",    grade: 5, color: "var(--green-bright)" },
+];
 
 const VERDICT_COLOR: Record<string, string> = {
   excellent: "var(--green-bright)",
@@ -76,6 +90,13 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
   const [writtenQ,   setWrittenQ]  = useState<WrittenQuestion | null>(null);
   const [userAnswer, setUserAnswer]= useState<string>("");
   const [markResult, setMarkResult]= useState<MarkResult | null>(null);
+
+  // Flashcard mode state
+  const [flashcards,   setFlashcards]  = useState<Flashcard[]>([]);
+  const [cardIndex,    setCardIndex]   = useState(0);
+  const [flipped,      setFlipped]     = useState(false);
+  const [cardGrades,   setCardGrades]  = useState<number[]>([]);   // grade per card
+  const [nCards,       setNCards]      = useState<10 | 15 | 20>(10);
 
   const activeSubjectObj = subjects.find((s) => s.id === subjectId);
   const subjectName = activeSubjectObj?.name ?? "";
@@ -208,12 +229,64 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
     }
   };
 
+  // ── Flashcard flow ────────────────────────────────────────
+
+  const handleBeginFlashcard = async () => {
+    const topicText = topic.trim() || subjectName || "General Knowledge";
+    setPhase("loading");
+    setErrMsg("");
+    setCardGrades([]); setCardIndex(0); setFlipped(false);
+    try {
+      const res = await fetch(`${API_QUIZ}/flashcards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ topic: topicText, subject: subjectName, n: nCards }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { detail?: string }).detail ?? `Server error ${res.status}`);
+      }
+      const data: Flashcard[] = await res.json();
+      if (!data.length) throw new Error("No flashcards returned.");
+      setFlashcards(data);
+      setPhase("flashcard-deck");
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Unknown error");
+      setPhase("error");
+    }
+  };
+
+  const handleRateCard = async (grade: number) => {
+    const newGrades = [...cardGrades, grade];
+    setCardGrades(newGrades);
+
+    if (cardIndex >= flashcards.length - 1) {
+      // Last card — submit result
+      const avgGrade = newGrades.reduce((a, b) => a + b, 0) / newGrades.length;
+      setPhase("result");
+      try {
+        const topicId = await resolveTopicId();
+        if (topicId !== null) {
+          await fetch(`${API_QUIZ}/flashcard-result`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({ topic_id: topicId, avg_grade: avgGrade }),
+          });
+        }
+      } catch { /* silent */ }
+    } else {
+      setCardIndex((i) => i + 1);
+      setFlipped(false);
+    }
+  };
+
   // ── Reset ─────────────────────────────────────────────────
 
   const handleReset = () => {
     setPhase("setup");
     setQuestions([]); setScore(null); setErrMsg("");
     setTopic(""); setWrittenQ(null); setUserAnswer(""); setMarkResult(null);
+    setFlashcards([]); setCardIndex(0); setFlipped(false); setCardGrades([]);
   };
 
   // ── Render phases ─────────────────────────────────────────
@@ -256,6 +329,38 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
         </div>
       );
     }
+    // Flashcard result
+    if (mode === "flashcard" && cardGrades.length > 0) {
+      const avgGrade = cardGrades.reduce((a, b) => a + b, 0) / cardGrades.length;
+      const easyCount = cardGrades.filter((g) => g >= 4).length;
+      const hardCount = cardGrades.filter((g) => g <= 2).length;
+      const pct = Math.round(((avgGrade - 1) / 4) * 100);
+      const msg =
+        pct >= 80 ? "Excellent recall! You've mastered these runes." :
+        pct >= 60 ? "Good work — a few more passes will seal them in." :
+        pct >= 40 ? "These runes need drilling. Review again soon." :
+                    "The runes elude you. Keep returning to this deck.";
+      return (
+        <div style={styles.wrapper}>
+          <div style={styles.resultCard}>
+            <div style={styles.resultRune}>ᚱ</div>
+            <div style={styles.resultScore}>{pct}% avg recall</div>
+            <div style={{ display: "flex", gap: 16, justifyContent: "center", marginBottom: 8 }}>
+              <span style={{ fontFamily: "var(--font-header)", fontSize: 11, color: "var(--green-bright)" }}>
+                {easyCount} easy
+              </span>
+              <span style={{ fontFamily: "var(--font-header)", fontSize: 11, color: "#c87a7a" }}>
+                {hardCount} hard/forgot
+              </span>
+            </div>
+            <div style={styles.resultMsg}>{msg}</div>
+            <div style={styles.engraving} />
+            <button style={styles.primaryBtn} onClick={handleReset}>Begin Another Trial</button>
+          </div>
+        </div>
+      );
+    }
+
     // MCQ result
     if (score) {
       const pct = Math.round((score.got / score.total) * 100);
@@ -307,8 +412,103 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
         <div style={styles.loading}>
           <div style={styles.loadingRune}>{phase === "marking" ? "ᛉ" : "ᛏ"}</div>
           <div style={styles.loadingText}>
-            {phase === "marking" ? "The examiner is marking your answer…" : "Consulting the runes…"}
+            {phase === "marking"
+              ? "The examiner is marking your answer…"
+              : mode === "flashcard"
+                ? "Engraving the rune cards…"
+                : "Consulting the runes…"}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "flashcard-deck" && flashcards.length > 0) {
+    const card = flashcards[cardIndex];
+    return (
+      <div style={styles.wrapper}>
+        <div style={{ ...styles.setupCard, maxWidth: 500 }}>
+          {/* Header */}
+          <div style={styles.cardHeader}>
+            <span style={styles.headerRune}>ᚱ</span>
+            <span style={styles.headerTitle}>Rune Cards</span>
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-header)", fontSize: 10, color: "var(--text-dim)" }}>
+              {cardIndex + 1} / {flashcards.length}
+            </span>
+          </div>
+          <div style={styles.engraving} />
+
+          {/* Progress bar */}
+          <div style={{ height: 2, background: "var(--stone-1)", marginBottom: 14 }}>
+            <div style={{ height: "100%", background: "var(--gold-dim)", width: `${((cardIndex) / flashcards.length) * 100}%`, transition: "width 0.3s" }} />
+          </div>
+
+          {/* Card */}
+          <div
+            style={{
+              minHeight: 140, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 8,
+              background: "var(--stone-1)", border: flipped ? "1px solid var(--gold-dim)" : "1px solid var(--green-dark)",
+              padding: "20px 24px", cursor: flipped ? "default" : "pointer",
+              textAlign: "center", transition: "border-color 0.2s",
+            }}
+            onClick={() => { if (!flipped) setFlipped(true); }}
+          >
+            {!flipped ? (
+              <>
+                <div style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.18em", color: "var(--text-dim)", textTransform: "uppercase" }}>
+                  FRONT — click to reveal
+                </div>
+                <div style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "var(--text-primary)", lineHeight: 1.6 }}>
+                  {card.front}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.18em", color: "var(--gold-dim)", textTransform: "uppercase" }}>
+                  BACK
+                </div>
+                <div style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6 }}>
+                  {card.back}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Rating buttons — shown only after flip */}
+          {flipped && (
+            <>
+              <div style={{ fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.14em", color: "var(--text-dim)", textAlign: "center", marginTop: 14, textTransform: "uppercase" }}>
+                How well did you recall?
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                {RATINGS.map(({ label, grade, color }) => (
+                  <button
+                    key={label}
+                    style={{
+                      flex: 1, padding: "8px 4px",
+                      background: "var(--stone-1)", border: `1px solid ${color}`,
+                      color, fontFamily: "var(--font-header)",
+                      fontSize: 10, letterSpacing: "0.1em",
+                      cursor: "pointer", transition: "background 0.12s",
+                      textTransform: "uppercase",
+                    }}
+                    onClick={() => handleRateCard(grade)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Abandon */}
+          <button
+            style={{ ...styles.primaryBtn, marginTop: 14, opacity: 0.5, fontSize: 10 }}
+            onClick={handleReset}
+          >
+            Abandon Session
+          </button>
         </div>
       </div>
     );
@@ -375,19 +575,24 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
         <div style={styles.field}>
           <label style={styles.label}>Trial Mode</label>
           <div style={styles.nRow}>
-            {(["mcq", "written"] as TrialMode[]).map((m) => (
+            {(["mcq", "written", "flashcard"] as TrialMode[]).map((m) => (
               <button
                 key={m}
                 style={{ ...styles.nBtn, ...(mode === m ? styles.nBtnActive : {}) }}
                 onClick={() => setMode(m)}
               >
-                {m === "mcq" ? "Multiple Choice" : "Written Answer"}
+                {m === "mcq" ? "MCQ" : m === "written" ? "Written" : "ᚱ Cards"}
               </button>
             ))}
           </div>
           {mode === "written" && (
             <div style={styles.modeHint}>
               Mimir generates a question. You write a free-text answer. The AI marks it.
+            </div>
+          )}
+          {mode === "flashcard" && (
+            <div style={styles.modeHint}>
+              Flip cards and rate recall (Easy / Good / Hard / Forgot). Updates spaced repetition.
             </div>
           )}
         </div>
@@ -441,13 +646,37 @@ export default function TrialsView({ subjects, activeSubject, authToken, initial
           </div>
         )}
 
+        {/* Card count — Flashcard only */}
+        {mode === "flashcard" && (
+          <div style={styles.field}>
+            <label style={styles.label}>Number of Cards</label>
+            <div style={styles.nRow}>
+              {([10, 15, 20] as const).map((n) => (
+                <button
+                  key={n}
+                  style={{ ...styles.nBtn, ...(nCards === n ? styles.nBtnActive : {}) }}
+                  onClick={() => setNCards(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={styles.engraving} />
 
         <button
           style={styles.primaryBtn}
-          onClick={mode === "mcq" ? handleBeginMCQ : handleBeginWritten}
+          onClick={
+            mode === "mcq"       ? handleBeginMCQ :
+            mode === "flashcard" ? handleBeginFlashcard :
+                                   handleBeginWritten
+          }
         >
-          {mode === "mcq" ? "Enter the Trial — ᛏ" : "Generate Question — ᛉ"}
+          {mode === "mcq"       ? "Enter the Trial — ᛏ" :
+           mode === "flashcard" ? "Draw the Rune Cards — ᚱ" :
+                                  "Generate Question — ᛉ"}
         </button>
       </div>
     </div>

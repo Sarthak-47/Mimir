@@ -28,9 +28,15 @@ interface VoiceSetupBannerProps {
   onReady?: () => void;
 }
 
+const VOICE_DISMISS_KEY = "mimir_voice_error_dismissed";
+
 export default function VoiceSetupBanner({ authToken, onReady }: VoiceSetupBannerProps) {
   const [status,   setStatus]   = useState<VoiceStatus | null>(null);
-  const [visible,  setVisible]  = useState(true);
+  // Restore dismissed state from localStorage so error banner doesn't re-appear
+  // after app restarts when voice is in a permanent error state.
+  const [visible,  setVisible]  = useState(
+    () => localStorage.getItem(VOICE_DISMISS_KEY) !== "1"
+  );
   const [notified, setNotified] = useState(false);
 
   const poll = useCallback(async () => {
@@ -55,6 +61,8 @@ export default function VoiceSetupBanner({ authToken, onReady }: VoiceSetupBanne
     if (bothReady && !notified) {
       setNotified(true);
       onReady?.();
+      // Clear any error dismissal so banner shows if models break again later
+      localStorage.removeItem(VOICE_DISMISS_KEY);
       // Short delay so the user sees the "ready" state before it disappears
       setTimeout(() => setVisible(false), 1500);
     }
@@ -109,8 +117,15 @@ export default function VoiceSetupBanner({ authToken, onReady }: VoiceSetupBanne
         <span style={S.pct}>{combined}%</span>
       )}
 
-      {/* Dismiss */}
-      <button style={S.dismiss} onClick={() => setVisible(false)} title="Dismiss">
+      {/* Dismiss — persist if this is an error so it doesn't re-show after restart */}
+      <button
+        style={S.dismiss}
+        onClick={() => {
+          if (hasError) localStorage.setItem(VOICE_DISMISS_KEY, "1");
+          setVisible(false);
+        }}
+        title="Dismiss"
+      >
         ✕
       </button>
     </div>

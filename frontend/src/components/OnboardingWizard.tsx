@@ -8,10 +8,11 @@
  *   Step 2 — Install Ollama
  *   Step 3 — Pull a model
  *   Step 4 — Set Ragnarök (exam date) — optional
- *   Step 5 — Enter the Well
+ *   Step 5 — Create your first subjects — optional
+ *   Step 6 — Enter the Well
  *
  * @param authToken      - JWT for health check requests.
- * @param onComplete     - Called when the user clicks "Enter the Well" on step 5.
+ * @param onComplete     - Called when the user clicks "Enter the Well" on step 6.
  * @param onSetExamDate  - Called with the chosen exam date (or null to skip).
  */
 import { useState, useCallback } from "react";
@@ -25,7 +26,21 @@ interface OnboardingWizardProps {
 
 type HealthState = "idle" | "checking" | "ok" | "ollama_down" | "model_missing" | "error";
 
-const TOTAL_STEPS = 5;
+export interface SubjectDraft {
+  name:  string;
+  color: string;
+}
+
+const TOTAL_STEPS = 6;
+
+const SUBJECT_COLORS = [
+  "#6ab87a",   // forest green (default)
+  "#5b9bd5",   // steel blue
+  "#9b7de8",   // violet
+  "#e8975a",   // amber
+  "#e87a7a",   // crimson
+  "#5bbeb5",   // teal
+];
 
 export default function OnboardingWizard({
   authToken, onComplete, onSetExamDate,
@@ -34,6 +49,12 @@ export default function OnboardingWizard({
   const [health,      setHealth]     = useState<HealthState>("idle");
   const [modelName,   setModelName]  = useState("qwen2.5:14b");
   const [examInput,   setExamInput]  = useState("");
+
+  // Step 5 — subject drafts
+  const [draftName,  setDraftName]  = useState("");
+  const [draftColor, setDraftColor] = useState(SUBJECT_COLORS[0]);
+  const [subjects,   setSubjects]   = useState<SubjectDraft[]>([]);
+  const [creating,   setCreating]   = useState(false);
 
   // ── Health check (Step 3) ─────────────────────────────────
   const runHealthCheck = useCallback(async () => {
@@ -63,6 +84,40 @@ export default function OnboardingWizard({
     if (examInput) {
       onSetExamDate(new Date(examInput + "T00:00:00"));
     }
+    advance();
+  };
+
+  // ── Subject draft helpers ─────────────────────────────────
+  const addDraft = () => {
+    const trimmed = draftName.trim();
+    if (!trimmed) return;
+    if (subjects.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
+    setSubjects((prev) => [...prev, { name: trimmed, color: draftColor }]);
+    setDraftName("");
+    setDraftColor(SUBJECT_COLORS[subjects.length % SUBJECT_COLORS.length]);
+  };
+
+  const removeDraft = (idx: number) =>
+    setSubjects((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleSubjectsNext = async () => {
+    if (subjects.length === 0) { advance(); return; }
+    setCreating(true);
+    try {
+      await Promise.all(
+        subjects.map((s) =>
+          fetch(`${API}/progress/subjects`, {
+            method:  "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization:  `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ name: s.name, color: s.color }),
+          })
+        )
+      );
+    } catch { /* non-fatal — user can add subjects later */ }
+    setCreating(false);
     advance();
   };
 
@@ -110,7 +165,13 @@ export default function OnboardingWizard({
         <div style={styles.body}>
           {step === 1 && <StepWelcome />}
           {step === 2 && <StepOllama />}
-          {step === 3 && <StepModel health={health} modelName={modelName} onCheck={runHealthCheck} />}
+          {step === 3 && (
+            <StepModel
+              health={health}
+              modelName={modelName}
+              onCheck={runHealthCheck}
+            />
+          )}
           {step === 4 && (
             <StepExamDate
               examInput={examInput}
@@ -118,16 +179,28 @@ export default function OnboardingWizard({
               onSkip={advance}
             />
           )}
-          {step === 5 && <StepDone />}
+          {step === 5 && (
+            <StepSubjects
+              draftName={draftName}
+              draftColor={draftColor}
+              subjects={subjects}
+              onDraftName={setDraftName}
+              onDraftColor={setDraftColor}
+              onAdd={addDraft}
+              onRemove={removeDraft}
+            />
+          )}
+          {step === 6 && <StepDone subjectCount={subjects.length} />}
         </div>
 
         {/* ── Footer navigation ── */}
         <div style={styles.footer}>
-          {step > 1 && step < 5 && (
+          {step > 1 && step < TOTAL_STEPS && (
             <button style={styles.backBtn} onClick={back}>← Back</button>
           )}
           <div style={{ flex: 1 }} />
 
+          {/* Steps 1-3: plain next (step 3 gated on health) */}
           {step < 4 && (
             <button
               style={{
@@ -142,13 +215,34 @@ export default function OnboardingWizard({
             </button>
           )}
 
+          {/* Step 4: set exam date or skip */}
           {step === 4 && (
             <button style={styles.nextBtn} onClick={handleExamSet}>
               {examInput ? "Set & Continue →" : "Skip →"}
             </button>
           )}
 
+          {/* Step 5: create subjects or skip */}
           {step === 5 && (
+            <button
+              style={{
+                ...styles.nextBtn,
+                opacity: creating ? 0.5 : 1,
+                cursor:  creating ? "not-allowed" : "pointer",
+              }}
+              onClick={handleSubjectsNext}
+              disabled={creating}
+            >
+              {creating
+                ? "Creating…"
+                : subjects.length > 0
+                  ? `Add ${subjects.length} Subject${subjects.length > 1 ? "s" : ""} →`
+                  : "Skip →"}
+            </button>
+          )}
+
+          {/* Step 6: enter */}
+          {step === TOTAL_STEPS && (
             <button style={styles.enterBtn} onClick={handleComplete}>
               ᛟ &nbsp;Enter the Well
             </button>
@@ -305,14 +399,116 @@ function StepExamDate({
   );
 }
 
-function StepDone() {
+function StepSubjects({
+  draftName, draftColor, subjects,
+  onDraftName, onDraftColor, onAdd, onRemove,
+}: {
+  draftName:    string;
+  draftColor:   string;
+  subjects:     SubjectDraft[];
+  onDraftName:  (v: string) => void;
+  onDraftColor: (v: string) => void;
+  onAdd:        () => void;
+  onRemove:     (idx: number) => void;
+}) {
+  return (
+    <div style={stepStyles.root}>
+      <div style={stepStyles.rune}>ᛞ</div>
+      <h2 style={stepStyles.title}>Create Your Disciplines</h2>
+      <p style={stepStyles.para}>
+        Disciplines (subjects) organise your scrolls, quizzes, and mastery
+        scores. Add the subjects you're studying now — you can always add more
+        later from the Fates view.
+      </p>
+
+      {/* Input row */}
+      <div style={subjectStyles.inputRow}>
+        <input
+          type="text"
+          placeholder="e.g. Machine Learning"
+          value={draftName}
+          onChange={(e) => onDraftName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onAdd(); }}
+          style={subjectStyles.nameInput}
+          maxLength={60}
+          autoFocus
+        />
+        {/* Color swatches */}
+        <div style={subjectStyles.swatchRow}>
+          {SUBJECT_COLORS.map((c) => (
+            <button
+              key={c}
+              title={c}
+              onClick={() => onDraftColor(c)}
+              style={{
+                ...subjectStyles.swatch,
+                background: c,
+                outline:    draftColor === c ? `2px solid var(--gold-bright)` : "none",
+                outlineOffset: 2,
+              }}
+            />
+          ))}
+        </div>
+        <button
+          style={{
+            ...subjectStyles.addBtn,
+            opacity: draftName.trim() ? 1 : 0.35,
+            cursor:  draftName.trim() ? "pointer" : "not-allowed",
+          }}
+          onClick={onAdd}
+          disabled={!draftName.trim()}
+        >
+          + Add
+        </button>
+      </div>
+
+      {/* Subjects list */}
+      {subjects.length === 0 ? (
+        <div style={subjectStyles.empty}>
+          No subjects yet — you can skip and add them later.
+        </div>
+      ) : (
+        <div style={subjectStyles.tagList}>
+          {subjects.map((s, i) => (
+            <div key={i} style={subjectStyles.tag}>
+              <span
+                style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: s.color, flexShrink: 0, display: "inline-block",
+                }}
+              />
+              <span style={subjectStyles.tagName}>{s.name}</span>
+              <button
+                style={subjectStyles.tagRemove}
+                onClick={() => onRemove(i)}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hint */}
+      <div style={subjectStyles.hint}>
+        Tip: Mimir assigns quiz results and uploaded PDFs to whichever subject
+        you choose — keeping everything organised from day one.
+      </div>
+    </div>
+  );
+}
+
+function StepDone({ subjectCount }: { subjectCount: number }) {
   return (
     <div style={{ ...stepStyles.root, alignItems: "center", textAlign: "center" as const }}>
       <div style={{ ...stepStyles.rune, fontSize: 52 }}>ᛟ</div>
       <h2 style={stepStyles.title}>The Well Awaits</h2>
       <p style={stepStyles.para}>
-        You are ready. Ask the Oracle anything. Face your Trials.
-        Let Mimir guide you toward mastery.
+        {subjectCount > 0
+          ? `${subjectCount} discipline${subjectCount > 1 ? "s" : ""} forged. Ask the Oracle anything. Face your Trials.`
+          : "You are ready. Ask the Oracle anything. Face your Trials."}
+        {" "}Let Mimir guide you toward mastery.
       </p>
       <p style={{ ...stepStyles.para, fontStyle: "italic", color: "var(--gold-dim)" }}>
         "He who drinks from Mimir's well gains wisdom — but pays with what he
@@ -325,7 +521,11 @@ function StepDone() {
 function FeatureRow({ rune, text }: { rune: string; text: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0" }}>
-      <span style={{ fontFamily: "var(--font-header)", fontSize: 16, color: "var(--gold-dim)", width: 20, textAlign: "center" as const, flexShrink: 0 }}>
+      <span style={{
+        fontFamily: "var(--font-header)", fontSize: 16,
+        color: "var(--gold-dim)", width: 20,
+        textAlign: "center" as const, flexShrink: 0,
+      }}>
         {rune}
       </span>
       <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-dim)" }}>
@@ -534,5 +734,95 @@ const stepStyles: Record<string, React.CSSProperties> = {
     outline: "none",
     width: "100%",
     boxSizing: "border-box" as const,
+  },
+};
+
+const subjectStyles: Record<string, React.CSSProperties> = {
+  inputRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap" as const,
+  },
+  nameInput: {
+    flex: 1,
+    minWidth: 160,
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--text-primary)",
+    fontFamily: "var(--font-body)",
+    fontSize: 13,
+    padding: "7px 10px",
+    outline: "none",
+  },
+  swatchRow: {
+    display: "flex",
+    gap: 5,
+    alignItems: "center",
+  },
+  swatch: {
+    width: 16,
+    height: 16,
+    borderRadius: "50%",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+    flexShrink: 0,
+  },
+  addBtn: {
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    color: "var(--green-bright)",
+    fontFamily: "var(--font-header)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    padding: "7px 12px",
+    cursor: "pointer",
+    flexShrink: 0,
+    transition: "all 0.15s",
+  },
+  tagList: {
+    display: "flex",
+    flexWrap: "wrap" as const,
+    gap: 8,
+    paddingTop: 2,
+  },
+  tag: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    background: "var(--stone-3)",
+    border: "1px solid var(--green-dark)",
+    padding: "4px 10px 4px 8px",
+  },
+  tagName: {
+    fontFamily: "var(--font-body)",
+    fontSize: 12,
+    color: "var(--text-primary)",
+  },
+  tagRemove: {
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    cursor: "pointer",
+    fontSize: 14,
+    lineHeight: 1,
+    padding: "0 0 0 2px",
+  },
+  empty: {
+    fontFamily: "var(--font-body)",
+    fontSize: 12,
+    fontStyle: "italic",
+    color: "var(--text-dim)",
+    padding: "10px 0 4px",
+  },
+  hint: {
+    fontFamily: "var(--font-body)",
+    fontSize: 11,
+    fontStyle: "italic",
+    color: "var(--text-dim)",
+    borderTop: "1px solid var(--stone-4)",
+    paddingTop: 10,
+    lineHeight: 1.55,
   },
 };

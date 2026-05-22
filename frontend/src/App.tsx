@@ -810,6 +810,7 @@ export default function App() {
           <ReckoningView
             subjects={subjects}
             authToken={authToken}
+            username={username}
             onExamDateChange={(dateStr) =>
               handleSetExamDate(dateStr ? new Date(dateStr + "T00:00:00") : null)
             }

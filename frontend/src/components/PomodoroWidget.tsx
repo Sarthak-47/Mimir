@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { notifyDesktop } from "@/utils/notify";
 
 type PomodoroPhase = "focus" | "short-break" | "long-break";
 
@@ -83,13 +84,16 @@ export default function PomodoroWidget({ onClose }: PomodoroWidgetProps) {
       if (newCompleted % cfg.longBreakAfter === 0) {
         setPhase("long-break");
         setSecsLeft(cfg.longBreak);
+        notifyDesktop("Pomodoro — Long Break", `Session ${newCompleted} complete. Time for a 15-minute rest.`);
       } else {
         setPhase("short-break");
         setSecsLeft(cfg.shortBreak);
+        notifyDesktop("Pomodoro — Short Break", `Session ${newCompleted} complete. Take 5 minutes.`);
       }
     } else {
       setPhase("focus");
       setSecsLeft(cfg.focus);
+      notifyDesktop("Pomodoro — Back to Focus", "Break over. Time to sharpen your runes.");
     }
     setRunning(false);
   }, [playChime, cfg]);

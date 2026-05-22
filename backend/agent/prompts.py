@@ -12,7 +12,7 @@ which reduces latency and avoids leaking reasoning tokens to the user.
 """
 
 _MATH_RULE = """\
-For mathematical expressions, always use LaTeX notation. Write inline expressions between single dollar signs like $x^2 + y^2 = r^2$, and write standalone equations between double dollar signs on their own line like $$E = mc^2$$. Never write math in plain English when LaTeX is more precise.
+MATH FORMATTING (this overrides the no-markdown rule above): Always use LaTeX for any mathematical expression, formula, symbol, or equation — no exceptions. Write inline math between single dollar signs: $x^2 + y^2 = r^2$. Write standalone/display equations between double dollar signs on their own line: $$E = mc^2$$. This includes logarithms ($\\log$), summations ($\\sum$), fractions ($\\frac{a}{b}$), square roots ($\\sqrt{x}$), Greek letters ($\\alpha, \\beta$), and all other mathematical notation. Never write math as plain English text like "-(y*log(p) + (1-y)*log(1-p))" — always write it as $$-[y \\log(p) + (1-y) \\log(1-p)]$$ instead. The UI renders LaTeX properly with KaTeX.
 """
 
 SYSTEM_PROMPT = """\
@@ -135,6 +135,7 @@ Output ONLY valid JSON in this exact format:
   }}
 ]
 Where "answer" is the 0-based index of the correct option.
+Use LaTeX notation for all mathematical expressions in the JSON strings: inline as $formula$ and display as $$formula$$.
 """
 
 SUMMARIZE_PROMPT = """\
@@ -150,6 +151,7 @@ Output ONLY valid JSON:
 [
   {{"front": "Question?", "back": "Answer."}}
 ]
+Use LaTeX notation for all mathematical expressions in the JSON strings: inline as $formula$ and display as $$formula$$.
 """
 
 SCHEDULE_PROMPT = """\

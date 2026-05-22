@@ -75,11 +75,11 @@ class Settings(BaseSettings):
     # Falls back gracefully if not available (Tesseract OCR used instead).
     vision_model: str = "qwen2.5vl:7b"
     # GPU layers to offload. -1 = auto (let Ollama use full GPU).
-    # qwen3.5:9b (6.6 GB) fits entirely in 8 GB VRAM, leaving ~1.8 GB
-    # free for KV cache. Vision + tools + thinking built in.
+    # qwen3.5:9b (6.6 GB) fits entirely in 8 GB VRAM, leaving ~1.4 GB
+    # free for KV cache at ctx=4096. Raising ctx risks VRAM overflow.
     ollama_num_gpu: int = -1
     ollama_temperature: float = 0.7
-    ollama_context_length: int = 8192
+    ollama_context_length: int = 4096
 
     # ── File uploads ─────────────────────────────────────────
     upload_dir: str = str(DATA_DIR / "uploads")

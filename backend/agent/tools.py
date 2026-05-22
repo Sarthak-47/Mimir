@@ -34,7 +34,10 @@ def _llm(prompt: str, system: str = "") -> str:
     response = ollama.chat(
         model=settings.ollama_model,
         messages=messages,
-        options={"temperature": settings.ollama_temperature},
+        options={
+            "temperature": settings.ollama_temperature,
+            "num_ctx": settings.ollama_context_length,
+        },
         think=False,
     )
     return response["message"]["content"]

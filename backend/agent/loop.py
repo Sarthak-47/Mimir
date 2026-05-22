@@ -116,8 +116,12 @@ _MODE_PROMPTS: dict[str, str] = {
 _client = ollama.AsyncClient(host=settings.ollama_base_url)
 
 def _ollama_opts(**extra) -> dict:
-    """Build an Ollama ``options`` dict, appending ``num_gpu`` only when explicitly configured."""
-    opts = {"temperature": settings.ollama_temperature, **extra}
+    """Build an Ollama ``options`` dict from runtime settings."""
+    opts = {
+        "temperature": settings.ollama_temperature,
+        "num_ctx": settings.ollama_context_length,
+        **extra,
+    }
     if settings.ollama_num_gpu >= 0:
         opts["num_gpu"] = settings.ollama_num_gpu
     return opts

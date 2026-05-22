@@ -30,6 +30,7 @@ import useTTS from "@/hooks/useTTS";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { HealthInfo } from "@/components/SystemStatus";
 import { API_BASE as API } from "@/config";
+import { notifyDesktop } from "@/utils/notify";
 
 /**
  * Full-screen loading screen displayed while the FastAPI backend is starting up.
@@ -341,6 +342,24 @@ export default function App() {
         }
       })
       .catch(() => { /* plugin not yet wired — skip silently */ });
+  }, [authToken]);
+
+  // ── Due-topics desktop notification (once per login) ──
+  useEffect(() => {
+    if (!authToken) return;
+    fetch(`${API}/api/progress/due`, { headers: authHeaders(authToken) })
+      .then((r) => r.ok ? r.json() : [])
+      .then((topics: { name: string }[]) => {
+        if (topics.length === 0) return;
+        const names = topics.slice(0, 3).map((t) => t.name).join(", ");
+        const more  = topics.length > 3 ? ` (+${topics.length - 3} more)` : "";
+        notifyDesktop(
+          `${topics.length} topic${topics.length > 1 ? "s" : ""} due for review`,
+          `${names}${more} — open Mimir to continue.`,
+        );
+      })
+      .catch(() => { /* non-fatal */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
   // ── Subject CRUD ───────────────────────────────────────

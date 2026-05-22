@@ -450,8 +450,9 @@ async def submit_flashcard_result(
 
     grade = max(1, min(5, round(req.avg_grade)))
     new_ease, new_reps, new_interval, next_review = compute_sm2(
-        grade=grade,
-        ease=ease,
+        score=grade,
+        total=5,
+        ease_factor=ease,
         repetitions=reps,
         interval=sm2_int,
     )

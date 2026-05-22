@@ -8,16 +8,22 @@
  * Both modes persist results to the backend for spaced-repetition tracking.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 import type { Subject } from "@/App";
 import { API_QUIZ, API_PROGRESS } from "@/config";
 
 interface TrialsViewProps {
-  subjects:      Subject[];
-  activeSubject: string | null;
-  authToken:     string;
+  subjects:          Subject[];
+  activeSubject:     string | null;
+  authToken:         string;
+  /** Pre-fill topic name — set when navigating from the due-today queue. */
+  initialTopic?:     string;
+  /** Pre-fill subject id — set when navigating from the due-today queue. */
+  initialSubjectId?: string;
+  /** Called after pre-fill is consumed, so App.tsx can clear the state. */
+  onConsumeInitial?: () => void;
 }
 
 type TrialMode = "mcq" | "written";
@@ -47,11 +53,20 @@ const VERDICT_COLOR: Record<string, string> = {
   poor:      "#c87a7a",
 };
 
-export default function TrialsView({ subjects, activeSubject, authToken }: TrialsViewProps) {
+export default function TrialsView({ subjects, activeSubject, authToken, initialTopic, initialSubjectId, onConsumeInitial }: TrialsViewProps) {
   const [mode,       setMode]      = useState<TrialMode>("mcq");
   const [phase,      setPhase]     = useState<Phase>("setup");
-  const [subjectId,  setSubjectId] = useState<string>(activeSubject ?? subjects[0]?.id ?? "");
-  const [topic,      setTopic]     = useState<string>("");
+  const [subjectId,  setSubjectId] = useState<string>(initialSubjectId ?? activeSubject ?? subjects[0]?.id ?? "");
+  const [topic,      setTopic]     = useState<string>(initialTopic ?? "");
+
+  // When navigated from due-today queue, consume the pre-fill once
+  useEffect(() => {
+    if (initialTopic !== undefined || initialSubjectId !== undefined) {
+      if (initialTopic)     setTopic(initialTopic);
+      if (initialSubjectId) setSubjectId(initialSubjectId);
+      onConsumeInitial?.();
+    }
+  }, [initialTopic, initialSubjectId]);
   const [nQuestions, setNQuestions]= useState<5 | 10 | 15>(5);
   const [questions,  setQuestions] = useState<QuizQuestion[]>([]);
   const [score,      setScore]     = useState<{ got: number; total: number } | null>(null);

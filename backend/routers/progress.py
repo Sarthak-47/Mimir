@@ -3,6 +3,7 @@ Mimir — Progress Router
 GET /api/progress/stats       — overall stats (days, accuracy, streak)
 GET /api/progress/topics      — topic confidence scores
 GET /api/progress/weaknesses  — topics below threshold, sorted
+GET /api/progress/due         — SM-2 due-today review queue
 GET/POST/DELETE /api/progress/subjects — CRUD for subjects
 GET/POST /api/progress/topics — topic CRUD
 GET/PUT /api/progress/exam-date — exam date management
@@ -152,6 +153,20 @@ class VelocityEntry(BaseModel):
     latest_score:  float        # most recent session percentage (0 if untested)
 
 
+class DueTopicResponse(BaseModel):
+    """A topic whose next_review date has passed — ready for a new quiz session."""
+    id:            int
+    name:          str
+    subject_id:    int
+    subject_name:  str
+    next_review:   datetime
+    sm2_interval:  int       # days between reviews (higher = well-learned)
+    confidence_score: float
+
+    class Config:
+        from_attributes = True
+
+
 # ── Stats ────────────────────────────────────────────────────
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
@@ -236,6 +251,37 @@ async def get_weaknesses(
 
     raw = [{"name": t.name, "confidence_score": t.confidence_score} for t in topics]
     return tool_weak_topics(raw)
+
+
+# ── Due for review ────────────────────────────────────────────
+@router.get("/due", response_model=list[DueTopicResponse])
+async def get_due_topics(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return topics whose next_review date has passed (SM-2 due queue)."""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Topic, Subject.name.label("subject_name"))
+        .join(Subject, Topic.subject_id == Subject.id)
+        .where(Subject.user_id == current_user.id)
+        .where(Topic.next_review != None)        # noqa: E711
+        .where(Topic.next_review <= now)
+        .order_by(Topic.next_review.asc())
+    )
+    rows = result.all()
+    return [
+        DueTopicResponse(
+            id=t.id,
+            name=t.name,
+            subject_id=t.subject_id,
+            subject_name=subj_name,
+            next_review=t.next_review,
+            sm2_interval=t.sm2_interval or 1,
+            confidence_score=t.confidence_score or 0.0,
+        )
+        for t, subj_name in rows
+    ]
 
 
 # ── Subjects ─────────────────────────────────────────────────

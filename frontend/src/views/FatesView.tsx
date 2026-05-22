@@ -59,8 +59,20 @@ interface Coverage {
   sections:      CoverageSection[];
 }
 
+interface DueTopic {
+  id:               number;
+  name:             string;
+  subject_id:       number;
+  subject_name:     string;
+  next_review:      string;
+  sm2_interval:     number;
+  confidence_score: number;
+}
+
 interface FatesViewProps {
-  authToken: string;
+  authToken:       string;
+  /** Navigate to Trials with the given topic pre-filled. */
+  onBeginReview?:  (topicName: string, subjectId: string) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -264,9 +276,10 @@ Equilibrium`}
 
 // ── Main View ─────────────────────────────────────────────────────────────────
 
-export default function FatesView({ authToken }: FatesViewProps) {
+export default function FatesView({ authToken, onBeginReview }: FatesViewProps) {
   const [schedule,   setSchedule]   = useState<ScheduleDay[]>([]);
   const [readiness,  setReadiness]  = useState<ReadinessTopic[]>([]);
+  const [dueTopics,  setDueTopics]  = useState<DueTopic[]>([]);
   const [syllabi,    setSyllabi]    = useState<SyllabusRow[]>([]);
   const [coverage,   setCoverage]   = useState<Coverage | null>(null);
   const [activeSyl,  setActiveSyl]  = useState<number | null>(null);
@@ -277,12 +290,14 @@ export default function FatesView({ authToken }: FatesViewProps) {
 
   const loadSchedule = useCallback(async () => {
     try {
-      const [schedRes, readRes] = await Promise.all([
+      const [schedRes, readRes, dueRes] = await Promise.all([
         fetch(`${API_PROGRESS}/schedule`, { headers }),
         fetch(`${API_PROGRESS}/readiness`, { headers }),
+        fetch(`${API_PROGRESS}/due`,       { headers }),
       ]);
       if (schedRes.ok) setSchedule(await schedRes.json() as ScheduleDay[]);
       if (readRes.ok)  setReadiness(await readRes.json() as ReadinessTopic[]);
+      if (dueRes.ok)   setDueTopics(await dueRes.json() as DueTopic[]);
     } catch { /* backend offline */ }
   }, [authToken]);
 
@@ -346,6 +361,36 @@ export default function FatesView({ authToken }: FatesViewProps) {
 
       {!loading && (
         <>
+          {/* ── Due for Review ── */}
+          {dueTopics.length > 0 && (
+            <>
+              <SectionDivider title={`Due for Review — ${dueTopics.length} topic${dueTopics.length !== 1 ? "s" : ""}`} />
+              <div style={S.dueGrid}>
+                {dueTopics.map((t) => (
+                  <div key={t.id} style={S.dueCard}>
+                    <div style={S.dueDot} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.taskName}>{t.name}</div>
+                      <div style={S.taskSubject}>{t.subject_name}</div>
+                    </div>
+                    <div style={S.dueInterval}>
+                      {t.sm2_interval}d interval
+                    </div>
+                    {onBeginReview && (
+                      <button
+                        style={S.reviewBtn}
+                        onClick={() => onBeginReview(t.name, String(t.subject_id))}
+                        title={`Review ${t.name}`}
+                      >
+                        Review →
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
           {/* ── Today's Tasks ── */}
           <SectionDivider title="Today's Focus" />
           {todayTasks.length === 0 ? (
@@ -524,6 +569,12 @@ const S: Record<string, React.CSSProperties> = {
   engraving:      { height: 1, background: "linear-gradient(90deg, transparent, var(--gold-dim) 30%, var(--gold-dim) 70%, transparent)", opacity: 0.4, margin: "10px 0 4px" },
   dimText:        { fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-dim)", padding: "8px 0" },
   emptyHint:      { fontFamily: "var(--font-body)", fontSize: 12, fontStyle: "italic", color: "var(--text-dim)", padding: "6px 0 10px" },
+
+  dueGrid:        { display: "flex", flexDirection: "column", gap: 5 },
+  dueCard:        { display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: "var(--stone-2)", borderLeft: "2px solid var(--gold)", borderTop: "none", borderRight: "none", borderBottom: "none" },
+  dueDot:         { width: 7, height: 7, borderRadius: "50%", background: "var(--gold-bright)", flexShrink: 0 },
+  dueInterval:    { fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.06em", color: "var(--text-dim)", flexShrink: 0 },
+  reviewBtn:      { background: "var(--gold-dark)", border: "1px solid var(--gold-dim)", color: "var(--gold-bright)", fontFamily: "var(--font-header)", fontSize: 9, letterSpacing: "0.1em", padding: "4px 10px", cursor: "pointer", flexShrink: 0, transition: "border-color 0.15s, background 0.15s" },
 
   cardGrid:       { display: "flex", flexDirection: "column", gap: 6 },
   taskCard:       { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--stone-2)", borderLeft: "2px solid var(--green)", borderTop: "none", borderRight: "none", borderBottom: "none" },

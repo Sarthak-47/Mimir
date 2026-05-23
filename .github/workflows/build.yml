@@ -1,9 +1,6 @@
 name: Build Mimir Installer
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 jobs:

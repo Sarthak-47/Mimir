@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "targets": ["appimage", "deb"],
+    "resources": {
+      "binaries/mimir-backend/mimir-backend": "mimir-backend/mimir-backend",
+      "resources/backend-internal.zip": "backend-internal.zip"
+    }
+  }
+}

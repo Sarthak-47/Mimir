@@ -24,16 +24,17 @@ Everything runs locally. No API keys. No data leaving your machine. The LLM is s
 **Prerequisites:**
 
 1. **Ollama** — [ollama.com/download](https://ollama.com/download)
-2. **Pull the model** (~9 GB — do this first):
+2. **Pull the models** (~7 GB — do this first):
    ```
-   ollama pull qwen2.5:14b
+   ollama pull qwen3.5:9b
+   ollama pull qwen2.5vl:7b   # optional — for image/diagram understanding
    ```
 
 **Then download and run the installer from the [Releases page](https://github.com/Sarthak-47/Mimir/releases).**
 
 The installer includes the Python backend — no Python, Rust, or Node.js required.
 
-> Windows x64 only for now.
+> **Windows x64** · **macOS Apple Silicon** · **Linux x64** (AppImage + deb)
 
 ---
 
@@ -43,7 +44,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 ---
 
-## Current features — v0.6.0
+## Current features — v0.9.0
 
 ### Core chat & AI
 - **Oracle** — WebSocket-streamed chat with a local LLM; tokens appear as they arrive
@@ -100,6 +101,12 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **System tray** — Mimir minimises to tray; click icon or right-click → Show to restore; Ctrl+Shift+M global hotkey toggles the window from anywhere on the desktop
 - **Yggdrasil background** — Norse tree rendered as a ghosted full-height wallpaper behind the chat column
 
+### AI quality (v0.7–v0.9)
+- **KaTeX math rendering** — all LLM responses emit properly formatted LaTeX (`$...$` inline, `$$...$$` display) rendered in the UI; prompts tuned to produce KaTeX-compatible output across all 7 modes
+- **Flash Attention enabled** — `OLLAMA_FLASH_ATTENTION=1` doubles generation speed (~23 tok/s vs 8 tok/s) with lower VRAM usage on supported GPUs
+- **Context window honoured** — `ollama_context_length` from Settings is now correctly propagated to every Ollama API call (was silently ignored before)
+- **SM-2 spaced repetition fixed** — flashcard result submission now correctly updates ease factor, repetition count, and review interval
+
 ### Voice (v0.6)
 - **Voice input (Whisper STT)** — press-and-hold the mic rune to dictate; `faster-whisper base.en` transcribes locally, no cloud; WebM/Opus audio, 10 MB upload cap, voice allowlist enforced server-side
 - **Voice output (TTS)** — speaker rune on any message reads it aloud; auto-read toggle speaks every Mimir response automatically; kokoro-onnx `bm_lewis` voice, 24 kHz PCM, 1.3× speed by default
@@ -121,7 +128,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Styling | CSS custom properties — no component library |
 | Typography | Cinzel (headers) + Crimson Text (body) — Google Fonts |
 | Backend | FastAPI with async SQLAlchemy + aiosqlite |
-| Local LLM | Ollama — `qwen2.5:14b` (chat) + `qwen2.5vl:7b` (vision) |
+| Local LLM | Ollama — `qwen3.5:9b` (chat) + `qwen2.5vl:7b` (vision) |
 | Vector memory | ChromaDB, embedded and persistent |
 | Reranking | `sentence-transformers` ms-marco-MiniLM-L-6-v2 |
 | Relational data | SQLite |
@@ -212,7 +219,7 @@ You need Rust, Python 3.11+, Node.js 20+, and Ollama.
 
 ```bash
 # Pull the models
-ollama pull qwen2.5:14b
+ollama pull qwen3.5:9b
 ollama pull qwen2.5vl:7b   # optional — for image understanding
 
 # Backend
@@ -311,14 +318,13 @@ v0.6 ships a capable AI study suite with full voice support. The path to v1.0 tu
 
 ---
 
-### v0.9 — Platform
-*Get Mimir onto every machine, with optional safety-net backup.*
+### ✅ v0.9 — Platform *(shipped)*
 
 | # | Feature |
 |---|---------|
-| 20 | **macOS build** — universal binary (Apple Silicon + Intel); notarised and code-signed |
-| 21 | **Linux build** — `.AppImage` and `.deb` packages |
-| 22 | **Optional encrypted cloud sync** — opt-in backup of DB and uploads to a self-hosted server or S3-compatible bucket; end-to-end encrypted with a user-supplied key |
+| 20 | **macOS build** — Apple Silicon DMG via GitHub Actions CI |
+| 21 | **Linux build** — `.AppImage` and `.deb` packages via GitHub Actions CI |
+| 22 | **Optional encrypted cloud sync** — deferred to v1.0 |
 
 ---
 
@@ -344,7 +350,7 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 
 ## Status
 
-**v0.6.0** — released and working on Windows x64. All v0.4 through v0.6 features are written and tested end-to-end with Ollama running `qwen2.5:14b`. Includes voice input (Whisper STT), voice output (kokoro-onnx TTS), and hands-free voice revision mode. Mac and Linux builds are planned for v0.9.
+**v0.9.0** — released. Windows x64 installer, macOS Apple Silicon DMG, and Linux AppImage/deb all built and distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention for ~23 tok/s on a mid-range GPU. Includes all features from v0.4 through v0.9: full voice I/O, spaced repetition, exam paper parsing, hybrid vector memory, KaTeX math rendering, and multi-platform builds.
 
 If you find this useful or want to build on it, the code is yours. MIT licensed.
 

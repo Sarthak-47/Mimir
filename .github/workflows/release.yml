@@ -1,8 +1,8 @@
 name: Release
 
-# Triggered manually or when a version tag is pushed.
-# Builds a signed Windows NSIS installer, generates the updater manifest,
-# and creates a GitHub Release with all artefacts attached.
+# Triggered when a version tag is pushed (e.g. v0.9.0) or run manually.
+# Runs three parallel build jobs — Windows, macOS, Linux — each producing
+# a native installer, then attaches all artefacts to a single GitHub Release.
 on:
   push:
     tags:
@@ -10,14 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version tag (e.g. v0.3.0)"
+        description: "Version tag (e.g. v0.9.0)"
         required: true
 
 permissions:
-  contents: write   # needed to create GitHub Releases
+  contents: write   # required to create GitHub Releases
 
+# ── 1. Backend tests ──────────────────────────────────────────────────────────
 jobs:
-  # ── 1. Backend tests ────────────────────────────────────────────
   test:
     name: Backend tests
     runs-on: ubuntu-latest
@@ -37,23 +37,20 @@ jobs:
         working-directory: backend
         run: python -m pytest tests/ -v --tb=short
 
-  # ── 2. Tauri desktop build ──────────────────────────────────────
-  build-tauri:
-    name: Build Windows installer
+# ── 2. Windows installer (NSIS) ───────────────────────────────────────────────
+  build-windows:
+    name: Windows installer
     needs: test
     runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── Rust toolchain ──────────────────────────────────────────
       - uses: dtolnay/rust-toolchain@stable
-
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
 
-      # ── Node.js + frontend ──────────────────────────────────────
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -64,7 +61,177 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # ── Python backend PyInstaller bundle ───────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Tesseract (Windows)
+        run: choco install tesseract --no-progress -y
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Bundle backend with PyInstaller
+        working-directory: backend
+        run: pyinstaller mimir-backend.spec --noconfirm
+
+      - name: Stage backend resources for Tauri
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries/mimir-backend | Out-Null
+          Copy-Item -Force "backend/dist/mimir-backend/mimir-backend.exe" `
+                           "src-tauri/binaries/mimir-backend/mimir-backend.exe"
+          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
+          # Copy _internal tree into binaries dir so zip-backend.py finds it
+          Copy-Item -Recurse -Force "backend/dist/mimir-backend/_internal" `
+                                    "src-tauri/binaries/mimir-backend/_internal"
+          python scripts/zip-backend.py
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "."
+          args: "--target x86_64-pc-windows-msvc --config src-tauri/tauri.windows.conf.json"
+
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   ${{ github.ref_name }}
+          name:       "Mimir v${{ steps.ver.outputs.version }}"
+          draft:      false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.ver.outputs.version }}_x64-setup.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.ver.outputs.version }}_x64-setup.nsis.zip
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.ver.outputs.version }}_x64-setup.nsis.zip.sig
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# ── 3. macOS DMG (Apple Silicon) ─────────────────────────────────────────────
+  build-macos:
+    name: macOS DMG
+    needs: test
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Tesseract (macOS)
+        run: brew install tesseract
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Bundle backend with PyInstaller
+        working-directory: backend
+        run: pyinstaller mimir-backend.spec --noconfirm
+
+      - name: Stage backend resources for Tauri
+        run: |
+          mkdir -p src-tauri/binaries/mimir-backend
+          cp backend/dist/mimir-backend/mimir-backend \
+             src-tauri/binaries/mimir-backend/mimir-backend
+          chmod +x src-tauri/binaries/mimir-backend/mimir-backend
+          # Copy _internal so zip-backend.py finds it
+          cp -r backend/dist/mimir-backend/_internal \
+               src-tauri/binaries/mimir-backend/_internal
+          mkdir -p src-tauri/resources
+          python scripts/zip-backend.py
+
+      - name: Build Tauri app (Apple Silicon)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "."
+          args: "--target aarch64-apple-darwin --config src-tauri/tauri.macos.conf.json"
+
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   ${{ github.ref_name }}
+          name:       "Mimir v${{ steps.ver.outputs.version }}"
+          draft:      false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/Mimir_${{ steps.ver.outputs.version }}_aarch64.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# ── 4. Linux AppImage + deb ───────────────────────────────────────────────────
+  build-linux:
+    name: Linux packages
+    needs: test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            tesseract-ocr \
+            libasound2-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -76,66 +243,40 @@ jobs:
       - name: Bundle backend with PyInstaller
         working-directory: backend
         run: pyinstaller mimir-backend.spec --noconfirm
-        continue-on-error: true
 
-      - name: Stage backend resources for Tauri bundle
-        shell: pwsh
+      - name: Stage backend resources for Tauri
         run: |
-          # Place the exe where tauri.conf.json resources expects it
-          New-Item -ItemType Directory -Force -Path src-tauri/binaries/mimir-backend | Out-Null
-          Copy-Item -Force "backend/dist/mimir-backend/mimir-backend.exe" `
-                           "src-tauri/binaries/mimir-backend/mimir-backend.exe"
-          # Zip _internal CONTENTS (no prefix) so main.rs can extract them correctly
-          New-Item -ItemType Directory -Force -Path src-tauri/resources | Out-Null
-          Compress-Archive -Path "backend/dist/mimir-backend/_internal/*" `
-                           -DestinationPath "src-tauri/resources/backend-internal.zip" -Force
+          mkdir -p src-tauri/binaries/mimir-backend
+          cp backend/dist/mimir-backend/mimir-backend \
+             src-tauri/binaries/mimir-backend/mimir-backend
+          chmod +x src-tauri/binaries/mimir-backend/mimir-backend
+          cp -r backend/dist/mimir-backend/_internal \
+               src-tauri/binaries/mimir-backend/_internal
+          mkdir -p src-tauri/resources
+          python scripts/zip-backend.py
 
-      # ── Tauri build + sign ──────────────────────────────────────
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: "."
-          args: "--target x86_64-pc-windows-msvc"
+          args: "--target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json"
 
-      # ── Generate updater manifest ───────────────────────────────
-      - name: Extract version from tag
-        id: version
-        shell: bash
-        run: |
-          TAG="${{ github.ref_name }}"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate latest.json
-        shell: bash
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          SIG_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${VERSION}_x64-setup.nsis.zip.sig"
-          if [ -f "$SIG_FILE" ]; then
-            python scripts/build-manifest.py \
-              --version "${VERSION}" \
-              --sig-path "${SIG_FILE}" \
-              --out latest.json
-          else
-            echo "[manifest] No signature file — skipping (unsigned build, auto-updater disabled)"
-          fi
-
-      # ── Upload artefacts to GitHub Release ──────────────────────
-      - name: Upload installer and manifest
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "Mimir v${{ steps.version.outputs.version }}"
-          draft: false
+          tag_name:   ${{ github.ref_name }}
+          name:       "Mimir v${{ steps.ver.outputs.version }}"
+          draft:      false
           prerelease: false
           fail_on_unmatched_files: false
           files: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Mimir_${{ steps.version.outputs.version }}_x64-setup.nsis.zip.sig
-            latest.json
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/mimir_${{ steps.ver.outputs.version }}_amd64.AppImage
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/mimir_${{ steps.ver.outputs.version }}_amd64.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,11 +4,12 @@
 //! Python dev server) and starts `ollama serve` before opening the Tauri
 //! window. On application exit all spawned child processes are killed.
 //!
-//! Backend discovery order:
-//! 1. PyInstaller bundle (`<exe dir>/mimir-backend/mimir-backend.exe`)
-//! 2. `MIMIR_BACKEND` environment variable (override path)
-//! 3. Compile-time `MIMIR_BACKEND_PATH` (baked in by `build.rs`)
-//! 4. Relative path `../../../../backend` from the executable
+//! Backend discovery order (production):
+//!   1. `<resource_dir>/mimir-backend/mimir-backend[.exe]`  (PyInstaller bundle)
+//! Backend discovery order (dev):
+//!   2. `MIMIR_BACKEND` environment variable
+//!   3. Compile-time `MIMIR_BACKEND_PATH` constant baked in by `build.rs`
+//!   4. `../../../../backend` relative to the executable (workspace layout)
 
 // Prevents a console window appearing in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -34,56 +35,50 @@ struct Processes(Mutex<Vec<Child>>);
 
 // ── Backend discovery ─────────────────────────────────────────
 
-/// Locate the PyInstaller-bundled `mimir-backend.exe` in the install directory.
+/// Locate the PyInstaller-bundled backend binary inside the Tauri resource dir.
 ///
-/// Tauri copies external binaries into the same directory as the main executable.
-/// Returns `None` if the bundle does not exist (e.g. in dev mode).
-fn find_bundled_backend() -> Option<PathBuf> {
-    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    let candidate = exe_dir.join("mimir-backend").join("mimir-backend.exe");
+/// `resource_dir` is resolved by Tauri's path API and is platform-correct:
+/// - Windows:  `<install_dir>/`
+/// - macOS:    `<App>.app/Contents/Resources/`
+/// - Linux:    varies by package format (AppImage, deb, etc.)
+///
+/// Returns `None` if the bundle does not exist (dev mode).
+fn find_bundled_backend(resource_dir: &PathBuf) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let name = "mimir-backend.exe";
+    #[cfg(not(windows))]
+    let name = "mimir-backend";
+
+    let candidate = resource_dir.join("mimir-backend").join(name);
     if candidate.exists() { Some(candidate) } else { None }
 }
 
-/// Ensure the `_internal` directory is present next to the backend exe.
+/// Ensure the `_internal` directory is present next to the backend binary.
 ///
-/// On first launch (or after a fresh install) the NSIS installer only drops
-/// `mimir-backend.exe` and `backend-internal.zip` into the install directory.
+/// On first launch the installer only drops the binary and
+/// `backend-internal.zip` into the resource directory.
 /// This function detects a missing `_internal` tree via a sentinel file and
-/// extracts the zip in-place, creating the full directory structure required
-/// by PyInstaller before we try to launch the exe.
+/// extracts the zip in-place before we try to launch the binary.
 ///
-/// The zip is expected to contain paths like `pydantic_core/__init__.py`
-/// (i.e. no `_internal/` prefix), and they are extracted relative to
-/// `<exe_dir>/mimir-backend/_internal/`.
-///
-/// This is idempotent — if the sentinel file already exists the function
-/// returns immediately without touching the filesystem.
-fn ensure_internal_dir() {
-    // Only meaningful in production (bundled) mode.
-    let exe_dir = match std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
-        Some(d) => d,
-        None => return,
-    };
-
-    // Sentinel: a small file that is always present inside a valid _internal tree.
-    let sentinel = exe_dir
+/// Idempotent — if the sentinel file already exists the function returns
+/// immediately without touching the filesystem.
+fn ensure_internal_dir(resource_dir: &PathBuf) {
+    let sentinel = resource_dir
         .join("mimir-backend")
         .join("_internal")
         .join("pydantic_core")
         .join("__init__.py");
 
     if sentinel.exists() {
-        // Already extracted — nothing to do.
-        return;
+        return; // Already extracted.
     }
 
-    let zip_path = exe_dir.join("backend-internal.zip");
+    let zip_path = resource_dir.join("backend-internal.zip");
     if !zip_path.exists() {
-        // No zip present (dev mode or unexpected layout) — skip silently.
-        return;
+        return; // Dev mode or unexpected layout — skip silently.
     }
 
-    let dest_dir = exe_dir.join("mimir-backend").join("_internal");
+    let dest_dir = resource_dir.join("mimir-backend").join("_internal");
 
     let result = (|| -> io::Result<()> {
         let zip_file = fs::File::open(&zip_path)?;
@@ -95,7 +90,6 @@ fn ensure_internal_dir() {
                 .by_index(i)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-            // Skip directory entries — we create them on demand below.
             if entry.is_dir() {
                 continue;
             }
@@ -112,6 +106,15 @@ fn ensure_internal_dir() {
 
             let mut out_file = fs::File::create(&out_path)?;
             io::copy(&mut entry, &mut out_file)?;
+
+            // Preserve executable bit on Unix (needed for shared libraries).
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Some(mode) = entry.unix_mode() {
+                    let _ = fs::set_permissions(&out_path, fs::Permissions::from_mode(mode));
+                }
+            }
         }
 
         Ok(())
@@ -127,9 +130,7 @@ fn ensure_internal_dir() {
 /// Tries three candidates in order:
 /// 1. `MIMIR_BACKEND` environment variable.
 /// 2. Compile-time `MIMIR_BACKEND_PATH` constant baked in by `build.rs`.
-/// 3. `../../../../backend` relative to the current executable (workspace layout).
-///
-/// Returns the first path that contains a `main.py` file.
+/// 3. `../../../../backend` relative to the current executable.
 fn find_backend() -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = [
         std::env::var("MIMIR_BACKEND").ok().map(PathBuf::from),
@@ -146,25 +147,29 @@ fn find_backend() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.join("main.py").exists())
 }
 
-/// Resolve the Python interpreter to use for the backend.
+/// Resolve the Python interpreter for dev mode.
 ///
-/// Prefers `<backend>/.venv/Scripts/python.exe` so the correct virtual
-/// environment is activated automatically. Falls back to `"python"` (system PATH).
+/// Prefers the virtualenv interpreter so the correct packages are loaded.
+/// Platform-aware: Windows uses `Scripts\python.exe`, Unix uses `bin/python3`.
 fn find_python(backend: &PathBuf) -> String {
-    let venv = backend
-        .join(".venv")
-        .join("Scripts")
-        .join("python.exe");
+    #[cfg(windows)]
+    let venv = backend.join(".venv").join("Scripts").join("python.exe");
+    #[cfg(not(windows))]
+    let venv = backend.join(".venv").join("bin").join("python3");
+
     if venv.exists() {
         return venv.to_string_lossy().into_owned();
     }
-    "python".to_string()
+
+    #[cfg(windows)]
+    return "python".to_string();
+    #[cfg(not(windows))]
+    return "python3".to_string();
 }
 
 /// Spawn `cmd` without a visible console window on Windows.
 ///
-/// Uses the `CREATE_NO_WINDOW` process-creation flag on Windows; on other
-/// platforms this is a plain `cmd.spawn()`. Returns `None` if spawning fails.
+/// Uses `CREATE_NO_WINDOW` on Windows; plain `spawn()` on other platforms.
 fn spawn_hidden(cmd: &mut Command) -> Option<Child> {
     #[cfg(windows)]
     {
@@ -177,50 +182,61 @@ fn spawn_hidden(cmd: &mut Command) -> Option<Child> {
 
 // ── Entry point ───────────────────────────────────────────────
 fn main() {
-    let mut procs: Vec<Child> = Vec::new();
-
-    // 1. FastAPI backend ───────────────────────────────────────
-    // Unpack _internal from zip on first launch (production only).
-    ensure_internal_dir();
-
-    // Production: use the PyInstaller bundle copied in by Tauri.
-    // Dev mode: fall back to spawning Python directly.
-    if let Some(backend_exe) = find_bundled_backend() {
-        if let Some(child) = spawn_hidden(&mut Command::new(&backend_exe)) {
-            procs.push(child);
-        }
-    } else if let Some(backend_dir) = find_backend() {
-        let python = find_python(&backend_dir);
-        if let Some(child) = spawn_hidden(
-            Command::new(&python)
-                .args([
-                    "-m", "uvicorn", "main:app",
-                    "--host", "127.0.0.1",
-                    "--port", "8000",
-                    "--log-level", "error",
-                ])
-                .current_dir(&backend_dir),
-        ) {
-            procs.push(child);
-        }
-    }
-
-    // 2. Ollama ───────────────────────────────────────────────
-    // `ollama serve` is idempotent — if it's already running it
-    // exits immediately with an error, which we safely ignore.
-    if let Some(child) = spawn_hidden(Command::new("ollama").arg("serve")) {
-        procs.push(child);
-    }
-
-    // 3. Tauri window — system tray + global shortcut + kill children on exit ──
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(Processes(Mutex::new(procs)))
+        .manage(Processes(Mutex::new(Vec::new())))
         .setup(|app| {
-            // ── System tray ────────────────────────────────────
+            // ── Resolve resource directory (platform-correct) ──────
+            // Falls back to exe directory if Tauri can't resolve it
+            // (shouldn't happen in production).
+            let resource_dir: PathBuf = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| {
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+                        .unwrap_or_default()
+                });
+
+            // ── 1. FastAPI backend ─────────────────────────────────
+            ensure_internal_dir(&resource_dir);
+
+            let mut procs: Vec<Child> = Vec::new();
+
+            if let Some(backend_exe) = find_bundled_backend(&resource_dir) {
+                if let Some(child) = spawn_hidden(&mut Command::new(&backend_exe)) {
+                    procs.push(child);
+                }
+            } else if let Some(backend_dir) = find_backend() {
+                let python = find_python(&backend_dir);
+                if let Some(child) = spawn_hidden(
+                    Command::new(&python)
+                        .args([
+                            "-m", "uvicorn", "main:app",
+                            "--host", "127.0.0.1",
+                            "--port", "8000",
+                            "--log-level", "error",
+                        ])
+                        .current_dir(&backend_dir),
+                ) {
+                    procs.push(child);
+                }
+            }
+
+            // ── 2. Ollama ──────────────────────────────────────────
+            // `ollama serve` is idempotent — exits immediately if already running.
+            if let Some(child) = spawn_hidden(Command::new("ollama").arg("serve")) {
+                procs.push(child);
+            }
+
+            // Store process handles so they can be killed on exit.
+            *app.state::<Processes>().0.lock().unwrap() = procs;
+
+            // ── 3. System tray ─────────────────────────────────────
             let show_item = MenuItem::with_id(app, "show", "Show Mimir", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit",       true, None::<&str>)?;
             let menu      = Menu::with_items(app, &[&show_item, &quit_item])?;
@@ -249,7 +265,7 @@ fn main() {
                 })
                 .build(app)?;
 
-            // ── Global shortcut: Ctrl+Shift+M → show/focus ────
+            // ── 4. Global shortcut: Ctrl+Shift+M → show/hide ───────
             use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
             app.global_shortcut().on_shortcut(
                 tauri_plugin_global_shortcut::Shortcut::new(

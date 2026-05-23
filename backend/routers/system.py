@@ -56,6 +56,12 @@ async def list_models(_user=Depends(get_current_user)):
 
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(_user=Depends(get_current_user)):
+    """Return the current runtime settings for the authenticated user.
+
+    Reads live values from the in-memory ``settings`` object so any
+    previously patched values (which may differ from the defaults) are
+    reflected immediately without a restart.
+    """
     return SettingsResponse(
         ollama_model=settings.ollama_model,
         ollama_temperature=settings.ollama_temperature,

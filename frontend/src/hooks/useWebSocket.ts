@@ -1,3 +1,17 @@
+/**
+ * useWebSocket — persistent, auto-reconnecting WebSocket hook for the Mimir chat endpoint.
+ *
+ * Opens a single socket per auth token, multiplexes all backend message types
+ * (token streams, tool data, review reminders, file-indexing events, tutor
+ * state transitions), and reconnects automatically with linear back-off.
+ *
+ * Consumers receive typed callbacks rather than raw message events so
+ * components stay decoupled from the wire protocol.
+ *
+ * @see {@link WsMessage} for the full discriminated union of server messages.
+ * @see {@link UseWebSocketReturn} for the public surface returned by this hook.
+ */
+
 import { useEffect, useRef, useState, useCallback } from "react";
 
 import { WS_CHAT as WS_BASE_URL } from "@/config";

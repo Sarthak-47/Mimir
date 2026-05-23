@@ -61,6 +61,11 @@ _STATES = ["INTRO", "TEACH", "CHECK", "QUIZ", "DEBRIEF"]
 
 
 def _next(state: str) -> str | None:
+    """Return the state that follows ``state`` in the tutor pipeline.
+
+    Returns ``None`` when ``state`` is already ``"DEBRIEF"`` (terminal) or
+    is not a recognised state name.
+    """
     try:
         idx = _STATES.index(state)
     except ValueError:
@@ -69,6 +74,7 @@ def _next(state: str) -> str | None:
 
 
 def _fmt(dt: datetime | None) -> str | None:
+    """Format a datetime as an ISO-8601 string, or return ``None`` if absent."""
     return dt.isoformat() if dt else None
 
 
@@ -80,6 +86,12 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    """Create a new tutor session for the given topic and return its initial state.
+
+    The session starts in the ``INTRO`` state. The client should immediately
+    begin the first tutor turn by sending a chat message that includes the
+    returned ``id`` as ``tutor_session_id``.
+    """
     session = TutorSession(
         user_id=user.id,
         topic_name=body.topic_name.strip(),
@@ -106,6 +118,7 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    """Return the 20 most recent tutor sessions for the authenticated user, newest first."""
     result = await db.execute(
         select(TutorSession)
         .where(TutorSession.user_id == user.id)
@@ -134,6 +147,7 @@ async def get_session(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    """Fetch a single tutor session by ID. Raises 404 if not found or not owned by the user."""
     result = await db.execute(
         select(TutorSession).where(
             TutorSession.id == session_id,
@@ -162,6 +176,13 @@ async def advance_session(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    """Advance a tutor session to its next state and persist any quiz scores.
+
+    Called by ``chat.py`` after the agent completes each stage of the lesson.
+    Accepts optional ``quiz_score`` / ``quiz_total`` which are stored on the
+    session row for progress tracking.  Raises 400 if the session is already
+    in the terminal ``DEBRIEF`` state, 404 if not found.
+    """
     result = await db.execute(
         select(TutorSession).where(
             TutorSession.id == session_id,

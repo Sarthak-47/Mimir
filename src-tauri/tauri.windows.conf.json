@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "resources": {
+      "binaries/mimir-backend/mimir-backend.exe": "mimir-backend/mimir-backend.exe",
+      "resources/backend-internal.zip": "backend-internal.zip"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "targets": ["dmg"],
+    "resources": {
+      "binaries/mimir-backend/mimir-backend": "mimir-backend/mimir-backend",
+      "resources/backend-internal.zip": "backend-internal.zip"
+    }
+  }
+}

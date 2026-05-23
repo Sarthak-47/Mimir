@@ -50,7 +50,8 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **Oracle** — WebSocket-streamed chat with a local LLM; tokens appear as they arrive
 - **ReAct agent loop** — decides when to explain, quiz, summarise, or recall past sessions based on your message
 - **7 teaching modes** — DEEP (full detail), SWIFT (concise), BASIC (ELI5), EXAM (past-paper style), CODE (programming focus), MATH (derivation-first), ODIN (Socratic questioning); switch mid-conversation
-- **5 quick-action buttons** — SCROLL (summarise notes), LESSON (structured tutor), TRIAL (quiz), RUNES (flashcards), FATES (study plan) — all launch directly from the input bar
+- **6 quick-action buttons** — SCROLL (summarise notes), LESSON (structured tutor), TRIAL (quiz), RUNES (flashcards), FATES (study plan), MAP (mind map) — all launch directly from the input bar
+- **KaTeX math rendering** — all responses emit properly formatted LaTeX (`$…$` inline, `$$…$$` display); prompts tuned to produce KaTeX-compatible output across all 7 modes
 - **Chat hover actions** — copy, edit, or regenerate any message by hovering over it
 - **Streaming stop** — cancel a generation mid-response
 - **Thinking indicator** — Norse-themed status while the model reasons ("Consulting the Well of Urd…")
@@ -65,57 +66,67 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 ### Knowledge base (Scrolls)
 - **PDF and image upload** — PyMuPDF extracts PDFs with heading-aware structure; Ollama vision model describes images with Tesseract OCR as fallback
 - **Semantic chunking** — paragraph-aware 800-char chunks with sentence-boundary overlap so retrieval never cuts across a key sentence
+- **Scrolls search & reassign** — full-text filter across uploaded files; reassign any file to a different subject without re-uploading
 - **Discipline filter** — filter your uploaded files by subject in the Scrolls view
 - **Exam paper auto-scaling** — upload any past-paper PDF and Mimir automatically detects questions with their mark allocations (`[4 marks]`, `(6 marks)`, `[8]`, etc.). Oracle answers are calibrated in depth to the marks at stake — 1–2 marks gets a concise point, 7+ marks gets a full structured response. Detected questions listed in Scrolls with a gold ▼ Q badge
 
 ### Study tools
 - **Trials (MCQ)** — dedicated quiz runner with subject and topic selector; inline interactive MCQ cards with correct/wrong state; full score card and SM-2 update on completion
 - **Trials (Written Answer)** — free-text answer mode; Mimir generates a question, evaluates your typed response against mark points, and updates SM-2 state
+- **Trials (Flashcard)** — Anki-style card-flip deck as a third Trials mode; flip to reveal, navigate through the deck, SM-2 updated on completion
+- **Timed mock exam** — simulate real exam conditions; upload a question set, answer under a countdown, receive a per-question breakdown with mark allocation
 - **AI Examiner** — upload a question + mark scheme, write your answer, receive examiner-style feedback with awarded and missed mark points broken down line by line
 - **Structured tutor sessions** — 5-stage lesson arc (INTRO → TEACH → CHECK → QUIZ → DEBRIEF) on any topic, driven by the LESSON button
-- **Flashcard decks** — appear in-chat with flip interaction and card navigation
 - **Diagram understanding** — paste or drop an image into the chat and the vision model extracts every label, formula, arrow, and relationship for discussion
 
+### Insight tools (v0.7)
+- **Knowledge graph** — prerequisite dependency map for any subject; click a topic to see what it builds on and what depends on it; helps identify the root blocker behind a weak area
+- **Mind map generator** — MAP button generates a visual concept map for any topic or uploaded document; dynamic node sizing and full-screen modal
+- **Formula & definition sheets** — auto-extracted from your uploaded notes per subject; always one click away in the sidebar
+- **Learning velocity** — per-topic improvement slope and sparkline trend lines in The Reckoning; highlights topics in free-fall and topics you have already mastered
+- **Study activity heatmap** — GitHub-style contribution calendar showing daily study intensity across all subjects
+
 ### Spaced repetition
-- **SM-2 algorithm** — confidence scores, ease factors, repetition counts, and review intervals updated after every quiz submission (MCQ and written)
-- **Reckoning dashboard** — per-topic confidence bars, quiz history, total days studied, all-time accuracy, current streak
+- **SM-2 algorithm** — ease factors, repetition counts, and review intervals updated after every quiz, written answer, and flashcard submission
+- **Due-today review queue** — SM-2 overdue topics surfaced as a one-click Review button; works across all three Trials modes
+- **Reckoning dashboard** — per-topic confidence bars, quiz history, total days studied, all-time accuracy, current streak, learning velocity sparklines
 - **Predicted grade** — Ebbinghaus decay + score trajectory → live letter grade estimate with confidence level and trend arrow
-- **Overdue review detection** — APScheduler hourly job flags topics past their `next_review` date
+- **Progress report export** — export your full Reckoning stats as a PDF from The Reckoning view
+- **Overdue review detection** — APScheduler hourly job flags topics past their `next_review` date and triggers a desktop notification
+
+### Workflow tools (v0.8)
+- **Pomodoro timer** — floating study-session widget with configurable work/break intervals; minimises out of the way without interrupting your session
+- **Chronicle search** — full-text search across all past conversations; find any session by topic or keyword
+- **Study preferences** — additional per-subject study preferences in Settings; persisted alongside model and temperature settings
 
 ### Settings & health
 - **Settings modal** — runtime overrides for model, temperature, and context window; persisted to `user_settings.json`
 - **Model switcher** — lists all Ollama models on your machine with size info
 - **System status banner** — live Ollama and model health check; red banner with exact fix command if something is wrong
-- **OS notifications** — review reminders delivered as native Windows notifications when topics are overdue
+- **OS notifications** — review reminders delivered as native desktop notifications when topics are overdue
 
 ### Onboarding & updates
-- **Onboarding wizard** — 5-step first-launch guide (Welcome → Ollama check → Model pull → Set exam date → Done)
+- **Onboarding wizard** — 6-step first-launch guide (Welcome → Ollama check → Model pull → Create subject → Set exam date → Done)
 - **Auto-update** — app polls GitHub Releases, shows a gold download-progress banner, and restarts to apply the new installer automatically
 
 ### Navigation & UX
 - **Command palette** — Ctrl+K or `/` in an empty message box opens a fuzzy-searchable palette with navigation commands, chat shortcuts, and subject switchers
-- **All-Chats panel** — browse every past session grouped by date; click any to reload it into the Oracle
-- **Chronicle** — full paginated conversation history in the same bubble style as the live chat
+- **All-Chats panel** — browse every past session grouped by date; click any to reload it into the Oracle; hover to delete
+- **Chronicle** — full paginated conversation history in the same bubble style as the live chat; searchable
 - **Sidebar disciplines** — create and delete subjects live; accordion of recent sessions per subject; active subject sets the RAG filter for all memory queries
 - **Exam countdown** — set your exam date in the sidebar; the Ragnarok countdown in the right panel is real
 - **System tray** — Mimir minimises to tray; click icon or right-click → Show to restore; Ctrl+Shift+M global hotkey toggles the window from anywhere on the desktop
 - **Yggdrasil background** — Norse tree rendered as a ghosted full-height wallpaper behind the chat column
 
-### AI quality (v0.7–v0.9)
-- **KaTeX math rendering** — all LLM responses emit properly formatted LaTeX (`$...$` inline, `$$...$$` display) rendered in the UI; prompts tuned to produce KaTeX-compatible output across all 7 modes
-- **Flash Attention enabled** — `OLLAMA_FLASH_ATTENTION=1` doubles generation speed (~23 tok/s vs 8 tok/s) with lower VRAM usage on supported GPUs
-- **Context window honoured** — `ollama_context_length` from Settings is now correctly propagated to every Ollama API call (was silently ignored before)
-- **SM-2 spaced repetition fixed** — flashcard result submission now correctly updates ease factor, repetition count, and review interval
-
 ### Voice (v0.6)
-- **Voice input (Whisper STT)** — press-and-hold the mic rune to dictate; `faster-whisper base.en` transcribes locally, no cloud; WebM/Opus audio, 10 MB upload cap, voice allowlist enforced server-side
+- **Voice input (Whisper STT)** — press-and-hold the mic rune to dictate; `faster-whisper base.en` transcribes locally, no cloud; WebM/Opus audio, 10 MB upload cap
 - **Voice output (TTS)** — speaker rune on any message reads it aloud; auto-read toggle speaks every Mimir response automatically; kokoro-onnx `bm_lewis` voice, 24 kHz PCM, 1.3× speed by default
 - **VIGIL — voice revision mode** — hands-free quiz loop: Mimir speaks a question, listens for your spoken answer, marks it, speaks feedback, then moves on; state machine with setup, active, and summary screens
 
 ### Auth & data
 - Register / log in with JWT auth and bcrypt passwords; token persisted for the session
 - All data — conversations, quiz history, files, subjects, memories — isolated per user account
-- SQLite for relational data, ChromaDB embedded for vectors, both stored locally in `%LOCALAPPDATA%\Mimir\data\`
+- SQLite for relational data, ChromaDB embedded for vectors, both stored locally in `%LOCALAPPDATA%\Mimir\data\` (Windows) or `~/.local/share/Mimir/data/` (Linux) or `~/Library/Application Support/Mimir/data/` (macOS)
 
 ---
 
@@ -129,6 +140,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Typography | Cinzel (headers) + Crimson Text (body) — Google Fonts |
 | Backend | FastAPI with async SQLAlchemy + aiosqlite |
 | Local LLM | Ollama — `qwen3.5:9b` (chat) + `qwen2.5vl:7b` (vision) |
+| Math rendering | KaTeX — client-side LaTeX rendering |
 | Vector memory | ChromaDB, embedded and persistent |
 | Reranking | `sentence-transformers` ms-marco-MiniLM-L-6-v2 |
 | Relational data | SQLite |
@@ -140,6 +152,7 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Text-to-speech | kokoro-onnx (`bm_lewis`, ONNX runtime) — 24 kHz PCM WAV |
 | Notifications | tauri-plugin-notification |
 | Auto-updater | tauri-plugin-updater |
+| CI/CD | GitHub Actions — Windows, macOS, Linux builds on tag push |
 
 ---
 
@@ -147,41 +160,53 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 
 ```
 mimir/
-├── src-tauri/                  Rust shell — window, tray, global shortcut, Tauri config
+├── .github/workflows/
+│   ├── ci.yml              Backend test suite on every push to main
+│   └── release.yml         Windows NSIS + macOS DMG + Linux AppImage/deb on tag push
+├── src-tauri/              Rust shell — window, tray, global shortcut, Tauri config
+│   ├── src/main.rs         Cross-platform backend/Ollama spawning, resource dir resolution
+│   ├── tauri.conf.json     Base config (version, window, icons)
+│   ├── tauri.windows.conf.json   Windows-specific bundle targets and resources
+│   ├── tauri.macos.conf.json     macOS-specific bundle targets and resources
+│   └── tauri.linux.conf.json     Linux-specific bundle targets and resources
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   ├── Sidebar.tsx         Disciplines, session accordion, exam date, settings/examiner buttons
-│       │   ├── Topbar.tsx          Breadcrumb, NEW button, All-Chats trigger
-│       │   ├── AllChatsPanel.tsx   Slide-in drawer of all past sessions
-│       │   ├── Chat.tsx            Message bubbles, streaming, hover actions
-│       │   ├── InputZone.tsx       Textarea, mode switcher, 5 action buttons
-│       │   ├── CommandPalette.tsx  Ctrl+K fuzzy command palette
-│       │   ├── RightPanel.tsx      Stats, weaknesses, Ragnarok countdown
-│       │   ├── ExaminerModal.tsx   AI examiner — question + mark scheme + marking
+│       │   ├── Sidebar.tsx             Disciplines, session accordion, exam date, settings
+│       │   ├── Topbar.tsx              Breadcrumb, NEW button, All-Chats trigger
+│       │   ├── AllChatsPanel.tsx       Slide-in drawer of all past sessions
+│       │   ├── Chat.tsx                Message bubbles, streaming, hover actions, KaTeX render
+│       │   ├── InputZone.tsx           Textarea, mode switcher, 6 action buttons
+│       │   ├── CommandPalette.tsx      Ctrl+K fuzzy command palette
+│       │   ├── RightPanel.tsx          Stats, weaknesses, Ragnarok countdown
+│       │   ├── ExaminerModal.tsx       AI examiner — question + mark scheme + marking
+│       │   ├── KnowledgeGraphModal.tsx Prerequisite dependency graph (v0.7)
+│       │   ├── MindMapModal.tsx        Visual concept map generator (v0.7)
+│       │   ├── PomodoroTimer.tsx       Floating study-session timer widget (v0.8)
 │       │   ├── VoiceRevisionModal.tsx  VIGIL — hands-free quiz loop (v0.6)
-│       │   ├── SettingsModal.tsx   Model, temperature, context window overrides
-│       │   ├── OnboardingWizard.tsx 5-step first-launch guide
-│       │   ├── SystemStatus.tsx    Ollama/model health banner
-│       │   └── UpdateNotice.tsx    Auto-update download progress banner
+│       │   ├── SettingsModal.tsx       Model, temperature, context window overrides
+│       │   ├── OnboardingWizard.tsx    6-step first-launch guide
+│       │   ├── SystemStatus.tsx        Ollama/model health banner
+│       │   └── UpdateNotice.tsx        Auto-update download progress banner
 │       ├── views/
-│       │   ├── TrialsView.tsx      Quiz runner — MCQ + written answer modes
-│       │   ├── ReckoningView.tsx   Progress dashboard + predicted grade
-│       │   ├── ChronicleView.tsx   Session history
-│       │   └── ScrollsView.tsx     File library + exam question browser
+│       │   ├── TrialsView.tsx          Quiz runner — MCQ, written answer, flashcard modes
+│       │   ├── ReckoningView.tsx       Progress dashboard, velocity, heatmap, grade, PDF export
+│       │   ├── ChronicleView.tsx       Searchable session history
+│       │   ├── ScrollsView.tsx         File library, search, reassign, exam question browser
+│       │   └── FatesView.tsx           Study plan, schedule, syllabus coverage
 │       ├── hooks/
-│       │   ├── useWebSocket.ts     Streaming + tool_data routing
-│       │   ├── useTTS.ts           kokoro-onnx TTS — speak() returns Promise<void> (v0.6)
-│       │   ├── useAudioRecorder.ts WebM/Opus mic recording (v0.6)
-│       │   └── useVoiceRevision.ts VIGIL state machine (v0.6)
-│       ├── styles/globals.css  Full design system as CSS variables
-│       ├── config.ts           Centralised API/WS base URLs
-│       └── App.tsx             Root layout, auth gate, state, view routing, update check
+│       │   ├── useWebSocket.ts         Streaming + tool_data routing
+│       │   ├── useTTS.ts               kokoro-onnx TTS hook (v0.6)
+│       │   ├── useAudioRecorder.ts     WebM/Opus mic recording (v0.6)
+│       │   └── useVoiceRevision.ts     VIGIL state machine (v0.6)
+│       ├── styles/globals.css          Full design system as CSS variables
+│       ├── config.ts                   Centralised API/WS base URLs
+│       └── App.tsx                     Root layout, auth gate, state, view routing, update check
 ├── backend/
 │   ├── agent/
 │   │   ├── loop.py         ReAct loop — streaming, peek window, tool dispatch
 │   │   ├── tools.py        quiz, flashcards, summarize, weak_topics, SM-2
-│   │   ├── prompts.py      7 mode system prompts
+│   │   ├── prompts.py      7 mode system prompts with KaTeX math instructions
 │   │   └── tutor.py        5-stage tutor state machine
 │   ├── memory/
 │   │   ├── database.py     ORM models — User, Subject, Topic, File, ExamQuestion, …
@@ -191,24 +216,28 @@ mimir/
 │   ├── routers/
 │   │   ├── chat.py         WebSocket /ws/chat endpoint
 │   │   ├── examiner.py     AI examiner — mark written answers against mark schemes
-│   │   ├── files.py        Upload, delete, list, /questions endpoint
-│   │   ├── quiz.py         MCQ + written question generation + SM-2 submission
-│   │   ├── progress.py     Stats, exam dates, topic scores, predicted grade
-│   │   ├── chronicle.py    Paginated session history
+│   │   ├── files.py        Upload, delete, list, search, reassign, /questions endpoint
+│   │   ├── quiz.py         MCQ + written + flashcard generation + SM-2 submission
+│   │   ├── progress.py     Stats, exam dates, topic scores, predicted grade, PDF export
+│   │   ├── chronicle.py    Paginated + searchable session history
 │   │   ├── system.py       Settings CRUD, model list, health check
 │   │   ├── tutor.py        Tutor session CRUD
-│   │   └── voice.py        STT (/transcribe) + TTS (/speak) + health — JWT-gated (v0.6)
+│   │   └── voice.py        STT (/transcribe) + TTS (/speak) — JWT-gated (v0.6)
 │   ├── voice/
-│   │   ├── transcribe.py   faster-whisper base.en — WebM/Opus → text via PyAV (v0.6)
-│   │   └── synthesise.py   kokoro-onnx bm_lewis — text → 24 kHz PCM WAV (v0.6)
+│   │   ├── transcribe.py   faster-whisper base.en — WebM/Opus → text via PyAV
+│   │   └── synthesise.py   kokoro-onnx bm_lewis — text → 24 kHz PCM WAV
 │   ├── utils/
 │   │   ├── parser.py       PDF/image extraction, semantic chunking, indexing
 │   │   └── exam_parser.py  Regex pipeline — detect exam papers, extract Q + marks
 │   ├── scheduler.py        APScheduler — review check, streak update, summariser
 │   ├── main.py             FastAPI entry point with lifespan
 │   ├── server.py           PyInstaller entry point
-│   ├── mimir-backend.spec  PyInstaller spec
-│   └── config.py           pydantic-settings from .env
+│   ├── mimir-backend.spec  PyInstaller spec (cross-platform)
+│   └── config.py           pydantic-settings from .env + user_settings.json overrides
+├── scripts/
+│   ├── zip-backend.py      Cross-platform _internal zipper for CI (Windows/macOS/Linux)
+│   ├── zip-backend.ps1     Windows PowerShell version for local builds
+│   └── build-manifest.py   Updater manifest generator
 ```
 
 ---
@@ -225,7 +254,8 @@ ollama pull qwen2.5vl:7b   # optional — for image understanding
 # Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt
 uvicorn main:app --port 8000
 
@@ -238,83 +268,88 @@ npm run dev
 cargo tauri dev
 ```
 
-To build the full installer locally:
+To build the installer locally (Windows):
 
-```bash
+```powershell
 # 1. Build the Python backend bundle
 cd backend
 pyinstaller mimir-backend.spec --noconfirm
 
-# 2. Stage bundle into Tauri resource directories
-mkdir -p ..\src-tauri\binaries\mimir-backend
-copy dist\mimir-backend\mimir-backend.exe ..\src-tauri\binaries\mimir-backend\
+# 2. Stage binary + _internal into Tauri resource directories
+New-Item -ItemType Directory -Force -Path ..\src-tauri\binaries\mimir-backend
+Copy-Item -Force dist\mimir-backend\mimir-backend.exe ..\src-tauri\binaries\mimir-backend\
+Copy-Item -Recurse -Force dist\mimir-backend\_internal ..\src-tauri\binaries\mimir-backend\_internal
 
-# 3. Zip _internal for the installer (PowerShell)
-Compress-Archive -Path "dist/mimir-backend/_internal/*" `
-                 -DestinationPath "../src-tauri/resources/backend-internal.zip" -Force
-
-# 4. Build NSIS installer
+# 3. Zip _internal for the installer
 cd ..
-cargo tauri build
-# Output: src-tauri/target/release/bundle/nsis/Mimir_0.6.0_x64-setup.exe
+python scripts/zip-backend.py
+
+# 4. Build NSIS installer (pass platform config)
+cargo tauri build --config src-tauri/tauri.windows.conf.json
+# Output: src-tauri/target/release/bundle/nsis/Mimir_0.9.0_x64-setup.exe
+```
+
+For macOS or Linux, replace step 4 with `--config src-tauri/tauri.macos.conf.json` or `--config src-tauri/tauri.linux.conf.json`.
+
+CI builds for all three platforms are triggered automatically when you push a version tag:
+
+```bash
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 ---
 
-## Roadmap — v0.7 to v1.0
-
-v0.6 ships a capable AI study suite with full voice support. The path to v1.0 turns Mimir into a complete exam-preparation operating system. Below is the plan.
-
----
+## Roadmap
 
 ### ✅ v0.5 — Living Study Plan *(shipped)*
 
 | # | Feature |
 |---|---------|
 | 1 | **Syllabus import** — paste or upload an A-Level / IB / GCSE / AP syllabus; Mimir structures subjects and topics around it automatically |
-| 2 | **Day-by-day study schedule** — auto-generated plan from exam date + syllabus + weak-topic scores + Ebbinghaus decay; rendered as a calendar view |
-| 3 | **Adaptive rescheduling** — if you fall behind or improve faster than expected, the plan recalculates overnight |
-| 4 | **Syllabus coverage map** — visual heatmap of every topic area, coloured by how much you've studied each one |
-| 5 | **FATES view overhaul** — replace placeholder with the live schedule above; show today's tasks, overdue items, and tomorrow's forecast |
-| 6 | **Delete chat** — delete individual sessions from the All-Chats panel and Chronicle view; clears the conversation, its summary, and associated vector memory chunks |
+| 2 | **Day-by-day study schedule** — auto-generated plan from exam date + syllabus + weak-topic scores + Ebbinghaus decay |
+| 3 | **Adaptive rescheduling** — plan recalculates when you fall behind or improve faster than expected |
+| 4 | **Syllabus coverage map** — visual heatmap of every topic area, coloured by study coverage |
+| 5 | **FATES view** — live schedule with today's tasks, overdue items, and tomorrow's forecast |
+| 6 | **Delete chat** — delete sessions from All-Chats and Chronicle; clears conversation, summary, and vector chunks |
 
 ---
 
 ### ✅ v0.6 — Voice *(shipped)*
-*Hands-free revision — walk around the room and quiz yourself.*
 
 | # | Feature |
 |---|---------|
-| 6 | **Voice input (Whisper STT)** — press-and-hold to dictate a question or answer; `faster-whisper base.en` transcribes locally, no cloud |
-| 7 | **Voice output (TTS)** — Mimir reads explanations and quiz questions aloud; kokoro-onnx `bm_lewis` voice at 1.3× speed |
-| 8 | **VIGIL — voice revision mode** — dedicated hands-free session: Mimir asks a question, waits for spoken answer, marks it, speaks feedback, moves to the next |
+| 7 | **Voice input (Whisper STT)** — press-and-hold to dictate; `faster-whisper base.en` transcribes locally |
+| 8 | **Voice output (TTS)** — kokoro-onnx `bm_lewis` reads responses aloud at 1.3× speed |
+| 9 | **VIGIL — voice revision mode** — hands-free quiz loop with spoken question, spoken answer, spoken feedback |
 
 ---
 
-### v0.7 — Insight Engine
-*Understanding why you're weak, not just that you are.*
+### ✅ v0.7 — Insight Engine *(shipped)*
 
 | # | Feature |
 |---|---------|
-| 9  | **Knowledge graph** — topics linked to prerequisites; Mimir traces the dependency chain when you're weak to identify the root blocker, not just the symptom |
-| 10 | **Mind map generator** — visual concept map from any topic or uploaded document; exportable as PNG |
-| 11 | **Formula and definition sheets** — auto-generated per subject from uploaded notes; always one click away in the sidebar |
-| 12 | **Learning velocity** — per-topic improvement rate and trend lines; highlights topics in free-fall and topics you've already mastered |
-| 13 | **Time-on-topic heatmap** — shows where your study hours actually go vs where the schedule says they should |
+| 10 | **Knowledge graph** — prerequisite dependency map; traces root blockers behind weak topics |
+| 11 | **Mind map generator** — visual concept map via MAP button; dynamic node sizing, full-screen modal |
+| 12 | **Formula & definition sheets** — auto-extracted from uploaded notes per subject |
+| 13 | **Learning velocity** — per-topic improvement slope, sparkline trend lines, free-fall / mastered callouts |
+| 14 | **Study activity heatmap** — GitHub-style contribution calendar showing daily study intensity |
 
 ---
 
-### v0.8 — Polish & Workflow
-*The tools that turn occasional use into a daily habit.*
+### ✅ v0.8 — Polish & Workflow *(shipped)*
 
 | # | Feature |
 |---|---------|
-| 14 | **Flashcard deck manager** — create, edit, organise named decks; Anki `.apkg` import and export |
-| 15 | **Pomodoro / study session timer** — built-in timer with configurable work/break intervals; logs time-on-topic to the heatmap |
-| 16 | **Past paper question database** — every question attempted indexed by topic, paper, and year; coverage gaps surfaced as "unseen question types" |
-| 17 | **Custom themes** — light mode, dark mode, accent colour picker while keeping the core Norse design language |
-| 18 | **Keybinding customisation** — remap any action from a settings panel |
-| 19 | **Frontend performance** — code-split bundle (current ~523 kB → target ~150 kB); lazy-load heavy views |
+| 15 | **Flashcard deck (Anki-style)** — card-flip Trials mode with SM-2 scoring |
+| 16 | **Timed mock exam** — simulate exam conditions with countdown and per-question breakdown |
+| 17 | **SM-2 review queue** — due-today topics surfaced as a one-click Review button |
+| 18 | **Pomodoro timer** — floating study-session widget with configurable work/break intervals |
+| 19 | **Progress report PDF export** — export full Reckoning stats from The Reckoning view |
+| 20 | **Scrolls search & reassign** — filter uploaded files; reassign to a different subject |
+| 21 | **Chronicle search** — full-text search across all past conversations |
+| 22 | **OS notifications** — native desktop alerts when review topics are overdue |
+| 23 | **KaTeX math rendering** — LaTeX in all responses and quiz questions, rendered via KaTeX |
 
 ---
 
@@ -322,21 +357,22 @@ v0.6 ships a capable AI study suite with full voice support. The path to v1.0 tu
 
 | # | Feature |
 |---|---------|
-| 20 | **macOS build** — Apple Silicon DMG via GitHub Actions CI |
-| 21 | **Linux build** — `.AppImage` and `.deb` packages via GitHub Actions CI |
-| 22 | **Optional encrypted cloud sync** — deferred to v1.0 |
+| 24 | **macOS build** — Apple Silicon DMG distributed via GitHub Actions CI |
+| 25 | **Linux build** — `.AppImage` and `.deb` packages via GitHub Actions CI |
+| 26 | **Flash Attention** — `OLLAMA_FLASH_ATTENTION=1` enabled; ~2× generation speed on supported GPUs |
+| 27 | **Context window fix** — `ollama_context_length` from Settings now correctly reaches every Ollama call |
 
 ---
 
 ### v1.0 — Completion
-*Everything above, stable, documented, and ready for daily use by anyone.*
 
 | # | Feature |
 |---|---------|
-| 23 | **Full test coverage** — every backend route, every SM-2 edge case, every RAG retrieval path covered by automated tests in CI |
-| 24 | **Comprehensive error recovery** — every failure mode (Ollama down, model missing, corrupted DB, disk full) has a clear in-app recovery path |
-| 25 | **In-app help and docs** — searchable help panel covering every feature, accessible from the command palette |
-| 26 | **Installer signing** — code-signed NSIS installer so Windows does not show an "unknown publisher" warning; enables auto-updater `.sig` verification |
+| 28 | **Full test coverage** — every backend route, every SM-2 edge case, every RAG retrieval path covered |
+| 29 | **Comprehensive error recovery** — every failure mode has a clear in-app recovery path |
+| 30 | **In-app help and docs** — searchable help panel accessible from the command palette |
+| 31 | **Installer signing** — code-signed NSIS installer; enables `.sig` verification in the auto-updater |
+| 32 | **Optional cloud sync** — opt-in encrypted backup to a self-hosted or S3-compatible bucket |
 
 ---
 
@@ -350,7 +386,7 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 
 ## Status
 
-**v0.9.0** — released. Windows x64 installer, macOS Apple Silicon DMG, and Linux AppImage/deb all built and distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention for ~23 tok/s on a mid-range GPU. Includes all features from v0.4 through v0.9: full voice I/O, spaced repetition, exam paper parsing, hybrid vector memory, KaTeX math rendering, and multi-platform builds.
+**v0.9.0** — released. Windows x64 installer, macOS Apple Silicon DMG, and Linux AppImage/deb all built and distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention for ~23 tok/s on a mid-range GPU. All features from v0.5 through v0.9 are shipped: voice I/O, spaced repetition, exam paper parsing, hybrid vector memory, knowledge graphs, mind maps, Pomodoro timer, KaTeX math rendering, timed mock exams, and multi-platform builds.
 
 If you find this useful or want to build on it, the code is yours. MIT licensed.
 

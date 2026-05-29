@@ -18,11 +18,11 @@ aiofiles>=23.2
 
 # Runtime packages imported by modules under test
 ollama>=0.6
-chromadb>=0.5,<0.6
-numpy<2.0
+chromadb>=1.5.9         # 1.x supports numpy 2.x (0.5.x used np.float_ removed in numpy 2.0)
 sqlalchemy>=2.0
 aiosqlite>=0.20
-pydantic>=2.7
+pydantic>=2.9,<3.0.0
 pydantic-settings>=2.2
 python-dotenv>=1.0
 rank_bm25>=0.2
+websockets>=12.0

@@ -25,9 +25,19 @@ class _TinyEmbedFn:
     Avoids downloading any model (all-MiniLM-L6-v2, cross-encoder, etc.) so
     the test suite runs without internet access and completes in seconds.
     The values are meaningless for ranking but structurally valid for ChromaDB.
+
+    ChromaDB 1.x requires embedding functions to expose a ``name()`` method.
     """
 
     DIM = 16
+
+    def name(self) -> str:
+        """Return a stable identifier for this embedding function (ChromaDB 1.x API)."""
+        return "mimir_test_tiny_embed"
+
+    def embed_query(self, input: list[str]) -> list[list[float]]:
+        """Embed query texts (ChromaDB 1.x calls this for query() calls)."""
+        return self(input)
 
     def __call__(self, input: list[str]) -> list[list[float]]:
         result = []

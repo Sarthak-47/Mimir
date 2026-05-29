@@ -178,9 +178,25 @@ export function useWebSocket({
           case "tutor_quiz":
             if (msg.data !== undefined) onTutorQuizRef.current?.(msg.data);
             break;
-          case "error":
+          case "error": {
             console.error("[Mimir WS] Server error:", msg.content);
+            // Show a user-friendly error in the chat bubble instead of
+            // silently swallowing it — the backend sends a "done" frame
+            // immediately after, so the bubble completes cleanly.
+            const raw = msg.content ?? "";
+            let friendly: string;
+            if (/connection refused|connect.*failed|ollama.*not.*run/i.test(raw)) {
+              friendly = "⚠ Ollama is not running. Open a terminal and run:\n`ollama serve`";
+            } else if (/model.*not.*found|no such model|pull.*model/i.test(raw)) {
+              friendly = `⚠ Model not found. Pull it with:\n\`ollama pull qwen3.5:9b\``;
+            } else if (/timeout|timed out/i.test(raw)) {
+              friendly = "⚠ The oracle timed out — Ollama may be overloaded. Try again in a moment.";
+            } else {
+              friendly = `⚠ ${raw || "The oracle encountered an error — try again."}`;
+            }
+            onTokenRef.current(friendly);
             break;
+          }
         }
       } catch {
         // Plain text fallback (shouldn't happen with proper backend)

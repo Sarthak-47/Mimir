@@ -3,7 +3,7 @@
  *
  * Triggered by the ? button in Topbar. Covers:
  *   Tabs, InputZone buttons, Teaching Modes, Keyboard Shortcuts, Diagram
- *   Understanding, and Interactive Tutor Sessions.
+ *   Understanding, Interactive Tutor Sessions, Voice, and Troubleshooting.
  */
 
 interface HelpModalProps {
@@ -38,7 +38,8 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             <Row rune="ᛚ" name="LESSON"  desc="Start a structured 5-stage tutor session on any topic of your choice." />
             <Row rune="ᛏ" name="TRIAL"   desc="Trigger a quiz on the currently active discipline." />
             <Row rune="ᚠ" name="RUNES"   desc="Generate a set of flashcards for the active discipline." />
-            <Row rune="ᚾ" name="FATES"   desc="Build a personalised day-by-day revision schedule." />
+            <Row rune="ᚾ" name="FATES"   desc="Open the study plan — due topics, schedule, and syllabus coverage." />
+            <Row rune="ᛗ" name="MAP"     desc="Generate a visual mind map for any topic or your uploaded notes." />
           </Section>
 
           {/* Teaching modes */}
@@ -78,12 +79,47 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             </p>
           </Section>
 
+          {/* AI Examiner */}
+          <Section rune="ᛏ" title="AI Examiner">
+            <p style={styles.para}>
+              Click the <strong style={{ color: "var(--gold-dim)" }}>AI Examiner</strong> button in the sidebar (bottom). Paste a question and a mark scheme, write your answer, and Mimir grades it point by point — showing exactly which mark-scheme bullets you hit and which you missed, with an examiner-style feedback comment.
+            </p>
+          </Section>
+
+          {/* Voice */}
+          <Section rune="ᛗ" title="Voice — Whisper STT &amp; Kokoro TTS">
+            <Row rune="🎙" name="MIC RUNE"      desc="Press and hold to record. Whisper transcribes locally — no internet needed." />
+            <Row rune="ᛗ"  name="SPEAKER RUNE"  desc="Click on any Mimir message to read it aloud (kokoro bm_lewis voice)." />
+            <Row rune="ᚢ"  name="AUTO-READ"     desc="Toggle in the Topbar to automatically speak every new Mimir response." />
+            <Row rune="ᚢ"  name="VIGIL"         desc="Hands-free revision loop: Mimir asks a question aloud, you answer aloud, it marks and speaks feedback. Launch from the input bar's mic button (hold) or the VIGIL button when voice is ready." />
+            <p style={styles.hint}>Voice models download in the background on first launch (~600 MB total). A setup banner confirms when they are ready.</p>
+          </Section>
+
+          {/* Reckoning / insights */}
+          <Section rune="ᚾ" title="The Reckoning — Progress &amp; Insights">
+            <Row rune="ᚾ" name="Readiness bars"    desc="Ebbinghaus decay curves per topic — how much you remember right now based on time elapsed and quiz scores." />
+            <Row rune="ᛞ" name="Knowledge graph"   desc="Prerequisite dependency map — click a topic to trace what it builds on and what depends on it. Opens from the graph icon in The Reckoning." />
+            <Row rune="ᛊ" name="Learning velocity" desc="Per-topic improvement slope and sparkline trend over recent quizzes — identifies topics in free-fall and topics already mastered." />
+            <Row rune="ᚹ" name="Predicted grade"   desc="Ebbinghaus decay + score trajectory → live letter-grade estimate with confidence level and trend arrow." />
+            <Row rune="ᛈ" name="PDF export"        desc="Export your full Reckoning stats as a PDF from the export button in The Reckoning view." />
+          </Section>
+
           {/* Keyboard shortcuts */}
           <Section rune="ᛗ" title="Keyboard Shortcuts">
-            <Row rune="⌨" name="Enter"            desc="Send the current message." />
-            <Row rune="⌨" name="Shift + Enter"    desc="Insert a newline without sending." />
-            <Row rune="⌨" name="Ctrl + K"         desc="Open the command palette — quick access to all views and actions." />
-            <Row rune="⌨" name="Ctrl + V"         desc="Paste an image directly into the message box." />
+            <Row rune="⌨" name="Enter"              desc="Send the current message." />
+            <Row rune="⌨" name="Shift + Enter"      desc="Insert a newline without sending." />
+            <Row rune="⌨" name="Ctrl + K"           desc="Open the command palette — quick access to all views and actions." />
+            <Row rune="⌨" name="Ctrl + V"           desc="Paste an image directly into the message box." />
+            <Row rune="⌨" name="Ctrl + Shift + M"   desc="Global hotkey — show or hide Mimir from anywhere on the desktop." />
+          </Section>
+
+          {/* Troubleshooting */}
+          <Section rune="ᚱ" title="Troubleshooting">
+            <Row rune="!" name="Ollama not running"  desc='Red banner at the top — open a terminal and run: ollama serve' />
+            <Row rune="!" name="Model not found"     desc="Run: ollama pull qwen3.5:9b  (vision: ollama pull qwen2.5vl:7b)" />
+            <Row rune="!" name="Slow responses"      desc="Enable Flash Attention: set OLLAMA_FLASH_ATTENTION=1 before starting Ollama." />
+            <Row rune="!" name="File not indexing"   desc="Only PDF and image files are supported. Max size 50 MB. Re-upload if the gold ᛊ badge does not appear within 30 s." />
+            <Row rune="!" name="Voice not working"   desc="Voice models need ~600 MB of disk space and download on first launch. Check the setup banner — if it shows an error, restart Mimir." />
           </Section>
 
         </div>

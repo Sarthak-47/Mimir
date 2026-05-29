@@ -121,9 +121,13 @@ def query_memory(
         where["subject_id"] = str(subject_id)
 
     try:
+        # ChromaDB 1.x raises ValueError when n_results exceeds the total
+        # number of documents in the collection.  Clamp to avoid the error;
+        # the where filter will further narrow the results at query time.
+        safe_n = min(n_results, max(1, collection.count()))
         results = collection.query(
             query_texts=[query],
-            n_results=n_results,
+            n_results=safe_n,
             where=where,
         )
         docs: list[str] = results.get("documents", [[]])[0]
@@ -152,9 +156,10 @@ def query_memory_with_sources(
         where["subject_id"] = str(subject_id)
 
     try:
+        safe_n = min(n_results, max(1, collection.count()))
         results = collection.query(
             query_texts=[query],
-            n_results=n_results,
+            n_results=safe_n,
             where=where,
             include=["documents", "metadatas"],
         )

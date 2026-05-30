@@ -194,7 +194,12 @@ fn log(msg: &str) {
 // ── Entry point ───────────────────────────────────────────────
 fn main() {
     log("=== Mimir starting ===");
-    tauri::Builder::default()
+    log("plugins: notification");
+    log("plugins: process");
+    log("plugins: global-shortcut");
+    log("manage: processes");
+    log("setup: registering closure");
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         // updater removed — requires signing keys configured in tauri.conf.json
         .plugin(tauri_plugin_process::init())
@@ -324,10 +329,15 @@ fn main() {
 
             log("setup complete");
             Ok(())
-        })
-        .build(tauri::generate_context!())
-        .expect("error building Mimir")
-        .run(|app, event| {
+        });
+
+    log("build: calling .build()");
+    let app = match builder.build(tauri::generate_context!()) {
+        Ok(a)  => { log("build: SUCCESS"); a }
+        Err(e) => { log(&format!("build: FAILED — {e:?}")); return; }
+    };
+    log("run: entering event loop");
+    app.run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Ok(mut guard) = app.state::<Processes>().0.lock() {
                     for child in guard.iter_mut() {

@@ -231,7 +231,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabActive: {
     background: "var(--stone-3)",
-    borderColor: "var(--green)",
+    borderTopColor: "var(--green)",
+    borderLeftColor: "var(--green)",
+    borderRightColor: "var(--green)",
     color: "var(--text-primary)",
     borderBottom: "2px solid var(--green-bright)",
   },

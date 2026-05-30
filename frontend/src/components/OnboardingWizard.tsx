@@ -48,7 +48,7 @@ export default function OnboardingWizard({
 }: OnboardingWizardProps) {
   const [step,        setStep]       = useState(1);
   const [health,      setHealth]     = useState<HealthState>("idle");
-  const [modelName,   setModelName]  = useState("qwen2.5:14b");
+  const [modelName,   setModelName]  = useState("qwen3.5:9b");
   const [examInput,   setExamInput]  = useState("");
 
   // Step 5 — subject drafts
@@ -69,7 +69,7 @@ export default function OnboardingWizard({
       const data = await r.json() as {
         ollama_ok: boolean; model_ok: boolean; model: string;
       };
-      setModelName(data.model ?? "qwen2.5:14b");
+      setModelName(data.model ?? "qwen3.5:9b");
       if (!data.ollama_ok)  { setHealth("ollama_down");   return; }
       if (!data.model_ok)   { setHealth("model_missing"); return; }
       setHealth("ok");
@@ -355,13 +355,13 @@ function StepModel({
       <div style={stepStyles.rune}>ᚱ</div>
       <h2 style={stepStyles.title}>Pull a Model</h2>
       <p style={stepStyles.para}>
-        Mimir defaults to <strong style={{ color: "var(--gold-dim)" }}>qwen2.5:14b</strong> — a
-        14 B parameter model that balances quality and speed. Pull it with Ollama:
+        Mimir defaults to <strong style={{ color: "var(--gold-dim)" }}>qwen3.5:9b</strong> — a
+        9 B parameter model that balances quality and speed. Pull it with Ollama:
       </p>
 
       <div style={stepStyles.card}>
-        <code style={stepStyles.code}>ollama pull qwen2.5:14b</code>
-        <div style={stepStyles.cardHint}>~9 GB download. Runs on GPU or CPU.</div>
+        <code style={stepStyles.code}>ollama pull qwen3.5:9b</code>
+        <div style={stepStyles.cardHint}>~6.6 GB download. Runs on GPU or CPU.</div>
       </div>
 
       <div style={stepStyles.card}>

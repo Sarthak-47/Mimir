@@ -120,7 +120,7 @@ Banner "Stage 2 / 3 — Packing _internal.zip"
 # ── Stage 3: Tauri build ─────────────────────────────────────
 Banner "Stage 3 / 3 — Tauri build"
 Set-Location (Join-Path $repo "frontend")
-npm ci
+npm install
 Set-Location $repo
 
 $tauriArgs = @("--target", "x86_64-pc-windows-msvc")

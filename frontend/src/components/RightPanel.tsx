@@ -1,3 +1,18 @@
+/**
+ * RightPanel.tsx — Live progress statistics sidebar (right side of screen).
+ *
+ * The narrow panel on the right-hand edge of the main shell. It shows:
+ *   - "Days at the Well" — how many days the user has studied
+ *   - "Trial Accuracy" — the user's average quiz score across all attempts
+ *   - "Leyline Streak" — consecutive days studied without a gap
+ *   - "Weak Runes" — up to 4 topics where quiz scores are lowest, so the
+ *     user knows exactly what to focus on next
+ *   - If an exam date (Ragnarök) is set, a countdown in days appears above the stats
+ *
+ * All data is fetched from the backend and automatically refreshed every 30 seconds.
+ * The stats are scoped to the currently selected study discipline (Subject) or
+ * shown for all subjects when none is selected.
+ */
 import { useEffect, useState } from "react";
 import type { Subject } from "@/App";
 import { API_PROGRESS as API } from "@/config";

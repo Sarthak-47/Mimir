@@ -1,3 +1,19 @@
+/**
+ * Chat.tsx — Conversation message area for The Oracle view.
+ *
+ * Renders the back-and-forth conversation between the user and Mimir as
+ * styled chat bubbles. Key behaviours:
+ *   - User messages appear on the right; Mimir's responses on the left
+ *   - While waiting for the first word from the AI, a "ThinkingBubble" shows
+ *     a cycling Norse-flavoured loading phrase ("Mimir drinks deep…")
+ *   - Messages stream in word-by-word (tokens) in real time
+ *   - If Mimir returns quiz questions or flashcards, they render inline
+ *     inside the assistant bubble (handled by the Quiz and MathText components)
+ *   - Hovering a message reveals action buttons: copy, edit (user), regenerate (assistant)
+ *   - Attached images (pasted or dragged diagrams) show as thumbnails inside the bubble
+ *   - An empty state with quick-start suggestions appears when no messages exist
+ *   - The chat area auto-scrolls to the latest message
+ */
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";

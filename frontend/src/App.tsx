@@ -1,3 +1,21 @@
+/**
+ * App.tsx — Root application component and global state hub.
+ *
+ * This is the top-level component that every other part of the app lives inside.
+ * It is responsible for:
+ *   - Showing a boot splash while the backend starts up
+ *   - Showing the login/register screen when the user is not signed in
+ *   - Once signed in: rendering the full shell (sidebar, topbar, active view, right panel)
+ *   - Holding shared state that multiple parts of the app need:
+ *       · the active page/view (The Oracle, Trials, Reckoning, etc.)
+ *       · the current chat messages
+ *       · the list of study disciplines (Subjects)
+ *       · the signed-in user's JWT auth token and username
+ *       · the exam date countdown
+ *   - Owning the single WebSocket connection to the backend AI and routing
+ *     its incoming messages to the right state (streaming tokens → chat, quiz
+ *     data → chat bubble, review reminders → banner, etc.)
+ */
 import { useState, useRef, useCallback, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";

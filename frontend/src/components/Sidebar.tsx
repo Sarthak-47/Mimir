@@ -1,3 +1,16 @@
+/**
+ * Sidebar.tsx — Left navigation panel.
+ *
+ * The vertical strip on the left side of the screen. It contains:
+ *   - The eye-in-diamond Mimir logo at the top
+ *   - Six navigation buttons that switch between the main views
+ *     (The Oracle chat, Trials quiz runner, The Reckoning dashboard, etc.)
+ *   - A list of study disciplines (called "Subjects") the user has created,
+ *     with an expand arrow that shows recent chat sessions per subject
+ *   - A "Ragnarök" date field — the user's exam deadline, shown as a countdown
+ *   - A profile strip at the bottom with the username and tool buttons
+ *     (Settings, AI Examiner, Formula Sheet, logout)
+ */
 import { useState, useCallback } from "react";
 import type { NavView, Subject } from "@/App";
 import { API_BASE as API } from "@/config";

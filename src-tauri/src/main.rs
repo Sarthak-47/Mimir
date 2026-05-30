@@ -180,11 +180,23 @@ fn spawn_hidden(cmd: &mut Command) -> Option<Child> {
     cmd.spawn().ok()
 }
 
+// ── Startup logger (writes to %LOCALAPPDATA%\Mimir\startup.log) ──────────
+fn log(msg: &str) {
+    let path = std::env::var("LOCALAPPDATA")
+        .map(|d| PathBuf::from(d).join("Mimir").join("startup.log"))
+        .unwrap_or_else(|_| PathBuf::from("startup.log"));
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "{msg}");
+    }
+}
+
 // ── Entry point ───────────────────────────────────────────────
 fn main() {
+    log("=== Mimir starting ===");
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // updater removed — requires signing keys configured in tauri.conf.json
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Processes(Mutex::new(Vec::new())))
@@ -201,6 +213,7 @@ fn main() {
                         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
                         .unwrap_or_default()
                 });
+            log(&format!("resource_dir: {}", resource_dir.display()));
 
             // ── 1. FastAPI backend ─────────────────────────────────
             ensure_internal_dir(&resource_dir);
@@ -208,6 +221,7 @@ fn main() {
             let mut procs: Vec<Child> = Vec::new();
 
             if let Some(backend_exe) = find_bundled_backend(&resource_dir) {
+                log(&format!("spawning backend: {}", backend_exe.display()));
                 if let Some(child) = spawn_hidden(&mut Command::new(&backend_exe)) {
                     procs.push(child);
                 }
@@ -225,6 +239,8 @@ fn main() {
                 ) {
                     procs.push(child);
                 }
+            } else {
+                log("warn: no backend found");
             }
 
             // ── 2. Ollama ──────────────────────────────────────────
@@ -235,39 +251,54 @@ fn main() {
 
             // Store process handles so they can be killed on exit.
             *app.state::<Processes>().0.lock().unwrap() = procs;
+            log("processes spawned");
 
             // ── 3. System tray ─────────────────────────────────────
-            let show_item = MenuItem::with_id(app, "show", "Show Mimir", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit",       true, None::<&str>)?;
-            let menu      = Menu::with_items(app, &[&show_item, &quit_item])?;
-
-            TrayIconBuilder::new()
-                .menu(&menu)
-                .tooltip("Mimir")
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
+            // All tray operations are non-fatal — log and continue if they fail.
+            log("building tray...");
+            match (
+                MenuItem::with_id(app, "show", "Show Mimir", true, None::<&str>),
+                MenuItem::with_id(app, "quit", "Quit",       true, None::<&str>),
+            ) {
+                (Ok(show_item), Ok(quit_item)) => {
+                    match Menu::with_items(app, &[&show_item, &quit_item]) {
+                        Ok(menu) => {
+                            let tray = TrayIconBuilder::new()
+                                .menu(&menu)
+                                .tooltip("Mimir")
+                                .on_menu_event(|app, event| match event.id.as_ref() {
+                                    "show" => {
+                                        if let Some(win) = app.get_webview_window("main") {
+                                            let _ = win.show();
+                                            let _ = win.set_focus();
+                                        }
+                                    }
+                                    "quit" => app.exit(0),
+                                    _ => {}
+                                })
+                                .on_tray_icon_event(|tray, event| {
+                                    if let TrayIconEvent::Click { .. } = event {
+                                        let app = tray.app_handle();
+                                        if let Some(win) = app.get_webview_window("main") {
+                                            let _ = win.show();
+                                            let _ = win.set_focus();
+                                        }
+                                    }
+                                })
+                                .build(app);
+                            match tray {
+                                Ok(_)  => log("tray built ok"),
+                                Err(e) => log(&format!("warn: tray build failed: {e}")),
+                            }
                         }
+                        Err(e) => log(&format!("warn: menu build failed: {e}")),
                     }
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
+                }
+                _ => log("warn: menu item creation failed"),
+            }
 
             // ── 4. Global shortcut: Ctrl+Shift+M → show/hide ───────
-            // Non-fatal: the shortcut may already be taken by another app
-            // (Teams, Windows IME, etc.). Log the failure and continue.
+            // Non-fatal: the shortcut may already be taken by another app.
             use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
             if let Err(e) = app.global_shortcut().on_shortcut(
                 tauri_plugin_global_shortcut::Shortcut::new(
@@ -288,9 +319,10 @@ fn main() {
                     }
                 },
             ) {
-                eprintln!("[mimir] warn: could not register Ctrl+Shift+M shortcut: {e}");
+                log(&format!("warn: could not register Ctrl+Shift+M: {e}"));
             }
 
+            log("setup complete");
             Ok(())
         })
         .build(tauri::generate_context!())

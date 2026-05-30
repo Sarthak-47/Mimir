@@ -97,49 +97,69 @@ fn ensure_internal_dir(resource_dir: &PathBuf) {
 
     let dest_dir = resource_dir.join("mimir-backend").join("_internal");
 
-    let result = (|| -> io::Result<()> {
-        let zip_file = fs::File::open(&zip_path)?;
-        let mut archive = ZipArchive::new(zip_file)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let zip_file = match fs::File::open(&zip_path) {
+        Ok(f) => f,
+        Err(e) => { eprintln!("[mimir] warn: cannot open backend-internal.zip: {e}"); return; }
+    };
+    let mut archive = match ZipArchive::new(zip_file) {
+        Ok(a) => a,
+        Err(e) => { eprintln!("[mimir] warn: invalid backend-internal.zip: {e}"); return; }
+    };
 
-        for i in 0..archive.len() {
-            let mut entry = archive
-                .by_index(i)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let total = archive.len();
+    let mut extracted = 0usize;
 
-            if entry.is_dir() {
+    for i in 0..total {
+        let mut entry = match archive.by_index(i) {
+            Ok(e) => e,
+            Err(e) => { eprintln!("[mimir] warn: zip entry {i} error: {e}"); continue; }
+        };
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        // Normalise path separators: Compress-Archive writes '\' on Windows but
+        // the zip spec requires '/'. Replace so enclosed_name() works correctly.
+        let raw_name = entry.name().replace('\\', "/");
+
+        // Safety: skip absolute paths and directory-traversal components.
+        if raw_name.is_empty() || raw_name.starts_with('/') || raw_name.contains("../") {
+            continue;
+        }
+
+        let out_path = dest_dir.join(PathBuf::from(&raw_name));
+
+        if let Some(parent) = out_path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                eprintln!("[mimir] warn: mkdir {}: {e}", parent.display());
                 continue;
-            }
-
-            let out_path: PathBuf = dest_dir.join(
-                entry
-                    .enclosed_name()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "bad zip path"))?,
-            );
-
-            if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-
-            let mut out_file = fs::File::create(&out_path)?;
-            io::copy(&mut entry, &mut out_file)?;
-
-            // Preserve executable bit on Unix (needed for shared libraries).
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                if let Some(mode) = entry.unix_mode() {
-                    let _ = fs::set_permissions(&out_path, fs::Permissions::from_mode(mode));
-                }
             }
         }
 
-        Ok(())
-    })();
+        let mut out_file = match fs::File::create(&out_path) {
+            Ok(f) => f,
+            Err(e) => { eprintln!("[mimir] warn: create {}: {e}", out_path.display()); continue; }
+        };
 
-    if let Err(e) = result {
-        eprintln!("[mimir] warn: failed to extract backend-internal.zip: {e}");
+        if let Err(e) = io::copy(&mut entry, &mut out_file) {
+            eprintln!("[mimir] warn: copy {}: {e}", out_path.display());
+            continue;
+        }
+
+        // Preserve executable bit on Unix (needed for shared libraries).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Some(mode) = entry.unix_mode() {
+                let _ = fs::set_permissions(&out_path, fs::Permissions::from_mode(mode));
+            }
+        }
+
+        extracted += 1;
     }
+
+    eprintln!("[mimir] extracted {extracted}/{total} entries from backend-internal.zip");
 }
 
 /// Locate the Python backend source directory in dev mode.

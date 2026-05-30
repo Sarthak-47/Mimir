@@ -21,10 +21,6 @@ interface TopbarProps {
   onAllChats?: () => void;
   /** Clears the current Oracle chat to start a fresh conversation. */
   onNewChat?: () => void;
-  /** Whether auto-read TTS is enabled; undefined = voice not yet ready (hide button). */
-  autoRead?: boolean;
-  /** Toggle auto-read on/off. */
-  onToggleAutoRead?: () => void;
   /** Toggle the Pomodoro timer widget. */
   onPomodoro?: () => void;
   /** Whether the Pomodoro widget is currently open. */
@@ -44,7 +40,7 @@ interface TopbarProps {
  * @param username           - Display name shown in the user badge.
  * @param onLogout           - Called when the user clicks the logout rune.
  */
-export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp, onAllChats, onNewChat, autoRead, onToggleAutoRead, onPomodoro, pomodoroActive }: TopbarProps) {
+export default function Topbar({ view, isConnected, isConnecting, activeSubjectName, username, onLogout, onHelp, onAllChats, onNewChat, onPomodoro, pomodoroActive }: TopbarProps) {
   const { title, subtitle } = VIEW_META[view];
 
   // Breadcrumb: "The Oracle" or "The Oracle · Machine Learning"
@@ -73,21 +69,6 @@ export default function Topbar({ view, isConnected, isConnecting, activeSubjectN
         {onAllChats && (
           <button style={styles.allChatsBtn} onClick={onAllChats} title="All conversations">
             ᚷ
-          </button>
-        )}
-
-        {/* Auto-read TTS toggle — only shown once voice models are ready */}
-        {onToggleAutoRead && autoRead !== undefined && view === "oracle" && (
-          <button
-            style={{
-              ...styles.allChatsBtn,
-              color: autoRead ? "var(--gold-bright)" : "var(--text-dim)",
-              borderColor: autoRead ? "var(--gold-dark)" : "var(--green-dark)",
-            }}
-            onClick={onToggleAutoRead}
-            title={autoRead ? "Auto-read ON — click to disable" : "Auto-read OFF — click to enable"}
-          >
-            ᛗ
           </button>
         )}
 

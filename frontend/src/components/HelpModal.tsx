@@ -3,7 +3,7 @@
  *
  * Triggered by the ? button in Topbar. Covers:
  *   Tabs, InputZone buttons, Teaching Modes, Keyboard Shortcuts, Diagram
- *   Understanding, Interactive Tutor Sessions, Voice, and Troubleshooting.
+ *   Understanding, Interactive Tutor Sessions, and Troubleshooting.
  */
 
 interface HelpModalProps {
@@ -86,15 +86,6 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             </p>
           </Section>
 
-          {/* Voice */}
-          <Section rune="ᛗ" title="Voice — Whisper STT &amp; Kokoro TTS">
-            <Row rune="🎙" name="MIC RUNE"      desc="Press and hold to record. Whisper transcribes locally — no internet needed." />
-            <Row rune="ᛗ"  name="SPEAKER RUNE"  desc="Click on any Mimir message to read it aloud (kokoro bm_lewis voice)." />
-            <Row rune="ᚢ"  name="AUTO-READ"     desc="Toggle in the Topbar to automatically speak every new Mimir response." />
-            <Row rune="ᚢ"  name="VIGIL"         desc="Hands-free revision loop: Mimir asks a question aloud, you answer aloud, it marks and speaks feedback. Launch from the input bar's mic button (hold) or the VIGIL button when voice is ready." />
-            <p style={styles.hint}>Voice models download in the background on first launch (~600 MB total). A setup banner confirms when they are ready.</p>
-          </Section>
-
           {/* Reckoning / insights */}
           <Section rune="ᚾ" title="The Reckoning — Progress &amp; Insights">
             <Row rune="ᚾ" name="Readiness bars"    desc="Ebbinghaus decay curves per topic — how much you remember right now based on time elapsed and quiz scores." />
@@ -119,7 +110,6 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             <Row rune="!" name="Model not found"     desc="Run: ollama pull qwen3.5:9b  (vision: ollama pull qwen2.5vl:7b)" />
             <Row rune="!" name="Slow responses"      desc="Enable Flash Attention: set OLLAMA_FLASH_ATTENTION=1 before starting Ollama." />
             <Row rune="!" name="File not indexing"   desc="Only PDF and image files are supported. Max size 50 MB. Re-upload if the gold ᛊ badge does not appear within 30 s." />
-            <Row rune="!" name="Voice not working"   desc="Voice models need ~600 MB of disk space and download on first launch. Check the setup banner — if it shows an error, restart Mimir." />
           </Section>
 
         </div>

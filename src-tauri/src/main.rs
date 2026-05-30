@@ -69,8 +69,26 @@ fn ensure_internal_dir(resource_dir: &PathBuf) {
         .join("pydantic_core")
         .join("__init__.py");
 
+    let zip_path = resource_dir.join("backend-internal.zip");
+
+    // Re-extract if _internal is missing OR if the zip is newer than the sentinel
+    // (the latter handles upgrades where NSIS replaces the zip but leaves _internal intact).
     if sentinel.exists() {
-        return; // Already extracted.
+        let stale = zip_path.metadata().ok()
+            .and_then(|zm| zm.modified().ok())
+            .zip(sentinel.metadata().ok().and_then(|sm| sm.modified().ok()))
+            .map(|(zip_mt, sentinel_mt)| zip_mt > sentinel_mt)
+            .unwrap_or(false);
+
+        if !stale {
+            return; // Already extracted and up to date.
+        }
+
+        // Zip is newer — remove old _internal so we extract a clean copy.
+        let internal_dir = resource_dir.join("mimir-backend").join("_internal");
+        if let Err(e) = fs::remove_dir_all(&internal_dir) {
+            eprintln!("[mimir] warn: could not remove stale _internal: {e}");
+        }
     }
 
     let zip_path = resource_dir.join("backend-internal.zip");

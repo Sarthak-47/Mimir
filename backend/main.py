@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Mimir API",
     description="Local study agent backend — Norse-themed wisdom engine",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
 

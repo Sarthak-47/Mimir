@@ -9,7 +9,10 @@ Jobs:
 
 import logging
 from collections import defaultdict
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,7 +69,7 @@ async def review_check() -> None:
     each user who is currently connected. Capped at 5 topic names per message
     to keep the payload small.
     """
-    now = datetime.utcnow()
+    now = _utcnow()
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Topic).where(

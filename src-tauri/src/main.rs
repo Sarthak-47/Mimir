@@ -91,7 +91,6 @@ fn ensure_internal_dir(resource_dir: &PathBuf) {
         }
     }
 
-    let zip_path = resource_dir.join("backend-internal.zip");
     if !zip_path.exists() {
         return; // Dev mode or unexpected layout — skip silently.
     }

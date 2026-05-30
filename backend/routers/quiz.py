@@ -6,7 +6,10 @@ GET  /api/quiz/history    — past quiz sessions
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 from typing import Optional
 
@@ -162,7 +165,7 @@ async def submit_quiz(
     topic.sm2_repetitions  = new_reps
     topic.sm2_interval     = new_interval
     topic.confidence_score = round(confidence, 1)
-    topic.last_studied     = datetime.utcnow()
+    topic.last_studied     = _utcnow()
     topic.next_review      = next_review
     topic.study_count      += 1
 
@@ -177,7 +180,7 @@ async def submit_quiz(
         misc = misc_result.scalar_one_or_none()
         if misc:
             misc.count    += 1
-            misc.last_seen = datetime.utcnow()
+            misc.last_seen = _utcnow()
             misc.note      = f"Latest: {req.score}/{req.total} ({confidence:.0f}%)"
         else:
             db.add(Misconception(
@@ -317,7 +320,7 @@ async def mark_text_answer(
     )
 
     new_interval = 1
-    next_review  = datetime.utcnow()
+    next_review  = _utcnow()
 
     if topic is not None:
         # Update SM-2 (treat marks/max_marks like score/total for MCQ)
@@ -337,7 +340,7 @@ async def mark_text_answer(
         topic.sm2_repetitions  = new_reps
         topic.sm2_interval     = new_interval
         topic.confidence_score = round(pct, 1)
-        topic.last_studied     = datetime.utcnow()
+        topic.last_studied     = _utcnow()
         topic.next_review      = next_review
         topic.study_count      += 1
 
@@ -351,7 +354,7 @@ async def mark_text_answer(
             misc = misc_result.scalar_one_or_none()
             if misc:
                 misc.count    += 1
-                misc.last_seen = datetime.utcnow()
+                misc.last_seen = _utcnow()
                 misc.note      = f"Written: {marks}/{req.max_marks} ({pct:.0f}%)"
             else:
                 db.add(Misconception(
@@ -462,7 +465,7 @@ async def submit_flashcard_result(
     topic.sm2_interval     = new_interval
     topic.next_review      = next_review
     topic.confidence_score = round((req.avg_grade / 5.0) * 100, 1)
-    topic.last_studied     = datetime.utcnow()
+    topic.last_studied     = _utcnow()
     await db.commit()
 
     pct = topic.confidence_score

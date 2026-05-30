@@ -13,7 +13,10 @@ to keep as-is).
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 import ollama
 from sqlalchemy import select
@@ -184,7 +187,7 @@ async def summarize_old_sessions() -> None:
     Safe to skip: already-summarised turns are excluded via the ``summarized``
     column; restarting the job is idempotent.
     """
-    cutoff = datetime.utcnow() - timedelta(days=_OLDER_THAN_DAYS)
+    cutoff = _utcnow() - timedelta(days=_OLDER_THAN_DAYS)
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(

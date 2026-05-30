@@ -6,7 +6,10 @@ Tools are called by the ReAct loop when the LLM selects an action.
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import Any
 
 import ollama
@@ -286,7 +289,7 @@ def compute_sm2(
     # Cap at 365 days to stay practical
     new_interval = min(new_interval, 365)
 
-    next_review = datetime.utcnow() + timedelta(days=new_interval)
+    next_review = _utcnow() + timedelta(days=new_interval)
     return new_ease, new_reps, new_interval, next_review
 
 

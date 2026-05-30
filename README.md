@@ -118,11 +118,6 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 - **System tray** — Mimir minimises to tray; click icon or right-click → Show to restore; Ctrl+Shift+M global hotkey toggles the window from anywhere on the desktop
 - **Yggdrasil background** — Norse tree rendered as a ghosted full-height wallpaper behind the chat column
 
-### Voice (v0.6)
-- **Voice input (Whisper STT)** — press-and-hold the mic rune to dictate; `faster-whisper base.en` transcribes locally, no cloud; WebM/Opus audio, 10 MB upload cap
-- **Voice output (TTS)** — speaker rune on any message reads it aloud; auto-read toggle speaks every Mimir response automatically; kokoro-onnx `bm_lewis` voice, 24 kHz PCM, 1.3× speed by default
-- **VIGIL — voice revision mode** — hands-free quiz loop: Mimir speaks a question, listens for your spoken answer, marks it, speaks feedback, then moves on; state machine with setup, active, and summary screens
-
 ### Auth & data
 - Register / log in with JWT auth and bcrypt passwords; token persisted for the session
 - All data — conversations, quiz history, files, subjects, memories — isolated per user account
@@ -148,8 +143,6 @@ Mimir is built around a conversational interface — you talk to it like a tutor
 | Exam parsing | Custom regex pipeline (`utils/exam_parser.py`) |
 | Scheduling | APScheduler AsyncIOScheduler |
 | Auth | python-jose (JWT), passlib (bcrypt) |
-| Speech-to-text | faster-whisper (`base.en`, CTranslate2) + PyAV for WebM decode |
-| Text-to-speech | kokoro-onnx (`bm_lewis`, ONNX runtime) — 24 kHz PCM WAV |
 | Notifications | tauri-plugin-notification |
 | Auto-updater | tauri-plugin-updater |
 | CI/CD | GitHub Actions — Windows, macOS, Linux builds on tag push |
@@ -183,7 +176,6 @@ mimir/
 │       │   ├── KnowledgeGraphModal.tsx Prerequisite dependency graph (v0.7)
 │       │   ├── MindMapModal.tsx        Visual concept map generator (v0.7)
 │       │   ├── PomodoroTimer.tsx       Floating study-session timer widget (v0.8)
-│       │   ├── VoiceRevisionModal.tsx  VIGIL — hands-free quiz loop (v0.6)
 │       │   ├── SettingsModal.tsx       Model, temperature, context window overrides
 │       │   ├── OnboardingWizard.tsx    6-step first-launch guide
 │       │   ├── SystemStatus.tsx        Ollama/model health banner
@@ -195,10 +187,7 @@ mimir/
 │       │   ├── ScrollsView.tsx         File library, search, reassign, exam question browser
 │       │   └── FatesView.tsx           Study plan, schedule, syllabus coverage
 │       ├── hooks/
-│       │   ├── useWebSocket.ts         Streaming + tool_data routing
-│       │   ├── useTTS.ts               kokoro-onnx TTS hook (v0.6)
-│       │   ├── useAudioRecorder.ts     WebM/Opus mic recording (v0.6)
-│       │   └── useVoiceRevision.ts     VIGIL state machine (v0.6)
+│       │   └── useWebSocket.ts         Streaming + tool_data routing
 │       ├── styles/globals.css          Full design system as CSS variables
 │       ├── config.ts                   Centralised API/WS base URLs
 │       └── App.tsx                     Root layout, auth gate, state, view routing, update check
@@ -221,11 +210,7 @@ mimir/
 │   │   ├── progress.py     Stats, exam dates, topic scores, predicted grade, PDF export
 │   │   ├── chronicle.py    Paginated + searchable session history
 │   │   ├── system.py       Settings CRUD, model list, health check
-│   │   ├── tutor.py        Tutor session CRUD
-│   │   └── voice.py        STT (/transcribe) + TTS (/speak) — JWT-gated (v0.6)
-│   ├── voice/
-│   │   ├── transcribe.py   faster-whisper base.en — WebM/Opus → text via PyAV
-│   │   └── synthesise.py   kokoro-onnx bm_lewis — text → 24 kHz PCM WAV
+│   │   └── tutor.py        Tutor session CRUD
 │   ├── utils/
 │   │   ├── parser.py       PDF/image extraction, semantic chunking, indexing
 │   │   └── exam_parser.py  Regex pipeline — detect exam papers, extract Q + marks
@@ -315,16 +300,6 @@ git push origin v0.9.0
 
 ---
 
-### ✅ v0.6 — Voice *(shipped)*
-
-| # | Feature |
-|---|---------|
-| 7 | **Voice input (Whisper STT)** — press-and-hold to dictate; `faster-whisper base.en` transcribes locally |
-| 8 | **Voice output (TTS)** — kokoro-onnx `bm_lewis` reads responses aloud at 1.3× speed |
-| 9 | **VIGIL — voice revision mode** — hands-free quiz loop with spoken question, spoken answer, spoken feedback |
-
----
-
 ### ✅ v0.7 — Insight Engine *(shipped)*
 
 | # | Feature |
@@ -385,7 +360,7 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 
 ## Status
 
-**v1.0.0** — released. Windows x64, macOS Apple Silicon, and Linux AppImage/deb installers distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention (~23 tok/s on a mid-range GPU). 127-test confidence suite green. All planned features shipped: voice I/O, spaced repetition, exam paper parsing, hybrid vector memory, knowledge graphs, mind maps, Pomodoro timer, KaTeX math rendering, timed mock exams, and multi-platform builds.
+**v1.0.0** — released. Windows x64, macOS Apple Silicon, and Linux AppImage/deb installers distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention (~23 tok/s on a mid-range GPU). 127-test confidence suite green. All planned features shipped: spaced repetition, exam paper parsing, hybrid vector memory, knowledge graphs, mind maps, Pomodoro timer, KaTeX math rendering, timed mock exams, and multi-platform builds. Voice I/O (STT/TTS/VIGIL) was removed in v1.0.0 to reduce installer size and eliminate GPU-heavy audio model dependencies.
 
 **First install on Windows:** Windows will show a SmartScreen warning ("Unknown publisher"). Click **More info → Run anyway**. This is expected for an unsigned open-source installer — the app is safe to run.
 

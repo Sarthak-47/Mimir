@@ -15,6 +15,8 @@ anyio_d,    anyio_b,    anyio_h    = collect_all("anyio")
 pydantic_d, pydantic_b, pydantic_h = collect_all("pydantic")
 pydcore_d,  pydcore_b,  pydcore_h  = collect_all("pydantic_core")
 starlette_d, starlette_b, starlette_h = collect_all("starlette")
+# kokoro_onnx package data (config.json + voice assets)
+kokoro_d,   kokoro_b,   kokoro_h   = collect_all("kokoro_onnx")
 
 # ── Package metadata needed at runtime (importlib.metadata) ────
 metadata = (
@@ -36,7 +38,7 @@ metadata = (
 
 hidden = (
     chroma_h + uvicorn_h + fastapi_h + onnx_h + anyio_h
-    + pydantic_h + pydcore_h + starlette_h
+    + pydantic_h + pydcore_h + starlette_h + kokoro_h
     + collect_submodules("sqlalchemy")
     + collect_submodules("apscheduler")
     + [
@@ -85,20 +87,30 @@ hidden = (
 
 datas = (
     chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
-    + pydantic_d + pydcore_d + starlette_d
+    + pydantic_d + pydcore_d + starlette_d + kokoro_d
     + metadata
 )
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + kokoro_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "test", "unittest"],
+    excludes=[
+        "tkinter", "test", "unittest",
+        # PyTorch causes a DLL crash (STATUS_STACK_BUFFER_OVERRUN) when loaded
+        # from a PyInstaller bundle on Windows. The cross-encoder reranker in
+        # memory/vector.py is already lazy-loaded with try/except, so it falls
+        # back cleanly to RRF-only when torch is unavailable.
+        "torch", "torchvision", "torchaudio",
+        "sentence_transformers",   # depends on torch
+        "transformers",            # heavy; pulled in by sentence_transformers
+        "tensorboard", "tensorflow", "jax", "flax",
+    ],
     noarchive=False,
     optimize=1,
 )

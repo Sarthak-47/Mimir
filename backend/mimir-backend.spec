@@ -17,6 +17,13 @@ pydcore_d,  pydcore_b,  pydcore_h  = collect_all("pydantic_core")
 starlette_d, starlette_b, starlette_h = collect_all("starlette")
 # kokoro_onnx package data (config.json + voice assets)
 kokoro_d,   kokoro_b,   kokoro_h   = collect_all("kokoro_onnx")
+# Voice stack — language_tags ships JSON data files that kokoro_onnx requires
+langtag_d,  langtag_b,  langtag_h  = collect_all("language_tags")
+# faster-whisper / CTranslate2 STT backend
+fwhisper_d, fwhisper_b, fwhisper_h = collect_all("faster_whisper")
+ctrans_d,   ctrans_b,   ctrans_h   = collect_all("ctranslate2")
+# soundfile reads audio (PCM/WAV) for the STT pipeline
+sfile_d,    sfile_b,    sfile_h    = collect_all("soundfile")
 
 # ── Package metadata needed at runtime (importlib.metadata) ────
 metadata = (
@@ -39,6 +46,7 @@ metadata = (
 hidden = (
     chroma_h + uvicorn_h + fastapi_h + onnx_h + anyio_h
     + pydantic_h + pydcore_h + starlette_h + kokoro_h
+    + langtag_h + fwhisper_h + ctrans_h + sfile_h
     + collect_submodules("sqlalchemy")
     + collect_submodules("apscheduler")
     + [
@@ -88,13 +96,14 @@ hidden = (
 datas = (
     chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
     + pydantic_d + pydcore_d + starlette_d + kokoro_d
+    + langtag_d + fwhisper_d + ctrans_d + sfile_d
     + metadata
 )
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + kokoro_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + kokoro_b + langtag_b + fwhisper_b + ctrans_b + sfile_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],

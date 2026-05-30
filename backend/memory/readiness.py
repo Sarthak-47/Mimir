@@ -17,7 +17,10 @@ Algorithm
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import Optional
 
 from memory.database import Topic, QuizSession
@@ -104,7 +107,7 @@ def calculate_topic_readiness(
     Returns:
         Float in [0, 100].
     """
-    now  = now or datetime.utcnow()
+    now  = now or _utcnow()
     base = topic.confidence_score  # 0–100
 
     # 1. Apply Ebbinghaus decay
@@ -127,7 +130,7 @@ def calculate_topic_readiness(
 
 def decay_days(topic: Topic, now: datetime | None = None) -> float:
     """Return how many days have elapsed since this topic was last studied (0 if never)."""
-    now = now or datetime.utcnow()
+    now = now or _utcnow()
     if topic.last_studied is None:
         return 0.0
     return (now - topic.last_studied).total_seconds() / 86400.0
@@ -205,7 +208,7 @@ def generate_schedule(
               ...
             ]
     """
-    now = now or datetime.utcnow()
+    now = now or _utcnow()
 
     days_to_exam: int | None = None
     if exam_date is not None:

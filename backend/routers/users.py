@@ -5,7 +5,11 @@ POST /api/users/login
 GET  /api/users/me
 """
 
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
+
+def _utcnow() -> datetime:
+    """Return current UTC time as a naive datetime (SQLite-compatible)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -43,7 +47,7 @@ def create_access_token(data: dict) -> str:
     (default 1 week). The ``sub`` claim should be the username.
     """
     payload = data.copy()
-    payload["exp"] = datetime.utcnow() + timedelta(
+    payload["exp"] = _utcnow() + timedelta(
         minutes=settings.access_token_expire_minutes
     )
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)

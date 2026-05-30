@@ -11,7 +11,10 @@ GET /api/progress/readiness   — per-topic Ebbinghaus-decayed readiness
 GET /api/progress/schedule    — 7-day personalised study schedule
 """
 
-from datetime import date as DateType, datetime
+from datetime import date as DateType, datetime, timezone
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -177,7 +180,7 @@ async def get_stats(
     user_id = current_user.id
 
     # Days at well: days since account creation
-    days = (datetime.utcnow() - current_user.created_at).days
+    days = (_utcnow() - current_user.created_at).days
 
     # Trial accuracy + streak from quiz sessions
     sessions_result = await db.execute(
@@ -260,7 +263,7 @@ async def get_due_topics(
     current_user: User = Depends(get_current_user),
 ):
     """Return topics whose next_review date has passed (SM-2 due queue)."""
-    now = datetime.utcnow()
+    now = _utcnow()
     result = await db.execute(
         select(Topic, Subject.name.label("subject_name"))
         .join(Subject, Topic.subject_id == Subject.id)
@@ -391,7 +394,7 @@ async def get_readiness(
     for s in all_sessions:
         sessions_by_topic.setdefault(s.topic_id, []).append(s)
 
-    now = datetime.utcnow()
+    now = _utcnow()
     rows: list[ReadinessResponse] = []
     for t in topics:
         t_sessions = sessions_by_topic.get(t.id, [])
@@ -445,7 +448,7 @@ async def get_schedule(
     for s in sessions_result.scalars().all():
         sessions_by_topic.setdefault(s.topic_id, []).append(s)
 
-    now = datetime.utcnow()
+    now = _utcnow()
 
     # Build enriched topic list
     enriched: list[dict] = []
@@ -514,7 +517,7 @@ async def get_predicted_grade(
     for s in all_sessions:
         sessions_by_topic.setdefault(s.topic_id, []).append(s)
 
-    now = datetime.utcnow()
+    now = _utcnow()
     readiness_scores = [
         calculate_topic_readiness(t, sessions_by_topic.get(t.id, []), now=now)
         for t in topics
@@ -690,8 +693,8 @@ async def get_heatmap(
 
     user_id = current_user.id
     days    = max(7, min(90, days))
-    cutoff  = datetime.utcnow() - timedelta(days=days)
-    today   = datetime.utcnow().date()
+    cutoff  = _utcnow() - timedelta(days=days)
+    today   = _utcnow().date()
 
     # Quiz sessions in window
     quiz_res = await db.execute(

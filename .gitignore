@@ -67,3 +67,20 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# -- Dev / debug artefacts (generated locally, never commit) --
+capture_frame.py
+capture_window.py
+make_gif.py
+gif_frames/
+restart_backend.bat
+tauri-build-log.txt
+backend/build-log.txt
+frontend/dev-log.txt
+backend/backend.pid
+mimir.db
+backend/build/
+
+# -- Stray pip install artefacts (e.g. pip install "pkg>=x.y" without quotes
+#    creates files named "=x.y" in CWD)
+backend/=*

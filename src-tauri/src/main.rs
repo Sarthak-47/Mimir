@@ -266,8 +266,10 @@ fn main() {
                 .build(app)?;
 
             // ── 4. Global shortcut: Ctrl+Shift+M → show/hide ───────
+            // Non-fatal: the shortcut may already be taken by another app
+            // (Teams, Windows IME, etc.). Log the failure and continue.
             use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
-            app.global_shortcut().on_shortcut(
+            if let Err(e) = app.global_shortcut().on_shortcut(
                 tauri_plugin_global_shortcut::Shortcut::new(
                     Some(Modifiers::CONTROL | Modifiers::SHIFT),
                     Code::KeyM,
@@ -285,7 +287,9 @@ fn main() {
                         }
                     }
                 },
-            )?;
+            ) {
+                eprintln!("[mimir] warn: could not register Ctrl+Shift+M shortcut: {e}");
+            }
 
             Ok(())
         })

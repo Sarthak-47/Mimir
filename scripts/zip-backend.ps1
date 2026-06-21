@@ -44,7 +44,7 @@ if ($sevenZip) {
     # 'a' = add, '-tzip' = zip format, '-mx=1' = fastest compression
     & 7z a -tzip -mx=1 $outputZip "$sourceDir\*" | Out-Null
 } else {
-    Write-Host "7-Zip not found — falling back to Compress-Archive (may be slow for ~2000 files) ..."
+    Write-Host "7-Zip not found - falling back to Compress-Archive (may be slow for ~2000 files) ..."
     Compress-Archive -Path "$sourceDir\*" -DestinationPath $outputZip -CompressionLevel Fastest
 }
 

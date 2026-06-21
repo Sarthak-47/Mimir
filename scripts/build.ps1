@@ -1,4 +1,4 @@
-# build.ps1 — Full local release build for Mimir (Windows)
+# build.ps1 - Full local release build for Mimir (Windows)
 # -----------------------------------------------------------------------
 # Orchestrates the three-stage build pipeline:
 #
@@ -33,18 +33,18 @@ $repo = Get-Location
 
 function Banner([string]$text) {
     Write-Host ""
-    Write-Host ("─" * 60) -ForegroundColor Cyan
+    Write-Host ("-" * 60) -ForegroundColor Cyan
     Write-Host "  $text" -ForegroundColor Cyan
-    Write-Host ("─" * 60) -ForegroundColor Cyan
+    Write-Host ("-" * 60) -ForegroundColor Cyan
 }
 
-# ── Stage 0: Read version ─────────────────────────────────────
+# -- Stage 0: Read version -------------------------------------
 $conf    = Get-Content (Join-Path $repo "src-tauri\tauri.conf.json") | ConvertFrom-Json
 $version = $conf.version
 
-# ── -Check: validate hidden imports ──────────────────────────
+# -- -Check: validate hidden imports --------------------------
 if ($Check) {
-    Banner "Mimir v$version — Spec Import Validation"
+    Banner "Mimir v$version - Spec Import Validation"
 
     # Parse hidden imports from mimir-backend.spec
     $specPath = Join-Path $repo "backend\mimir-backend.spec"
@@ -79,17 +79,17 @@ if ($Check) {
         Write-Host "All $passed imports OK" -ForegroundColor Green
         exit 0
     } else {
-        Write-Host "$($failed.Count) import(s) missing — fix the spec or install the packages:" -ForegroundColor Red
+        Write-Host "$($failed.Count) import(s) missing - fix the spec or install the packages:" -ForegroundColor Red
         $failed | ForEach-Object { Write-Host "  pip install $_" -ForegroundColor Yellow }
         exit 1
     }
 }
 
-Banner "Mimir v$version — Release Build"
+Banner "Mimir v$version - Release Build"
 
-# ── Stage 1: PyInstaller backend ─────────────────────────────
+# -- Stage 1: PyInstaller backend -----------------------------
 if (-not $SkipBackend) {
-    Banner "Stage 1 / 3 — PyInstaller backend"
+    Banner "Stage 1 / 3 - PyInstaller backend"
     Set-Location (Join-Path $repo "backend")
 
     # Ensure PyInstaller is available
@@ -110,15 +110,15 @@ if (-not $SkipBackend) {
 
     Set-Location $repo
 } else {
-    Banner "Stage 1 / 3 — Skipped (using existing dist/)"
+    Banner "Stage 1 / 3 - Skipped (using existing dist/)"
 }
 
-# ── Stage 2: Zip _internal ───────────────────────────────────
-Banner "Stage 2 / 3 — Packing _internal.zip"
+# -- Stage 2: Zip _internal -----------------------------------
+Banner "Stage 2 / 3 - Packing _internal.zip"
 & (Join-Path $repo "scripts\zip-backend.ps1")
 
-# ── Stage 3: Tauri build ─────────────────────────────────────
-Banner "Stage 3 / 3 — Tauri build"
+# -- Stage 3: Tauri build -------------------------------------
+Banner "Stage 3 / 3 - Tauri build"
 Set-Location (Join-Path $repo "frontend")
 npm install
 Set-Location $repo

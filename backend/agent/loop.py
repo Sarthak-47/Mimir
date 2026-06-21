@@ -393,6 +393,7 @@ For everything else — explanations, revision schedules, recalling past session
             options=_ollama_opts(),
             stream=True,
             think=False,
+            keep_alive="2h",
         )
     except Exception as _conn_err:
         yield _ollama_error_msg(_conn_err)
@@ -501,6 +502,7 @@ For everything else — explanations, revision schedules, recalling past session
                         options=_ollama_opts(),
                         stream=True,
                         think=False,
+                        keep_alive="2h",
                     )
                 except Exception as _conn_err2:
                     yield _ollama_error_msg(_conn_err2)

@@ -23,6 +23,37 @@ from memory.summarizer import summarize_old_sessions
 _scheduler = AsyncIOScheduler(timezone="UTC")
 
 
+async def _warmup_model() -> None:
+    """Load the LLM into VRAM before the first user request arrives.
+
+    Ollama's GPU-backend discovery (CUDA → Vulkan fallback) can take up to
+    18 minutes on first load.  Firing a cheap 1-token call at startup means
+    the model is hot by the time the user opens the Oracle, preventing the
+    "sent three questions and got no reply" cold-start failure mode.
+    The call is fire-and-forget; failures are logged but never crash the server.
+    """
+    import asyncio as _asyncio
+    import ollama as _ollama
+
+    _c = _ollama.AsyncClient(host=settings.ollama_base_url)
+    print(f"[Mimir] Warming up {settings.ollama_model} in Ollama…")
+    try:
+        await _asyncio.wait_for(
+            _c.chat(
+                model=settings.ollama_model,
+                messages=[{"role": "user", "content": "hi"}],
+                options={"num_predict": 1},
+                stream=False,
+                think=False,
+                keep_alive="2h",
+            ),
+            timeout=1200.0,  # 20-minute ceiling for GPU discovery + model load
+        )
+        print(f"[Mimir] Model warm — {settings.ollama_model} ready.")
+    except Exception as exc:
+        print(f"[Mimir] Warmup skipped ({type(exc).__name__}: {exc})")
+
+
 # ── Lifespan (startup / shutdown) ───────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +61,11 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"[Mimir] Starting {settings.app_name}…")
     await init_db()
+
+    # Kick off model warmup in the background so the first user message
+    # doesn't stall waiting for Ollama to discover the GPU and load weights.
+    import asyncio as _asyncio
+    _asyncio.create_task(_warmup_model())
 
     # Register scheduled jobs
     _scheduler.add_job(

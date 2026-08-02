@@ -289,20 +289,50 @@ section { padding: clamp(3.5rem, 9vw, 6.5rem) 0; }
 }
 .hero h1 span { color: var(--gold); display: block; font-size: 0.42em; letter-spacing: 0.26em; margin-bottom: 0.7rem; text-transform: uppercase; }
 
-/* The well: concentric rune rings turning at different rates around a lit
-   centre — the site's one piece of real motion, standing in for looking down
-   into the water. Pure SVG + CSS so it costs nothing. */
-.well { width: min(100%, 380px); aspect-ratio: 1; position: relative; }
-.well svg { width: 100%; height: 100%; overflow: visible; }
-.ring-outer { animation: spin 150s linear infinite; transform-origin: 50% 50%; }
-.ring-mid   { animation: spin 90s linear infinite reverse; transform-origin: 50% 50%; }
-.ring-inner { animation: spin 55s linear infinite; transform-origin: 50% 50%; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.well-core { animation: pulse 5s ease-in-out infinite; transform-origin: 50% 50%; }
-@keyframes pulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 1; }
+/* ── The plate ───────────────────────────────────────────────
+   Robert Engels' 1903 illustration of Odin drinking from Mimir's well, out of
+   copyright and recoloured onto the app's own palette so it belongs to the
+   page rather than sitting on top of it. Presented the way a museum would: in
+   a frame, credited underneath. The corner marks are the same L-brackets the
+   application draws around every stat panel. */
+.plate { position: relative; margin: 0; width: min(100%, 400px); margin-inline: auto; }
+.plate-frame {
+  position: relative;
+  border: 1px solid var(--green-dark);
+  background: var(--stone-0);
+  padding: 10px;
 }
+.plate-frame::before, .plate-frame::after {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  pointer-events: none;
+}
+.plate-frame::before {
+  top: 5px; left: 5px;
+  border-top: 1px solid var(--gold-dim);
+  border-left: 1px solid var(--gold-dim);
+}
+.plate-frame::after {
+  bottom: 5px; right: 5px;
+  border-bottom: 1px solid var(--gold-dim);
+  border-right: 1px solid var(--gold-dim);
+}
+.plate img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.plate figcaption {
+  margin-top: 0.85rem;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  font-style: italic;
+  text-align: center;
+}
+.plate figcaption a { color: var(--text-dim); text-decoration: underline; text-underline-offset: 2px; }
+.plate figcaption a:hover { color: var(--gold-dim); }
 
 /* ── Feature grids ──────────────────────────────────────────── */
 .grid {

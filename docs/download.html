@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download — Mimir</title>
+<meta name="description" content="Download Mimir, the local-first AI study companion. Windows installer, plus prerequisites and setup steps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d4a82c'>ᛗ</text></svg>">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html"><span class="brand-mark">ᛗ</span> Mimir</a>
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="docs.html">Docs</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="download.html" aria-current="page">Download</a>
+      <a href="https://github.com/Sarthak-47/Mimir">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section style="padding-bottom:2rem">
+  <div class="wrap">
+    <span class="eyebrow">Download</span>
+    <h1 style="font-size:clamp(2rem,5vw,3.2rem)">Drink from the well</h1>
+    <p class="lede">
+      Mimir ships as a single installer with the Python backend already inside.
+      You do not need Python, Rust, or Node.js. You do need Ollama and one model
+      — that part is unavoidable, because the intelligence runs on your machine
+      rather than someone else's.
+    </p>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="grid">
+
+      <article class="panel dl-card">
+        <div class="dl-os">Windows <span class="badge">Current</span></div>
+        <div class="dl-meta">x64 · NSIS installer · ~165 MB</div>
+        <p>Windows 10 and 11. Installs to your local app data — no admin rights
+           required, and it updates itself from GitHub Releases.</p>
+        <a class="btn btn-primary"
+           href="https://github.com/Sarthak-47/Mimir/releases/latest">
+          ⤓ Download installer
+        </a>
+      </article>
+
+      <article class="panel dl-card">
+        <div class="dl-os">macOS <span class="badge badge-muted">Older build</span></div>
+        <div class="dl-meta">Apple Silicon · .dmg</div>
+        <p>An Apple Silicon build exists on the releases page, but it predates
+           the current Windows release and has not been rebuilt since. Treat it
+           as behind, or build from source.</p>
+        <a class="btn" href="https://github.com/Sarthak-47/Mimir/releases">
+          Browse releases
+        </a>
+      </article>
+
+      <article class="panel dl-card">
+        <div class="dl-os">Linux <span class="badge badge-muted">From source</span></div>
+        <div class="dl-meta">AppImage · deb</div>
+        <p>The Tauri config targets AppImage and deb. There is no published
+           binary at the moment — clone the repository and run the build script
+           for your distribution.</p>
+        <a class="btn" href="docs.html#build">Build from source</a>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Before you launch</span>
+    <h2>Two things first</h2>
+    <p class="lede" style="margin-bottom:2.6rem">
+      Mimir is the interface. Ollama is the engine, and it has to be running
+      with a model pulled before the first question lands.
+    </p>
+
+    <ol class="steps">
+      <li>
+        <h3>Install Ollama</h3>
+        <p>Grab it from <a href="https://ollama.com/download">ollama.com/download</a>
+           and let it start. It runs quietly in the background on port 11434 and
+           serves the model to Mimir locally.</p>
+      </li>
+      <li>
+        <h3>Pull the model</h3>
+        <p>About 6.6 GB. Do this before your first launch — the download takes a
+           while, and Mimir warms the model into memory at startup so your first
+           question is not the one that waits.</p>
+<pre><code class="cmd">ollama pull qwen3.5:9b</code></pre>
+        <p>Optional, for reading diagrams and screenshots you paste into chat:</p>
+<pre><code class="cmd">ollama pull qwen2.5vl:7b</code></pre>
+      </li>
+      <li>
+        <h3>Run the installer</h3>
+        <p>Launch Mimir. A six-step wizard checks Ollama, confirms the model,
+           and helps you create your first subject and exam date.</p>
+      </li>
+    </ol>
+
+    <div class="callout">
+      <p><strong>Hardware.</strong> A 9-billion-parameter model wants roughly
+         8 GB of VRAM to sit fully on the GPU. It will run on less by spilling
+         into system memory, just slower. Any smaller Ollama model can be
+         selected instead from Settings.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Troubleshooting</span>
+    <h2>If something is not right</h2>
+
+    <details>
+      <summary>The status pill says Ollama is unreachable</summary>
+      <p>Ollama is not running. Start it from your applications, or run
+         <code>ollama serve</code> in a terminal. Mimir polls health every 30
+         seconds and the banner clears itself once the connection returns.</p>
+    </details>
+
+    <details>
+      <summary>It says the model is not pulled</summary>
+      <p>Run <code>ollama pull qwen3.5:9b</code>. If you would rather use a model
+         you already have, open Settings — the model switcher lists everything
+         installed on your machine with sizes.</p>
+    </details>
+
+    <details>
+      <summary>The first answer is slow, then everything speeds up</summary>
+      <p>Expected on a cold start. Loading the weights into VRAM takes time,
+         and Ollama's GPU discovery can be slow on first run. Mimir warms both
+         the model and the embedding index at startup and holds the model in
+         memory for two hours, so this cost is paid once rather than per
+         question.</p>
+    </details>
+
+    <details>
+      <summary>An answer is confidently wrong about a hardware spec or recent release</summary>
+      <p>A 9B model running offline has a knowledge cutoff and will fill gaps
+         rather than admit them. Switch on <strong>WEB</strong> in the input bar
+         and ask again — Mimir searches first and answers from the results.
+         For your own course material, upload it to Scrolls so answers are
+         grounded in your notes instead of recall.</p>
+    </details>
+
+    <details>
+      <summary>Where is my data kept?</summary>
+      <p>Windows: <code>%LOCALAPPDATA%\Mimir\data\</code> ·
+         macOS: <code>~/Library/Application Support/Mimir/data/</code> ·
+         Linux: <code>~/.local/share/Mimir/data/</code>. Conversations and scores
+         sit in <code>mimir.db</code>; semantic memory in <code>chroma/</code>;
+         uploads in <code>uploads/</code>. Deleting that folder resets Mimir
+         completely.</p>
+    </details>
+
+    <details>
+      <summary>Something is broken and I want to know where</summary>
+      <p>With Mimir running, open
+         <code>http://localhost:8000/api/system/selftest</code> in a browser. It
+         times each stage of the pipeline — vector write, vector search, and both
+         model call styles — and names the one that fails. Paste that output into
+         an issue and the problem is usually obvious.</p>
+    </details>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow" style="text-align:center">
+    <h2>Ready?</h2>
+    <p class="lede" style="margin-inline:auto">
+      Free, open source, and yours once it is on disk.
+    </p>
+    <div class="btn-row" style="justify-content:center">
+      <a class="btn btn-primary" href="https://github.com/Sarthak-47/Mimir/releases/latest">⤓ Get the latest release</a>
+      <a class="btn" href="docs.html">Read the docs</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:0.9rem"><span class="brand-mark">ᛗ</span> Mimir</a>
+        <p style="color:var(--text-dim);font-size:0.92rem;max-width:34ch">
+          A local-first AI study companion for students who would rather not
+          rent their own notes back from a cloud.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="docs.html">Documentation</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Sarthak-47/Mimir">Source code</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/releases">Releases</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/issues">Report an issue</a></li>
+          <li><a href="https://ollama.com/download">Get Ollama</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">
+      <span>Built by <a href="https://github.com/Sarthak-47">Sarthak</a>. MIT licensed.</span>
+      <span>Runs on your hardware, not ours.</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml/badge.svg)](https://github.com/Sarthak-47/Mimir/actions/workflows/ci.yml)
 [![Release](https://github.com/Sarthak-47/Mimir/actions/workflows/release.yml/badge.svg)](https://github.com/Sarthak-47/Mimir/actions/workflows/release.yml)
+[![Website](https://img.shields.io/badge/website-mimir-d4a82c?style=flat)](https://sarthak-47.github.io/Mimir/)
+
+### **[mimir → sarthak-47.github.io/Mimir](https://sarthak-47.github.io/Mimir/)**
+
+**[Download](https://sarthak-47.github.io/Mimir/download.html)** · **[Features](https://sarthak-47.github.io/Mimir/features.html)** · **[Docs](https://sarthak-47.github.io/Mimir/docs.html)** · **[Privacy](https://sarthak-47.github.io/Mimir/privacy.html)**
 
 *[Watch the intro →](https://youtu.be/RXSExdHsypM?si=-I7pVcTdAVejo_ub)*
 
@@ -359,6 +364,18 @@ It is the kind of UI that should feel like opening a grimoire, not launching a S
 ---
 
 ## Status
+
+**v1.0.1** — current. Fixes the packaged Windows build, which never produced a
+reply: ChromaDB's ONNX embedder imports `tokenizers` dynamically, so PyInstaller
+left it out of the bundle and every embedding call raised. Because the memory
+write ran inline on the event loop and outside the agent's error handler, the
+exception escaped the WebSocket loop before the model was ever called — the UI
+just span forever. Compounding it, `zip-backend.ps1` packed `_internal` from a
+folder nothing refreshed, so installers had been shipping a stale dependency
+tree regardless of how often PyInstaller ran. Also adds an opt-in web search
+toggle (off by default, offline behaviour unchanged), warms the model and
+embedder at startup so the first message is not the slow one, and adds
+`GET /api/system/selftest` for diagnosing packaged builds.
 
 **v1.0.0** — released. Windows x64, macOS Apple Silicon, and Linux AppImage/deb installers distributed via GitHub Actions CI. Backend runs `qwen3.5:9b` with Flash Attention (~23 tok/s on a mid-range GPU). 127-test confidence suite green. All planned features shipped: spaced repetition, exam paper parsing, hybrid vector memory, knowledge graphs, mind maps, Pomodoro timer, KaTeX math rendering, timed mock exams, and multi-platform builds. Voice I/O (STT/TTS/VIGIL) was removed in v1.0.0 to reduce installer size and eliminate GPU-heavy audio model dependencies.
 

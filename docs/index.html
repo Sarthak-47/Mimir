@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimir — The Well of Knowledge</title>
+<meta name="description" content="A local-first AI study companion for your desktop. Runs entirely on your machine — no API keys, no accounts, no data leaving your computer.">
+<meta property="og:title" content="Mimir — The Well of Knowledge">
+<meta property="og:description" content="A local-first AI study companion. Everything runs on your machine.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d4a82c'>ᛗ</text></svg>">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">ᛗ</span> Mimir
+    </a>
+    <nav class="nav-links">
+      <a href="index.html" aria-current="page">Home</a>
+      <a href="features.html">Features</a>
+      <a href="docs.html">Docs</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="download.html">Download</a>
+      <a href="https://github.com/Sarthak-47/Mimir">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ── Hero ────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <h1><span>The Well of Knowledge</span>Mimir</h1>
+        <p class="lede">
+          A study companion that lives on your machine. It knows what you have
+          read, remembers where you struggled, and tells you what to revise
+          tonight — without a single byte leaving your computer.
+        </p>
+        <div class="btn-row">
+          <a class="btn btn-primary" href="download.html">⤓ Download for Windows</a>
+          <a class="btn" href="features.html">See what it does</a>
+        </div>
+        <p style="margin-top:1.6rem;color:var(--text-dim);font-size:0.92rem">
+          Free and open source · No account · No API keys · Works offline
+        </p>
+      </div>
+
+      <!-- The well: three rune rings turning around a lit centre -->
+      <div class="well" aria-hidden="true">
+        <svg viewBox="0 0 200 200" role="presentation">
+          <defs>
+            <radialGradient id="core">
+              <stop offset="0%"   stop-color="#f0cc30" stop-opacity="0.85"/>
+              <stop offset="45%"  stop-color="#329944" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#0d2814" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <circle class="well-core" cx="100" cy="100" r="52" fill="url(#core)"/>
+
+          <g class="ring-outer" fill="none" stroke="#1e6630" stroke-width="0.8">
+            <circle cx="100" cy="100" r="92"/>
+            <g font-family="Cinzel, serif" font-size="9" fill="#9a7830" stroke="none" text-anchor="middle">
+              <text x="100" y="14">ᚠ</text><text x="165" y="41">ᚢ</text>
+              <text x="192" y="104">ᚦ</text><text x="165" y="167">ᚨ</text>
+              <text x="100" y="194">ᚱ</text><text x="35"  y="167">ᚲ</text>
+              <text x="8"   y="104">ᚷ</text><text x="35"  y="41">ᚹ</text>
+            </g>
+          </g>
+
+          <g class="ring-mid" fill="none" stroke="#0d2814" stroke-width="1">
+            <circle cx="100" cy="100" r="72"/>
+            <g font-family="Cinzel, serif" font-size="8" fill="#1e6630" stroke="none" text-anchor="middle">
+              <text x="100" y="34">ᚺ</text><text x="146" y="54">ᚾ</text>
+              <text x="166" y="104">ᛁ</text><text x="146" y="152">ᛃ</text>
+              <text x="100" y="172">ᛇ</text><text x="54"  y="152">ᛈ</text>
+              <text x="34"  y="104">ᛉ</text><text x="54"  y="54">ᛊ</text>
+            </g>
+          </g>
+
+          <g class="ring-inner" fill="none" stroke="#9a7830" stroke-width="0.6" opacity="0.8">
+            <circle cx="100" cy="100" r="50"/>
+            <circle cx="100" cy="100" r="38" stroke-dasharray="3 6"/>
+          </g>
+
+          <!-- Yggdrasil, reduced to a root system reaching into the water -->
+          <g stroke="#1e6630" stroke-width="1.1" fill="none" opacity="0.75" stroke-linecap="round">
+            <path d="M100 62 L100 138"/>
+            <path d="M100 84 L82 68 M100 84 L118 68"/>
+            <path d="M100 100 L76 86 M100 100 L124 86"/>
+            <path d="M100 116 L84 132 M100 116 L116 132"/>
+            <path d="M82 68 L74 58 M118 68 L126 58"/>
+          </g>
+          <circle cx="100" cy="100" r="2.6" fill="#f0cc30"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <hr class="engraving">
+
+  <!-- ── The pitch ──────────────────────────────────────── -->
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Why it exists</span>
+      <h2>Built for the night before the exam</h2>
+      <p class="lede">
+        Most study tools ask you to organise first and learn later. Mimir works
+        the other way round: talk to it like a tutor, and it quietly builds the
+        structure underneath — what you covered, what you failed, what is due
+        for review, and how far your grade has drifted since last week.
+      </p>
+
+      <div class="grid" style="margin-top:2.8rem">
+        <article class="panel">
+          <h3><span class="rune">ᛞ</span> It answers</h3>
+          <p>Ask anything and get a real explanation — intuition first, then
+             mechanics, then a worked example, then a checkpoint question to
+             prove you followed. Seven teaching modes, switchable mid-sentence.</p>
+        </article>
+        <article class="panel">
+          <h3><span class="rune">ᛗ</span> It remembers</h3>
+          <p>Vector search and keyword ranking are fused so a question tonight
+             can surface a page you uploaded a month ago. Old sessions are
+             compressed nightly into durable memory rather than dropped.</p>
+        </article>
+        <article class="panel">
+          <h3><span class="rune">ᛏ</span> It tests you</h3>
+          <p>Multiple choice, written answers marked against a scheme, flashcard
+             decks, and timed mock exams. Every result feeds an SM-2 spaced
+             repetition schedule.</p>
+        </article>
+        <article class="panel">
+          <h3><span class="rune">ᚱ</span> It keeps score</h3>
+          <p>Per-topic confidence, learning velocity, a study heatmap, and a
+             predicted grade from score trajectory and forgetting-curve decay.
+             Topics you keep failing get surfaced, not buried.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <hr class="engraving">
+
+  <!-- ── Local-first ────────────────────────────────────── -->
+  <section>
+    <div class="wrap">
+      <div class="grid grid-2" style="align-items:center;gap:3rem">
+        <div>
+          <span class="eyebrow">Local first, genuinely</span>
+          <h2>Unplug the internet. It still works.</h2>
+          <p>
+            The language model is served by <a href="https://ollama.com">Ollama</a>
+            on your own hardware. Conversations live in SQLite on your disk.
+            Semantic memory is an embedded ChromaDB directory. There is no
+            server to sign in to, because there is no server.
+          </p>
+          <p>
+            The one feature that reaches the network is web search — and it ships
+            switched off, behind a toggle you press yourself.
+          </p>
+          <p style="margin-bottom:0"><a href="privacy.html">Read exactly what is stored and where →</a></p>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">What leaves your machine</span>
+          <table>
+            <tr><td><strong>Your notes and PDFs</strong></td><td style="text-align:right;color:var(--green-bright)">Nothing</td></tr>
+            <tr><td><strong>Your conversations</strong></td><td style="text-align:right;color:var(--green-bright)">Nothing</td></tr>
+            <tr><td><strong>Quiz scores, grades</strong></td><td style="text-align:right;color:var(--green-bright)">Nothing</td></tr>
+            <tr><td><strong>Usage analytics</strong></td><td style="text-align:right;color:var(--green-bright)">None collected</td></tr>
+            <tr><td><strong>Web search <em>(if you enable it)</em></strong></td><td style="text-align:right;color:var(--gold)">Your query</td></tr>
+            <tr><td><strong>Update check</strong></td><td style="text-align:right;color:var(--gold)">Version number</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="engraving">
+
+  <!-- ── Numbers ────────────────────────────────────────── -->
+  <section>
+    <div class="wrap">
+      <div class="stats">
+        <div><span class="stat-num">7</span><span class="stat-label">Teaching modes</span></div>
+        <div><span class="stat-num">6</span><span class="stat-label">Study views</span></div>
+        <div><span class="stat-num">4</span><span class="stat-label">Trial formats</span></div>
+        <div><span class="stat-num">0</span><span class="stat-label">API keys needed</span></div>
+        <div><span class="stat-num">100%</span><span class="stat-label">On your machine</span></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="engraving">
+
+  <!-- ── Close ──────────────────────────────────────────── -->
+  <section>
+    <div class="wrap section-narrow" style="text-align:center;margin-inline:auto">
+      <p class="quote" style="border-left:0;padding:0;font-size:1.1rem">
+        In Norse myth, Mimir guards the well beneath Yggdrasil — the source of all
+        wisdom. Odin gave up an eye for a single drink from it.
+      </p>
+      <h2>The water is free here.</h2>
+      <div class="btn-row" style="justify-content:center">
+        <a class="btn btn-primary" href="download.html">⤓ Download Mimir</a>
+        <a class="btn" href="https://github.com/Sarthak-47/Mimir">View source</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:0.9rem">
+          <span class="brand-mark">ᛗ</span> Mimir
+        </a>
+        <p style="color:var(--text-dim);font-size:0.92rem;max-width:34ch">
+          A local-first AI study companion for students who would rather not
+          rent their own notes back from a cloud.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="docs.html">Documentation</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Sarthak-47/Mimir">Source code</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/releases">Releases</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/issues">Report an issue</a></li>
+          <li><a href="https://ollama.com/download">Get Ollama</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">
+      <span>Built by <a href="https://github.com/Sarthak-47">Sarthak</a>. MIT licensed.</span>
+      <span>Runs on your hardware, not ours.</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

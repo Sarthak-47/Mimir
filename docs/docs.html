@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — Mimir</title>
+<meta name="description" content="How Mimir works: architecture, the agent loop, memory retrieval, building from source, and configuration.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d4a82c'>ᛗ</text></svg>">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html"><span class="brand-mark">ᛗ</span> Mimir</a>
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="docs.html" aria-current="page">Docs</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="download.html">Download</a>
+      <a href="https://github.com/Sarthak-47/Mimir">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section style="padding-bottom:2rem">
+  <div class="wrap">
+    <span class="eyebrow">Documentation</span>
+    <h1 style="font-size:clamp(2rem,5vw,3.2rem)">How Mimir works</h1>
+    <p class="lede">
+      A desktop shell in Rust, a React interface, a Python backend, and a model
+      served locally by Ollama. Four processes on one machine, talking over
+      localhost and nothing else.
+    </p>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">Architecture</span>
+    <h2>What runs where</h2>
+    <p class="lede">When you launch Mimir, the Rust shell starts the bundled
+       Python backend as a child process and points the webview at it. Nothing
+       binds to a public interface.</p>
+
+<pre><code>  Tauri shell (Rust)
+        │  spawns
+        ▼
+  FastAPI backend ──── WebSocket ────► React UI (webview)
+        │
+        ├──► Ollama          localhost:11434   the model
+        ├──► SQLite          mimir.db          conversations, scores, subjects
+        └──► ChromaDB        chroma/           embedded vector memory</code></pre>
+
+    <div class="table-scroll" style="margin-top:2rem">
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Desktop shell</strong></td><td>Tauri 2 (Rust) — native binary, ~16 MB</td></tr>
+          <tr><td><strong>Interface</strong></td><td>React 18 + TypeScript, bundled by Vite</td></tr>
+          <tr><td><strong>Styling</strong></td><td>CSS custom properties — no component library</td></tr>
+          <tr><td><strong>Typography</strong></td><td>Cinzel (headers) + Crimson Text (body)</td></tr>
+          <tr><td><strong>Backend</strong></td><td>FastAPI, async SQLAlchemy, aiosqlite</td></tr>
+          <tr><td><strong>Model</strong></td><td>Ollama — <code>qwen3.5:9b</code> chat, <code>qwen2.5vl:7b</code> vision</td></tr>
+          <tr><td><strong>Vector memory</strong></td><td>ChromaDB, embedded and persistent</td></tr>
+          <tr><td><strong>Reranking</strong></td><td>ms-marco-MiniLM-L-6-v2 cross-encoder</td></tr>
+          <tr><td><strong>Maths</strong></td><td>KaTeX, rendered client-side</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">The agent loop</span>
+    <h2>Reason, act, observe</h2>
+    <p class="lede">Every message runs through a ReAct loop that decides whether
+       to answer directly or reach for a tool first.</p>
+
+    <ol class="steps" style="margin-top:2.4rem">
+      <li>
+        <h3>Gather context</h3>
+        <p>Hybrid retrieval pulls candidates from ChromaDB, ranks them again with
+           BM25, fuses both orderings, and reranks the top pool with a
+           cross-encoder. Alongside it go your recent turns, weak topics,
+           recurring misconceptions, and — if the toggle is on — live web results.</p>
+      </li>
+      <li>
+        <h3>Stream and peek</h3>
+        <p>A single streaming call starts immediately. The first 80 characters
+           are buffered to decide whether the model is answering or calling a
+           tool. If it is answering, the buffer flushes and tokens continue
+           live, so you see text in about a second rather than waiting for the
+           whole response.</p>
+      </li>
+      <li>
+        <h3>Act, then synthesise</h3>
+        <p>If a tool was requested — quiz, flashcards, summarise, weak topics,
+           web search — it runs, and a second streaming call turns the raw result
+           into prose. Structured data is sent separately so the UI can render an
+           interactive quiz card rather than JSON.</p>
+      </li>
+      <li>
+        <h3>Persist</h3>
+        <p>Both turns are written to SQLite and embedded into ChromaDB for future
+           recall. These writes happen off the event loop and under a timeout —
+           memory helps later recall, but it is never allowed to delay an answer.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section id="build">
+  <div class="wrap">
+    <span class="eyebrow">From source</span>
+    <h2>Building it yourself</h2>
+    <p class="lede">You need Rust (stable), Node.js 20+, and Python 3.11+.</p>
+
+    <h3 style="margin-top:2rem">Development</h3>
+<pre><code class="cmd">git clone https://github.com/Sarthak-47/Mimir.git
+cd Mimir
+
+# backend
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m uvicorn main:app --port 8000
+
+# frontend, in a second terminal
+cd frontend
+npm install
+npm run dev</code></pre>
+
+    <h3>Production build (Windows)</h3>
+    <p>The build script runs three stages: PyInstaller bundles the backend, the
+       <code>_internal</code> tree is zipped to work around the NSIS
+       1000-file-per-folder limit, and Tauri produces the installer.</p>
+<pre><code class="cmd">.\scripts\build.ps1</code></pre>
+
+    <div class="callout">
+      <p><strong>If you add a Python dependency,</strong> rerun PyInstaller before
+         packaging. The zip is built from <code>backend/dist/mimir-backend/_internal</code>,
+         so a stale <code>dist</code> silently ships an old dependency tree — a
+         mistake that once cost a release.</p>
+    </div>
+
+    <h3>Useful flags</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Command</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>build.ps1 -Check</code></td><td>Validate every PyInstaller hidden import without building</td></tr>
+          <tr><td><code>build.ps1 -SkipBackend</code></td><td>Reuse the existing <code>dist/</code>, rebuild only the app</td></tr>
+          <tr><td><code>build.ps1 -Debug</code></td><td>Debug build, no minification</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">Configuration</span>
+    <h2>Settings and diagnostics</h2>
+
+    <div class="grid grid-2" style="margin-top:2rem">
+      <div class="panel">
+        <h3>Adjustable at runtime</h3>
+        <ul class="feature-list">
+          <li><strong>Model</strong> — any model installed in Ollama, listed with sizes</li>
+          <li><strong>Temperature</strong> — lower for factual recall, higher for exploration</li>
+          <li><strong>Context window</strong> — raising it costs VRAM</li>
+          <li><strong>Quiz length and difficulty</strong></li>
+          <li><strong>Pomodoro intervals</strong></li>
+        </ul>
+        <p style="margin-top:1rem;font-size:0.9rem;color:var(--text-dim)">
+          Persisted to <code>user_settings.json</code> beside your data.</p>
+      </div>
+      <div class="panel">
+        <h3>Health endpoints</h3>
+        <p style="margin-bottom:0.8rem">With Mimir running, both are plain GETs on
+           <code>localhost:8000</code>:</p>
+        <ul class="feature-list">
+          <li><code>/health</code> — is Ollama reachable, is the model pulled</li>
+          <li><code>/api/system/selftest</code> — times each pipeline stage under its own timeout and names the one that fails</li>
+        </ul>
+        <p style="margin-top:1rem;font-size:0.9rem;color:var(--text-dim)">
+          The packaged app buffers stdout, so <code>selftest</code> is the fastest
+          way to see inside a build that is misbehaving.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Questions</span>
+    <h2>Reasonable objections</h2>
+
+    <details>
+      <summary>Why local, when hosted models are better?</summary>
+      <p>They are better. The trade is deliberate: your notes, your scores, and
+         every question you were embarrassed to ask stay on your disk, and there
+         is no bill or rate limit. For explaining course material you already own,
+         a 9B model with your documents in context is closer to a hosted model
+         than the parameter counts suggest.</p>
+    </details>
+
+    <details>
+      <summary>Can I use a different model?</summary>
+      <p>Yes. Anything in Ollama — pick it from Settings. Smaller models are
+         faster and weaker; larger ones are slower and sharper. The default is
+         chosen to fit an 8 GB GPU.</p>
+    </details>
+
+    <details>
+      <summary>How accurate is it?</summary>
+      <p>On material you have uploaded, well grounded — answers come from your
+         documents. On general facts it has a training cutoff and will
+         occasionally state something outdated with confidence. That is what the
+         WEB toggle is for: with it on, Mimir searches first and answers from
+         results rather than memory.</p>
+    </details>
+
+    <details>
+      <summary>Does it need internet at all?</summary>
+      <p>No. Everything except web search and the update check works offline. Web
+         search ships off; you switch it on per session.</p>
+    </details>
+
+    <details>
+      <summary>Is my data recoverable if I reinstall?</summary>
+      <p>Yes — data lives outside the install directory, so updates and
+         reinstalls leave it untouched. Back up the <code>data</code> folder
+         named on the <a href="privacy.html">privacy page</a> and you have
+         everything.</p>
+    </details>
+
+    <details>
+      <summary>Can I contribute?</summary>
+      <p>Please. The repository is on <a href="https://github.com/Sarthak-47/Mimir">GitHub</a>
+         with CI running the backend suite. Issues and pull requests are welcome.</p>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:0.9rem"><span class="brand-mark">ᛗ</span> Mimir</a>
+        <p style="color:var(--text-dim);font-size:0.92rem;max-width:34ch">
+          A local-first AI study companion for students who would rather not
+          rent their own notes back from a cloud.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="docs.html">Documentation</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Sarthak-47/Mimir">Source code</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/releases">Releases</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/issues">Report an issue</a></li>
+          <li><a href="https://ollama.com/download">Get Ollama</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">
+      <span>Built by <a href="https://github.com/Sarthak-47">Sarthak</a>. MIT licensed.</span>
+      <span>Runs on your hardware, not ours.</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

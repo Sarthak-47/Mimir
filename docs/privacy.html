@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Mimir</title>
+<meta name="description" content="What Mimir stores, where it stores it, and the only two things that ever touch the network.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d4a82c'>ᛗ</text></svg>">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html"><span class="brand-mark">ᛗ</span> Mimir</a>
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="features.html">Features</a>
+      <a href="docs.html">Docs</a>
+      <a href="privacy.html" aria-current="page">Privacy</a>
+      <a href="download.html">Download</a>
+      <a href="https://github.com/Sarthak-47/Mimir">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section style="padding-bottom:2rem">
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Privacy</span>
+    <h1 style="font-size:clamp(2rem,5vw,3.2rem)">The short version</h1>
+    <p class="lede">
+      Mimir has no servers, no accounts, and no analytics. There is nowhere for
+      your data to be sent, because nothing was built to receive it. Everything
+      below is verifiable in the source.
+    </p>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap section-narrow">
+    <div class="callout">
+      <p><strong>Two things reach the network, both optional and both obvious.</strong>
+         Web search, which ships switched off and is toggled per session from the
+         input bar. And the update check, which asks GitHub whether a newer
+         release exists. That is the complete list.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">On disk</span>
+    <h2>What is stored, and where</h2>
+    <p>All of it sits in one folder, outside the install directory so updates
+       never touch it.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Platform</th><th>Location</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Windows</strong></td><td><code>%LOCALAPPDATA%\Mimir\data\</code></td></tr>
+          <tr><td><strong>macOS</strong></td><td><code>~/Library/Application Support/Mimir/data/</code></td></tr>
+          <tr><td><strong>Linux</strong></td><td><code>~/.local/share/Mimir/data/</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-scroll" style="margin-top:1.6rem">
+      <table>
+        <thead><tr><th>File</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><td><code>mimir.db</code></td><td>Conversations, subjects, topics, quiz history, spaced-repetition state, your account</td></tr>
+          <tr><td><code>chroma/</code></td><td>Embedded vectors for semantic recall — your documents and past turns</td></tr>
+          <tr><td><code>uploads/</code></td><td>The PDFs and images you uploaded, as you uploaded them</td></tr>
+          <tr><td><code>user_settings.json</code></td><td>Model choice, temperature, context window, study preferences</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.4rem">
+      Deleting that folder resets Mimir to first launch. Copying it to another
+      machine carries everything across. There is no export step because there is
+      no proprietary format holding it hostage — SQLite and a Chroma directory,
+      both readable by ordinary tools.
+    </p>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Accounts</span>
+    <h2>The login is local</h2>
+    <p>
+      Mimir asks you to register, which looks like a cloud account and is not
+      one. The record is a row in the SQLite file on your disk. Passwords are
+      hashed with bcrypt, sessions are JWTs signed locally. It exists so several
+      people can share a computer without sharing study history — no server ever
+      sees a credential, because there is no server.
+    </p>
+    <p>
+      A forgotten password cannot be reset by email, for the same reason. Delete
+      the database, or ask on the issue tracker.
+    </p>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">The exceptions, in detail</span>
+    <h2>When Mimir talks to the internet</h2>
+
+    <h3 style="margin-top:1.8rem">Web search — off by default</h3>
+    <p>
+      With the <strong>WEB</strong> toggle lit, your question is sent to
+      DuckDuckGo and the results are handed to the local model to answer from.
+      DuckDuckGo therefore sees that query, subject to their privacy policy —
+      nothing else goes with it: not your notes, not your history, not who you
+      are.
+    </p>
+    <p>
+      Switched off, no search request is made at all. The tool is not merely
+      unused, it is not registered with the agent, so there is no code path that
+      could call it by accident.
+    </p>
+
+    <h3 style="margin-top:2rem">Update check</h3>
+    <p>
+      Mimir asks the GitHub Releases API whether a version newer than yours
+      exists. GitHub sees a request for a public file, as it would from any
+      browser. No identifier is attached.
+    </p>
+
+    <h3 style="margin-top:2rem">Fonts</h3>
+    <p>
+      The interface loads Cinzel and Crimson Text from Google Fonts on first
+      run, then caches them. This website does the same. It is the one request
+      neither strictly needs, and a self-hosted fallback is on the list.
+    </p>
+
+    <div class="callout" style="margin-top:2rem">
+      <p><strong>Not present, at all:</strong> telemetry, crash reporting, usage
+         analytics, A/B testing, advertising identifiers, third-party SDKs,
+         cloud sync, and model-provider API calls. Your questions are never used
+         to train anything.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="engraving">
+
+<section>
+  <div class="wrap section-narrow">
+    <span class="eyebrow">Verify it</span>
+    <h2>Do not take my word for it</h2>
+    <p>
+      The whole application is open source. If you want to confirm the claims on
+      this page rather than trust them:
+    </p>
+    <ul class="feature-list">
+      <li><strong>Read the source</strong> — the only outbound calls are in the web-search tool and the updater</li>
+      <li><strong>Watch the traffic</strong> — run it behind a proxy or packet capture and see for yourself</li>
+      <li><strong>Pull the plug</strong> — disconnect from the network entirely; everything but search keeps working</li>
+      <li><strong>Open the database</strong> — <code>mimir.db</code> is plain SQLite; inspect exactly what is kept</li>
+    </ul>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="https://github.com/Sarthak-47/Mimir">Read the source</a>
+      <a class="btn" href="download.html">Download Mimir</a>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap section-narrow">
+    <p style="color:var(--text-dim);font-size:0.9rem">
+      This page describes the application's behaviour as of version 1.0.1. If a
+      future release changes what touches the network, it will be stated in the
+      release notes and here — not buried in a changelog.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:0.9rem"><span class="brand-mark">ᛗ</span> Mimir</a>
+        <p style="color:var(--text-dim);font-size:0.92rem;max-width:34ch">
+          A local-first AI study companion for students who would rather not
+          rent their own notes back from a cloud.
+        </p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="download.html">Download</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="docs.html">Documentation</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Sarthak-47/Mimir">Source code</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/releases">Releases</a></li>
+          <li><a href="https://github.com/Sarthak-47/Mimir/issues">Report an issue</a></li>
+          <li><a href="https://ollama.com/download">Get Ollama</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">
+      <span>Built by <a href="https://github.com/Sarthak-47">Sarthak</a>. MIT licensed.</span>
+      <span>Runs on your hardware, not ours.</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

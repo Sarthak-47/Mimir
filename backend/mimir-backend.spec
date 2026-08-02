@@ -80,6 +80,8 @@ hidden = (
         "ws_manager",
         "config",
     ]
+    # DuckDuckGo search — backs the opt-in Web Search toggle
+    + collect_submodules("ddgs")
 )
 
 datas = (

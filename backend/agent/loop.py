@@ -96,7 +96,7 @@ from agent.prompts import (
 )
 from agent.tools import (
     tool_quiz, tool_summarize,
-    tool_flashcards, tool_weak_topics,
+    tool_flashcards, tool_weak_topics, tool_web_search,
 )
 from memory.vector import query_memory_hybrid
 from memory.database import AsyncSessionLocal
@@ -127,12 +127,38 @@ def _ollama_opts(**extra) -> dict:
     return opts
 
 # ── Tool registry ────────────────────────────────────────────
+# Always-available, fully offline tools.
 TOOLS = {
     "quiz":        tool_quiz,
     "summarize":   tool_summarize,
     "flashcards":  tool_flashcards,
     "weak_topics": tool_weak_topics,
 }
+
+# Added to the registry only when the student turns the Web Search toggle on.
+# Keeping it out of TOOLS by default guarantees Mimir makes no network calls
+# beyond the local Ollama server in offline mode.
+_ONLINE_TOOLS = {
+    "web_search": tool_web_search,
+}
+
+# Tool descriptions appended to the ReAct system prompt when web search is on.
+_WEB_SEARCH_TOOL_DOC = (
+    "- web_search(query, n)          — search the live web for current facts "
+    "(returns titles, snippets and URLs)\n"
+)
+
+_WEB_SEARCH_GUIDANCE = """
+WEB SEARCH IS ENABLED for this message. A [LIVE WEB SEARCH RESULTS] block has
+already been placed at the top of the student's message with current results.
+
+Treat that block as more authoritative than your own memory. Where it
+contradicts what you recall, the search results win — your training data may be
+out of date. Base your answer on those results and mention where a specific fact
+came from. If the results do not actually cover the question, say plainly that
+you could not verify it rather than filling the gap with invented detail. If you
+need a different query than the one already run, use ACTION: web_search.
+"""
 
 # How many characters to buffer before deciding tool vs direct.
 # ACTION: quiz\nARGS: is ~20 chars, so 80 gives plenty of margin.
@@ -167,6 +193,7 @@ async def run_agent(
     mode: str = "detailed",
     images: list[str] | None = None,   # base64-encoded images attached to this message
     exam_date: str | None = None,       # ISO date string e.g. "2025-06-12"
+    web_search: bool = False,           # student toggled Web Search on for this message
 ) -> AsyncGenerator[str, None]:
     """Run one ReAct iteration and stream response tokens.
 
@@ -180,6 +207,11 @@ async def run_agent(
 
     This means the browser receives the first token in ~5 s (peek window) for
     direct answers, vs ~50 s with the old non-streaming first call.
+
+    When ``web_search`` is True the ``web_search`` tool is added to the registry
+    for this call only and the model is told to prefer searching over guessing.
+    When it is False no network call leaves the machine apart from local Ollama,
+    so offline use is unaffected.
 
     Yields:
         Text tokens, then optionally sentinel strings:
@@ -333,10 +365,24 @@ async def run_agent(
         if vision_parts:
             image_context = "\n\n".join(vision_parts) + "\n\n"
 
+    # ── Proactive web search ─────────────────────────────────
+    # When the student turns the toggle on they want live facts, so we search
+    # up front and hand the results to the model rather than hoping a 9B model
+    # decides to call the tool itself (it usually does not). The tool stays
+    # registered as well, so the model can run an extra targeted search.
+    web_ctx = ""
+    if web_search:
+        try:
+            web_ctx = await asyncio.to_thread(tool_web_search, user_message, 5)
+        except Exception as exc:
+            logger.warning("Proactive web search failed: %s", exc)
+            web_ctx = "Web search was unavailable for this message."
+
     exam_date_line = f"Exam date: {exam_date} — use this deadline when generating revision plans or study schedules.\n" if exam_date else ""
 
     context_prompt = (
         f"{image_context}"
+        + (f"[LIVE WEB SEARCH RESULTS]\n{web_ctx}\n\n" if web_ctx else "")
         + (f"[WHAT I KNOW ABOUT YOU]\n{user_memory_ctx}\n\n" if user_memory_ctx else "")
         + f"[RETRIEVED DOCUMENTS & HISTORY]\n{memory_ctx}\n\n"
         f"[RECENT CONVERSATION]\n{history_text}\n\n"
@@ -353,6 +399,10 @@ async def run_agent(
     )
 
     # ── 3. Build messages ────────────────────────────────────
+    # Web search is opt-in per message: the tool only enters the registry when
+    # the student has the toggle on, so offline mode makes no outbound calls.
+    active_tools = {**TOOLS, **_ONLINE_TOOLS} if web_search else TOOLS
+
     active_prompt = _MODE_PROMPTS.get(mode, SYSTEM_PROMPT)
     react_system  = active_prompt + """
 
@@ -367,9 +417,9 @@ Available tools:
 - flashcards(topic, n)          — generate flashcard pairs (returns JSON)
 - summarize(content)            — summarize uploaded text / notes
 - weak_topics(topic_scores)     — identify weak areas from scores
-
+""" + (_WEB_SEARCH_TOOL_DOC if web_search else "") + """
 For everything else — explanations, revision schedules, recalling past sessions, answering questions — respond directly without ACTION/ARGS lines.
-"""
+""" + (_WEB_SEARCH_GUIDANCE if web_search else "")
     messages: list[dict] = [
         {"role": "system", "content": react_system},
         {"role": "user",   "content": context_prompt},
@@ -452,7 +502,7 @@ For everything else — explanations, revision schedules, recalling past session
 
         if action_m:
             tool_name = action_m.group(1).strip()
-            tool_fn   = TOOLS.get(tool_name)
+            tool_fn   = active_tools.get(tool_name)
 
             if tool_fn:
                 args: dict = {}

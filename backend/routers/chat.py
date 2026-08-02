@@ -4,7 +4,11 @@ Mimir — Chat WebSocket Router.
 Endpoint: ``WS /ws/chat?token=<jwt>``
 
 Client sends:
-    ``{"message": str, "subject_id": int | null}``
+    ``{"message": str, "subject_id": int | null, "web_search": bool}``
+
+``web_search`` is opt-in per message and mirrors the toggle in the input bar.
+When it is false (the default) the agent makes no outbound network calls, so
+Mimir keeps working fully offline.
 
 Server streams (one JSON frame per message):
     ``{"type": "token",     "content": str}``      — streaming LLM token
@@ -208,6 +212,8 @@ async def ws_chat(
                 mode: str               = payload.get("mode", "detailed")
                 images: list[str]       = payload.get("images") or []
                 tutor_session_id: int | None = payload.get("tutor_session_id")
+                # Opt-in per message; when false the agent stays fully offline.
+                web_search: bool        = bool(payload.get("web_search"))
 
                 if not user_message and not images:
                     continue
@@ -304,6 +310,7 @@ async def ws_chat(
                         mode=mode,
                         images=images or None,
                         exam_date=exam_date_str,
+                        web_search=web_search,
                     ):
                         # ── Tool invocation signal ─────────────────────
                         if "__ACTION__:" in chunk:

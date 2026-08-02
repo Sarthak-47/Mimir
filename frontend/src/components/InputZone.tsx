@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback } from "react";
 
 interface InputZoneProps {
-  onSend:           (text: string, mode: string, images?: string[]) => void;
+  onSend:           (text: string, mode: string, images?: string[], webSearch?: boolean) => void;
   onTrial:          () => void;
   onRunes:          () => void;
   onFates:          () => void;
@@ -42,6 +42,11 @@ export default function InputZone({
 }: InputZoneProps) {
   const [text,      setText]      = useState("");
   const [uploading, setUploading] = useState(false);
+  // Web Search toggle — off by default so Mimir stays fully offline unless the
+  // student explicitly asks for live results. Persisted so the choice sticks.
+  const [webSearch, setWebSearch] = useState(
+    () => localStorage.getItem("mimir_web_search") === "on"
+  );
   // Pending images to attach to the next message — stored as {base64, dataUrl} objects.
   // dataUrl is used for the preview thumbnail; base64 is sent to the backend.
   const [pendingImages, setPendingImages] = useState<{ base64: string; dataUrl: string }[]>([]);
@@ -68,7 +73,7 @@ export default function InputZone({
   const handleSend = () => {
     if (!text.trim() && pendingImages.length === 0) return;
     const images = pendingImages.map((img) => img.base64);
-    onSend(text, mode, images.length > 0 ? images : undefined);
+    onSend(text, mode, images.length > 0 ? images : undefined, webSearch);
     setText("");
     setPendingImages([]);
     setIsDragOver(false);
@@ -352,6 +357,24 @@ export default function InputZone({
           <span style={styles.runeBtnLabel}>{currentMode.label}</span>
         </button>
 
+        {/* Web search toggle — when lit, Mimir may consult the live web */}
+        <button
+          style={{ ...styles.runeBtn, ...(webSearch ? styles.runeBtnOn : {}) }}
+          title={
+            webSearch
+              ? "Web search ON — Mimir may consult the live web for current facts. Click to go offline."
+              : "Web search OFF — Mimir answers from local knowledge only. Click to allow web lookups."
+          }
+          onClick={() => {
+            const next = !webSearch;
+            setWebSearch(next);
+            localStorage.setItem("mimir_web_search", next ? "on" : "off");
+          }}
+        >
+          <span style={styles.runeBtnIcon}>ᚼ</span>
+          <span style={styles.runeBtnLabel}>{webSearch ? "WEB ON" : "WEB"}</span>
+        </button>
+
         {activeSubjectName && (
           <div style={styles.activeSubjectBadge}>
             <span style={styles.diamond} />
@@ -406,6 +429,9 @@ const styles: Record<string, React.CSSProperties> = {
   runeBtn: { display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 1, padding: "4px 9px", background: "var(--stone-3)", border: "1px solid var(--green-dark)", cursor: "pointer", transition: "all 0.15s" },
   runeBtnActive: { background: "var(--green-dark)", border: "1px solid var(--green)" },
   runeBtnDisabled: { opacity: 0.5, cursor: "not-allowed" },
+  // Lit state for the web search toggle — gold border marks the one action
+  // that reaches outside the machine.
+  runeBtnOn: { background: "var(--green-dark)", border: "1px solid var(--gold)", boxShadow: "0 0 6px var(--gold-dim)" },
   runeBtnIcon:  { fontSize: 17, lineHeight: 1, fontFamily: "var(--font-header)", color: "var(--green-bright)" },
   runeBtnLabel: { fontFamily: "var(--font-header)", fontSize: 10, letterSpacing: "0.1em", color: "var(--text-primary)", textTransform: "uppercase" as const },
   activeSubjectBadge: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "3px 10px", background: "var(--stone-3)", border: "1px solid var(--green-dark)" },

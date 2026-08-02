@@ -222,6 +222,53 @@ def tool_weak_topics(topic_scores: list[dict]) -> list[dict]:
     return result
 
 
+# ── Tool: web_search ─────────────────────────────────────────
+
+def tool_web_search(query: str, n: int = 5) -> str:
+    """Search the public web via DuckDuckGo and return result snippets.
+
+    Only reachable when the student has switched the Web Search toggle on —
+    the tool is not registered with the agent otherwise, so Mimir stays fully
+    offline by default.  Used to ground answers about current facts (hardware
+    specs, recent releases, figures) that the local model may not know or may
+    misremember.
+
+    Args:
+        query: Natural-language search query.
+        n: How many results to return (clamped to 1-8).
+
+    Returns:
+        A numbered plain-text digest of titles, snippets and URLs, or an
+        explanatory message when the search fails or returns nothing. The
+        agent is instructed to cite these sources in its answer.
+    """
+    n = max(1, min(int(n or 5), 8))
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        return "Web search unavailable: the 'ddgs' package is not installed."
+
+    try:
+        results = list(DDGS().text(query, max_results=n))
+    except Exception as exc:
+        return (
+            f"Web search failed ({type(exc).__name__}). "
+            "You are offline or the search service is unreachable — "
+            "answer from your own knowledge and say you could not verify online."
+        )
+
+    if not results:
+        return f"No web results found for: {query}"
+
+    lines = [f"Web search results for: {query}", ""]
+    for i, r in enumerate(results, 1):
+        title = (r.get("title") or "").strip()
+        body  = (r.get("body") or "").strip()[:400]
+        href  = (r.get("href") or "").strip()
+        lines.append(f"[{i}] {title}\n{body}\nSource: {href}\n")
+    return "\n".join(lines)
+
+
 # ── Spaced Repetition (SM-2) ─────────────────────────────────
 
 def compute_sm2(

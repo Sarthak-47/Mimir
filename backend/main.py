@@ -54,6 +54,29 @@ async def _warmup_model() -> None:
         print(f"[Mimir] Warmup skipped ({type(exc).__name__}: {exc})")
 
 
+async def _warmup_embedder() -> None:
+    """Load the ChromaDB sentence-transformer embedder before the first query.
+
+    ChromaDB loads its embedding model lazily on the first query, which costs
+    ~7.5 s.  Without this, that cost lands on the user's first message on top
+    of the LLM load.  Running a throwaway query at startup pays it up front.
+    Runs in a worker thread because ChromaDB's API is synchronous.
+    """
+    import asyncio as _asyncio
+
+    print("[Mimir] Warming up embedding model…")
+    try:
+        from memory.vector import get_collection
+
+        def _touch() -> None:
+            get_collection().query(query_texts=["warmup"], n_results=1)
+
+        await _asyncio.to_thread(_touch)
+        print("[Mimir] Embedder warm — vector search ready.")
+    except Exception as exc:
+        print(f"[Mimir] Embedder warmup skipped ({type(exc).__name__}: {exc})")
+
+
 # ── Lifespan (startup / shutdown) ───────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,10 +85,11 @@ async def lifespan(app: FastAPI):
     print(f"[Mimir] Starting {settings.app_name}…")
     await init_db()
 
-    # Kick off model warmup in the background so the first user message
-    # doesn't stall waiting for Ollama to discover the GPU and load weights.
+    # Kick off warmups in the background so the first user message doesn't
+    # stall waiting for Ollama to load weights or ChromaDB to load its embedder.
     import asyncio as _asyncio
     _asyncio.create_task(_warmup_model())
+    _asyncio.create_task(_warmup_embedder())
 
     # Register scheduled jobs
     _scheduler.add_job(

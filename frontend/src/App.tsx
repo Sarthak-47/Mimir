@@ -518,7 +518,12 @@ export default function App() {
   });
 
   // ── Chat handlers ──────────────────────────────────────
-  const handleSend = (text: string, sendMode?: string, images?: string[]) => {
+  const handleSend = (
+    text: string,
+    sendMode?: string,
+    images?: string[],
+    webSearch?: boolean,
+  ) => {
     if (!text.trim() && (!images || images.length === 0)) return;
     stoppedRef.current = false;
     setIsWaiting(true);
@@ -535,6 +540,7 @@ export default function App() {
       sendMode ?? mode,
       images,
       activeTutorSession?.id,
+      webSearch,
     );
   };
 

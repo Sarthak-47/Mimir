@@ -46,7 +46,7 @@ interface UseWebSocketOptions {
 }
 
 interface UseWebSocketReturn {
-  sendMessage: (text: string, subjectId?: number, mode?: string, images?: string[], tutorSessionId?: number) => void;
+  sendMessage: (text: string, subjectId?: number, mode?: string, images?: string[], tutorSessionId?: number, webSearch?: boolean) => void;
   isConnected: boolean;
   isConnecting: boolean;
 }
@@ -255,6 +255,7 @@ export function useWebSocket({
     mode: string = "detailed",
     images?: string[],
     tutorSessionId?: number,
+    webSearch?: boolean,
   ) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const payload: Record<string, unknown> = {
@@ -264,6 +265,9 @@ export function useWebSocket({
       };
       if (images && images.length > 0) payload.images = images;
       if (tutorSessionId) payload.tutor_session_id = tutorSessionId;
+      // Only sent when the student switched the toggle on — the backend
+      // treats a missing flag as offline mode.
+      if (webSearch) payload.web_search = true;
       wsRef.current.send(JSON.stringify(payload));
     } else {
       console.warn("[Mimir WS] Cannot send — not connected");

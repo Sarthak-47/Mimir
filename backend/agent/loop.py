@@ -164,6 +164,12 @@ need a different query than the one already run, use ACTION: web_search.
 # ACTION: quiz\nARGS: is ~20 chars, so 80 gives plenty of margin.
 _PEEK_CHARS = 80
 
+# Hard ceilings for the two pre-LLM stages that touch models or the network.
+# Both are enhancements to the answer, never prerequisites, so exceeding the
+# budget degrades the context instead of stalling the reply.
+_RETRIEVAL_TIMEOUT  = 12.0   # ChromaDB embed + BM25 + cross-encoder rerank
+_WEB_SEARCH_TIMEOUT = 10.0   # DuckDuckGo round trip
+
 
 def _args_complete(text: str) -> bool:
     """Return True once the ARGS JSON object in *text* has balanced braces."""
@@ -243,10 +249,28 @@ async def run_agent(
         logger.debug("User memory fetch skipped: %s", exc)
 
     # ── 1. Hybrid memory recall (vector + BM25 RRF) ──────────
-    past_docs, retrieved_sources = query_memory_hybrid(
-        user_id, user_message, n_results=5, subject_id=subject_id,
-        candidate_pool=20,
-    )
+    # Run off the event loop and under a hard timeout. ChromaDB's embedder and
+    # the cross-encoder reranker both load models on first use, and a slow or
+    # stuck load must never hold up the answer — retrieval is an enhancement,
+    # not a prerequisite, so we degrade to no recalled context instead.
+    past_docs: list[str] = []
+    retrieved_sources: list[str] = []
+    try:
+        past_docs, retrieved_sources = await asyncio.wait_for(
+            asyncio.to_thread(
+                query_memory_hybrid,
+                user_id, user_message, 5, subject_id, 20,
+            ),
+            timeout=_RETRIEVAL_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Memory recall timed out after %.0fs — answering without recalled context.",
+            _RETRIEVAL_TIMEOUT,
+        )
+    except Exception as exc:
+        logger.warning("Memory recall failed (%s) — continuing without it.", exc)
+
     memory_ctx = "\n".join(past_docs) if past_docs else "No relevant documents or past sessions found."
 
     # ── 2. Build context prompt ──────────────────────────────
@@ -373,7 +397,16 @@ async def run_agent(
     web_ctx = ""
     if web_search:
         try:
-            web_ctx = await asyncio.to_thread(tool_web_search, user_message, 5)
+            web_ctx = await asyncio.wait_for(
+                asyncio.to_thread(tool_web_search, user_message, 5),
+                timeout=_WEB_SEARCH_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Web search timed out after %.0fs.", _WEB_SEARCH_TIMEOUT)
+            web_ctx = (
+                "Web search timed out for this message — you could not verify "
+                "anything online. Answer from your own knowledge and say so."
+            )
         except Exception as exc:
             logger.warning("Proactive web search failed: %s", exc)
             web_ctx = "Web search was unavailable for this message."

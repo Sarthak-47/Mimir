@@ -16,12 +16,17 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot   = Split-Path -Parent $PSScriptRoot
-$sourceDir  = Join-Path $repoRoot "src-tauri\binaries\mimir-backend\_internal"
+# Zip straight from the PyInstaller output. This used to read from
+# src-tauri\binaries\mimir-backend\_internal, but build.ps1 only ever copies the
+# .exe there - nothing refreshed that _internal tree, so every installer shipped
+# a stale copy and newly added packages (e.g. tokenizers) silently never made it
+# into the app. Sourcing from dist keeps one source of truth.
+$sourceDir  = Join-Path $repoRoot "backend\dist\mimir-backend\_internal"
 $outputDir  = Join-Path $repoRoot "src-tauri\resources"
 $outputZip  = Join-Path $outputDir "backend-internal.zip"
 
 if (-not (Test-Path $sourceDir)) {
-    Write-Error "Source directory not found: $sourceDir"
+    Write-Error "Source directory not found: $sourceDir  (run PyInstaller first)"
     exit 1
 }
 

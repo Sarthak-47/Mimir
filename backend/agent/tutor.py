@@ -17,6 +17,7 @@ States (Norse names in parentheses):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import AsyncIterator
@@ -97,7 +98,25 @@ _PROMPTS: dict[str, str] = {
 
 # ── Streaming generator ──────────────────────────────────────
 
-_client = ollama.AsyncClient(host=settings.ollama_base_url)
+# Built lazily per event loop rather than at import time — see the note in
+# agent/loop.py: an httpx pool bound to the wrong loop hangs forever instead of
+# erroring, which is what broke chat in the packaged build.
+_clients: "dict[int, ollama.AsyncClient]" = {}
+
+# Explicit override; tests monkeypatch this to inject a stub client.
+_client = None
+
+
+def _get_client():
+    """Return the Ollama client bound to the currently running event loop."""
+    if _client is not None:
+        return _client
+    key = id(asyncio.get_running_loop())
+    client = _clients.get(key)
+    if client is None:
+        client = ollama.AsyncClient(host=settings.ollama_base_url)
+        _clients[key] = client
+    return client
 
 
 async def run_tutor_turn(
@@ -143,7 +162,7 @@ async def run_tutor_turn(
     if state == "QUIZ":
         # Non-streaming: collect full JSON then emit as signal
         try:
-            resp = await _client.chat(
+            resp = await _get_client().chat(
                 model=settings.ollama_model,
                 messages=messages,
                 stream=False,
@@ -170,7 +189,7 @@ async def run_tutor_turn(
 
     # Streaming for all other states
     try:
-        async for chunk in await _client.chat(
+        async for chunk in await _get_client().chat(
             model=settings.ollama_model,
             messages=messages,
             stream=True,

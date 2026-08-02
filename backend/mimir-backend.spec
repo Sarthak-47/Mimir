@@ -15,6 +15,11 @@ anyio_d,    anyio_b,    anyio_h    = collect_all("anyio")
 pydantic_d, pydantic_b, pydantic_h = collect_all("pydantic")
 pydcore_d,  pydcore_b,  pydcore_h  = collect_all("pydantic_core")
 starlette_d, starlette_b, starlette_h = collect_all("starlette")
+# ChromaDB's ONNX embedder imports tokenizers dynamically, so PyInstaller's
+# static analysis never sees it. Without this the bundle builds fine but every
+# embedding call raises "The tokenizers python package is not installed",
+# which is what silently broke chat in the packaged app.
+tok_d,      tok_b,      tok_h      = collect_all("tokenizers")
 
 # ── Package metadata needed at runtime (importlib.metadata) ────
 metadata = (
@@ -36,7 +41,7 @@ metadata = (
 
 hidden = (
     chroma_h + uvicorn_h + fastapi_h + onnx_h + anyio_h
-    + pydantic_h + pydcore_h + starlette_h
+    + pydantic_h + pydcore_h + starlette_h + tok_h
     + collect_submodules("sqlalchemy")
     + collect_submodules("apscheduler")
     + [
@@ -86,14 +91,14 @@ hidden = (
 
 datas = (
     chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
-    + pydantic_d + pydcore_d + starlette_d
+    + pydantic_d + pydcore_d + starlette_d + tok_d
     + metadata
 )
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + tok_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],

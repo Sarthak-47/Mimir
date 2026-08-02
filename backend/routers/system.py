@@ -39,6 +39,63 @@ class SettingsPatch(BaseModel):
     ollama_context_length: Optional[int] = None
 
 
+# ── Diagnostics ───────────────────────────────────────────────
+@router.get("/selftest")
+async def selftest():
+    """Time every stage of the chat pipeline and report where it stalls.
+
+    Exists because the packaged build writes stdout to a block-buffered pipe,
+    so print/log output is invisible when diagnosing a hang. Each stage runs
+    under its own timeout and reports seconds elapsed or "TIMEOUT", which
+    isolates a stall to a single stage without needing console access.
+    Unauthenticated on purpose — it touches no user data.
+    """
+    import time as _t
+    out: dict = {}
+
+    async def _stage(name: str, coro, timeout: float = 25.0):
+        t0 = _t.perf_counter()
+        try:
+            await asyncio.wait_for(coro, timeout=timeout)
+            out[name] = round(_t.perf_counter() - t0, 2)
+        except asyncio.TimeoutError:
+            out[name] = f"TIMEOUT after {timeout}s"
+        except Exception as exc:
+            out[name] = f"{type(exc).__name__}: {exc}"[:200]
+
+    # 1. ChromaDB write (what chat.py does before run_agent)
+    from memory.vector import add_memory, query_memory_hybrid
+    await _stage("chroma_add", asyncio.to_thread(
+        add_memory, 99999, "selftest probe", "user", 999999, None))
+
+    # 2. ChromaDB hybrid read
+    await _stage("chroma_query", asyncio.to_thread(
+        query_memory_hybrid, 99999, "selftest probe", 5, None, 20))
+
+    # 3. Non-streaming Ollama call
+    from agent.loop import _get_client
+    await _stage("ollama_nostream", _get_client().chat(
+        model=settings.ollama_model,
+        messages=[{"role": "user", "content": "hi"}],
+        options={"num_predict": 1}, stream=False, think=False, keep_alive="2h"))
+
+    # 4. Streaming Ollama call — drain a few chunks
+    async def _stream_probe():
+        s = await _get_client().chat(
+            model=settings.ollama_model,
+            messages=[{"role": "user", "content": "Say hi"}],
+            options={"num_predict": 5}, stream=True, think=False, keep_alive="2h")
+        n = 0
+        async for _ in s:
+            n += 1
+            if n >= 5:
+                break
+        return n
+    await _stage("ollama_stream", _stream_probe())
+
+    return out
+
+
 # ── Endpoints ─────────────────────────────────────────────────
 @router.get("/models")
 async def list_models(_user=Depends(get_current_user)):

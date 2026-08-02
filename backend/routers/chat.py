@@ -41,6 +41,10 @@ from agent.tutor import run_tutor_turn, next_state as tutor_next_state
 from routers.users import decode_jwt
 from ws_manager import manager
 
+# Ceiling for a vector-memory write. Generous enough for a cold embedder load,
+# short enough that a stuck one cannot noticeably delay the answer.
+_MEMORY_WRITE_TIMEOUT = 15.0
+
 router = APIRouter()
 
 
@@ -142,6 +146,32 @@ async def _handle_tutor_turn(
         await websocket.send_text(json.dumps({"type": "done"}))
     finally:
         _ping_task.cancel()
+
+
+async def _add_memory_safe(**kwargs) -> None:
+    """Write a conversation turn to ChromaDB without ever blocking the reply.
+
+    ``add_memory`` embeds the text, which is CPU-bound and can stall — in the
+    packaged build it hung indefinitely, and because it was awaited inline on
+    the event loop the whole turn died there: the user's message was saved to
+    SQLite but the LLM was never reached, so the UI span forever with no error.
+
+    Vector memory is an enhancement to later recall, never a prerequisite for
+    answering, so this runs off the loop under a timeout and downgrades any
+    failure to a log line.
+    """
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(add_memory, **kwargs),
+            timeout=_MEMORY_WRITE_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "ChromaDB write timed out after %.0fs — continuing without vector memory.",
+            _MEMORY_WRITE_TIMEOUT,
+        )
+    except Exception as exc:
+        logger.warning("ChromaDB write failed (%s) — continuing.", exc)
 
 
 async def _keepalive(websocket: WebSocket, interval: float = 8.0) -> None:
@@ -273,8 +303,8 @@ async def ws_chat(
                 await db.commit()
                 await db.refresh(user_conv)
 
-                # Add to ChromaDB
-                add_memory(
+                # Add to ChromaDB (never allowed to gate the reply)
+                await _add_memory_safe(
                     user_id=user_id,
                     content=user_message,
                     role="user",
@@ -370,7 +400,7 @@ async def ws_chat(
                         await db.commit()
                         await db.refresh(assistant_conv)
 
-                        add_memory(
+                        await _add_memory_safe(
                             user_id=user_id,
                             content=full_response.strip(),
                             role="assistant",

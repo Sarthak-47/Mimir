@@ -112,8 +112,32 @@ _MODE_PROMPTS: dict[str, str] = {
     "odin":       ODIN_PROMPT,
 }
 
-# ── Async Ollama client (singleton) ─────────────────────────
-_client = ollama.AsyncClient(host=settings.ollama_base_url)
+# ── Async Ollama client (per-event-loop singleton) ──────────
+# ollama.AsyncClient wraps an httpx.AsyncClient, whose connection pool binds to
+# the event loop that is running when it is first used. Building it at import
+# time meant it could bind to the wrong loop — under uvicorn's dev reloader the
+# import happens on the serving loop and it works, but in the PyInstaller build
+# the import order differs and requests hung forever with no error: connections
+# were established but no request was ever sent, so Ollama logged nothing.
+#
+# Caching per running loop keeps the pool-reuse benefit while guaranteeing the
+# client always belongs to the loop awaiting it.
+_clients: "dict[int, ollama.AsyncClient]" = {}
+
+# Explicit override; tests monkeypatch this to inject a stub client.
+_client = None
+
+
+def _get_client():
+    """Return the Ollama client bound to the currently running event loop."""
+    if _client is not None:
+        return _client
+    key = id(asyncio.get_running_loop())
+    client = _clients.get(key)
+    if client is None:
+        client = ollama.AsyncClient(host=settings.ollama_base_url)
+        _clients[key] = client
+    return client
 
 def _ollama_opts(**extra) -> dict:
     """Build an Ollama ``options`` dict from runtime settings."""
@@ -362,7 +386,7 @@ async def run_agent(
         vision_parts: list[str] = []
         for idx, img_b64 in enumerate(images[:3]):   # cap at 3 images per message
             try:
-                vision_resp = await _client.chat(
+                vision_resp = await _get_client().chat(
                     model=settings.vision_model,
                     messages=[{
                         "role":    "user",
@@ -470,7 +494,7 @@ For everything else — explanations, revision schedules, recalling past session
     is_tool  = False       # True when ACTION: was found
 
     try:
-        _stream1 = await _client.chat(
+        _stream1 = await _get_client().chat(
             model=settings.ollama_model,
             messages=messages,
             options=_ollama_opts(),
@@ -579,7 +603,7 @@ For everything else — explanations, revision schedules, recalling past session
                 synth_buf = ""
                 action_in_synth = False
                 try:
-                    _stream2 = await _client.chat(
+                    _stream2 = await _get_client().chat(
                         model=settings.ollama_model,
                         messages=messages,
                         options=_ollama_opts(),

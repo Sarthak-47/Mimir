@@ -31,6 +31,7 @@ apscheduler==3.10.4
 rank_bm25==0.2.2
 sentence-transformers==2.7.0   # cross-encoder reranker (ms-marco-MiniLM-L-6-v2)
 ddgs>=9.0.0                    # DuckDuckGo search — powers the opt-in Web Search toggle
+tokenizers>=0.20.0             # required by ChromaDB's ONNX embedder (imported dynamically)
 
 # ── Voice (STT + TTS) ──────────────────────────────────────
 faster-whisper>=1.0.0      # STT — CTranslate2-optimised Whisper (base.en, ~290 MB)

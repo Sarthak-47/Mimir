@@ -13,6 +13,13 @@ which reduces latency and avoids leaking reasoning tokens to the user.
 
 _MATH_RULE = """\
 MATH FORMATTING (this overrides the no-markdown rule above): Always use LaTeX for any mathematical expression, formula, symbol, or equation — no exceptions. Write inline math between single dollar signs: $x^2 + y^2 = r^2$. Write standalone/display equations between double dollar signs on their own line: $$E = mc^2$$. This includes logarithms ($\\log$), summations ($\\sum$), fractions ($\\frac{a}{b}$), square roots ($\\sqrt{x}$), Greek letters ($\\alpha, \\beta$), and all other mathematical notation. Never write math as plain English text like "-(y*log(p) + (1-y)*log(1-p))" — always write it as $$-[y \\log(p) + (1-y) \\log(1-p)]$$ instead. The UI renders LaTeX properly with KaTeX.
+
+SUPERSCRIPT AND SUBSCRIPT RULE: a superscript or subscript attaches to exactly one base. Close its brace before writing the next symbol, and never put two ^ or two _ on the same base — KaTeX rejects that and the reader sees raw source instead of an equation. When a layer index is followed by another variable, the variable goes OUTSIDE the braces:
+  Correct:   $z^{[l]} = W^{[l]}a^{[l-1]} + b^{[l]}$
+  Wrong:     $z^{[l]} = W^{[l]a}^{[l-1]} + b^{[l]}$   (the a is trapped in the braces, giving a double superscript)
+  Correct:   $a_j^{(l)} = \\sigma(z_j^{(l)})$
+  Wrong:     $a_{j^{(l)}} = \\sigma(z_{j^{(l)}})$
+Read every exponent back before moving on: each ^ or _ must be followed by one brace group, and that group must close before anything else begins.
 """
 
 SYSTEM_PROMPT = """\
@@ -107,6 +114,48 @@ You can generate quizzes, flashcards, summaries, and revision schedules when ask
 """ + _MATH_RULE
 
 # ── Tool-specific prompt fragments ──────────────────────────
+
+DIAGRAM_PROMPT = """\
+Draw a diagram of: {description}
+
+Output ONLY Mermaid diagram source. No prose before or after it, no code fences,
+no explanation. The very first line must be the Mermaid diagram type.
+
+Pick the type that fits the subject:
+- `graph LR` — layered structures, pipelines, data flow, neural network layers
+- `graph TD` — hierarchies, taxonomies, decision trees, prerequisite chains
+- `sequenceDiagram` — protocols, request/response, ordered interactions between parties
+- `stateDiagram-v2` — state machines, lifecycles, phase transitions
+- `flowchart TD` — algorithms and processes with branching and conditions
+
+Rules that keep the diagram renderable:
+- Node ids must be short and alphanumeric with no spaces: `L1`, `H2`, `out`.
+- Put every human-readable label in brackets and in double quotes:
+  `L1["Input layer"]`, never `L1[Input layer (raw)]`.
+- Never put parentheses, quotes, backslashes, or LaTeX inside a label. Write
+  "sigma" or "weight matrix W", not "$W^{[l]}$" or "sigma(z)".
+- Group related nodes with `subgraph Name ... end` when the structure has
+  distinct stages or layers.
+- Keep it to at most 18 nodes. A readable diagram beats a complete one.
+
+Example of the expected shape and nothing more:
+graph LR
+  subgraph Input
+    x1["x1"]
+    x2["x2"]
+  end
+  subgraph Hidden
+    h1["h1 ReLU"]
+    h2["h2 ReLU"]
+  end
+  y["Output sigmoid"]
+  x1 --> h1
+  x1 --> h2
+  x2 --> h1
+  x2 --> h2
+  h1 --> y
+  h2 --> y
+"""
 
 EXPLAIN_PROMPT = """\
 Explain the following concept in thorough, detailed prose. Cover what it is, why it matters, how it works, and give concrete examples. Write in paragraphs, no bullet points or headers.

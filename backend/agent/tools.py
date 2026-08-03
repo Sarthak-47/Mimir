@@ -17,7 +17,7 @@ import ollama
 from config import settings
 from agent.prompts import (
     EXPLAIN_PROMPT, QUIZ_PROMPT, SUMMARIZE_PROMPT,
-    FLASHCARD_PROMPT, SCHEDULE_PROMPT,
+    FLASHCARD_PROMPT, SCHEDULE_PROMPT, DIAGRAM_PROMPT,
 )
 
 
@@ -220,6 +220,56 @@ def tool_weak_topics(topic_scores: list[dict]) -> list[dict]:
             "status": status,
         })
     return result
+
+
+# ── Tool: diagram ────────────────────────────────────────────
+
+_MERMAID_TYPES = (
+    "graph ", "flowchart ", "sequenceDiagram", "stateDiagram",
+    "classDiagram", "erDiagram", "mindmap", "journey", "gantt", "pie",
+)
+
+
+def tool_diagram(description: str, **_ignored) -> dict:
+    """Generate a Mermaid diagram for a concept.
+
+    Exists because the model used to answer "I cannot draw an image directly"
+    when a student asked to see something — the agent had no visual tool at all,
+    even though the app can render one. The frontend renders the returned source
+    with Mermaid, so the student gets an actual diagram in the chat.
+
+    Args:
+        description: What to draw, in natural language.
+
+    Returns:
+        ``{"type": "mermaid", "code": str}`` on success, or a dict with an
+        ``error`` key that the UI shows as text. The dict return means the agent
+        loop forwards it to the browser as structured tool data rather than
+        letting the model paraphrase it away.
+    """
+    # Plain replace rather than str.format: this prompt is full of Mermaid and
+    # LaTeX samples containing braces, which format() would try to interpret.
+    raw = _llm(DIAGRAM_PROMPT.replace("{description}", description)).strip()
+
+    # Strip code fences the model adds despite being told not to.
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z]*\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+
+    # Drop any preamble before the first real Mermaid directive.
+    lines = raw.splitlines()
+    for idx, line in enumerate(lines):
+        if line.strip().startswith(_MERMAID_TYPES):
+            raw = "\n".join(lines[idx:]).strip()
+            break
+    else:
+        return {"type": "mermaid", "error": "Could not produce a valid diagram.", "code": ""}
+
+    # LaTeX inside a Mermaid label breaks the parse; the prompt forbids it but
+    # models slip, so strip the delimiters rather than fail the whole diagram.
+    raw = raw.replace("$", "")
+
+    return {"type": "mermaid", "code": raw}
 
 
 # ── Tool: web_search ─────────────────────────────────────────

@@ -19,6 +19,7 @@ import type { Message } from "@/App";
 import Quiz from "@/components/Quiz";
 import type { QuizQuestion } from "@/components/Quiz";
 import { MathText } from "@/components/MathRenderer";
+import Diagram from "@/components/Diagram";
 
 /** Alias so existing JSX inside this file stays unchanged. */
 const MessageRenderer = ({ text }: { text: string }) => <MathText text={text} />;
@@ -278,6 +279,11 @@ function MessageBubble({
         {/* Inline flashcards */}
         {msg.flashcardData && msg.flashcardData.length > 0 && (
           <FlashcardDeck cards={msg.flashcardData} />
+        )}
+
+        {/* Inline diagram (when the agent called the diagram tool) */}
+        {msg.diagramData && (
+          <Diagram code={msg.diagramData.code} error={msg.diagramData.error} />
         )}
       </div>
 

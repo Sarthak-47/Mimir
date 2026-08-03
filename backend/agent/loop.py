@@ -96,7 +96,7 @@ from agent.prompts import (
 )
 from agent.tools import (
     tool_quiz, tool_summarize,
-    tool_flashcards, tool_weak_topics, tool_web_search,
+    tool_flashcards, tool_weak_topics, tool_web_search, tool_diagram,
 )
 from memory.vector import query_memory_hybrid
 from memory.database import AsyncSessionLocal
@@ -157,6 +157,7 @@ TOOLS = {
     "summarize":   tool_summarize,
     "flashcards":  tool_flashcards,
     "weak_topics": tool_weak_topics,
+    "diagram":     tool_diagram,
 }
 
 # Added to the registry only when the student turns the Web Search toggle on.
@@ -474,8 +475,13 @@ Available tools:
 - flashcards(topic, n)          — generate flashcard pairs (returns JSON)
 - summarize(content)            — summarize uploaded text / notes
 - weak_topics(topic_scores)     — identify weak areas from scores
+- diagram(description)          — draw a diagram the student can see (architectures, flows, hierarchies, state machines)
 """ + (_WEB_SEARCH_TOOL_DOC if web_search else "") + """
 For everything else — explanations, revision schedules, recalling past sessions, answering questions — respond directly without ACTION/ARGS lines.
+
+You CAN show diagrams. When a student asks to see, draw, visualise or picture
+something, or when a structure is genuinely easier to grasp visually than in
+prose, call ACTION: diagram — do not tell them you are unable to draw.
 """ + (_WEB_SEARCH_GUIDANCE if web_search else "")
     messages: list[dict] = [
         {"role": "system", "content": react_system},

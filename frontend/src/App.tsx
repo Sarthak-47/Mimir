@@ -100,6 +100,7 @@ export interface Message {
   timestamp: Date;
   quizData?: QuizQuestion[];
   flashcardData?: { front: string; back: string }[];
+  diagramData?: { code: string; error?: string };   // Mermaid source from the diagram tool
   sources?: string[];      // source file names retrieved from ChromaDB
   toolAction?: string;     // which agent tool was invoked for this message
   images?: string[];       // base64 images attached to this user message (data URLs for display)
@@ -455,6 +456,10 @@ export default function App() {
         } else if ("front" in (data[0] as object)) {
           target.flashcardData = data as { front: string; back: string }[];
         }
+      } else if (data && typeof data === "object" && (data as { type?: string }).type === "mermaid") {
+        // The diagram tool returns an object rather than a list.
+        const d = data as { code?: string; error?: string };
+        target.diagramData = { code: d.code ?? "", error: d.error };
       }
       updated[lastIdx] = target;
       return updated;

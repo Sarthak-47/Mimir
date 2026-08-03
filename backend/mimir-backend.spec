@@ -20,6 +20,9 @@ starlette_d, starlette_b, starlette_h = collect_all("starlette")
 # embedding call raises "The tokenizers python package is not installed",
 # which is what silently broke chat in the packaged app.
 tok_d,      tok_b,      tok_h      = collect_all("tokenizers")
+# python-pptx ships a default .pptx template as package data and reads it on
+# import, so the data files must travel with the bundle, not just the modules.
+pptx_d,     pptx_b,     pptx_h     = collect_all("pptx")
 
 # ── Package metadata needed at runtime (importlib.metadata) ────
 metadata = (
@@ -87,18 +90,21 @@ hidden = (
     ]
     # DuckDuckGo search — backs the opt-in Web Search toggle
     + collect_submodules("ddgs")
+    # PowerPoint extraction; pptx loads its default template from package data,
+    # so collect_all is used below for datas as well.
+    + collect_submodules("pptx")
 )
 
 datas = (
     chroma_d + uvicorn_d + fastapi_d + onnx_d + anyio_d
-    + pydantic_d + pydcore_d + starlette_d + tok_d
+    + pydantic_d + pydcore_d + starlette_d + tok_d + pptx_d
     + metadata
 )
 
 a = Analysis(
     ["server.py"],
     pathex=["."],
-    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + tok_b,
+    binaries=chroma_b + uvicorn_b + fastapi_b + onnx_b + anyio_b + pydantic_b + pydcore_b + starlette_b + tok_b + pptx_b,
     datas=datas,
     hiddenimports=hidden,
     hookspath=[],

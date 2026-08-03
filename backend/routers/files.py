@@ -31,11 +31,16 @@ router = APIRouter()
 
 ALLOWED_TYPES = {
     "application/pdf",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
     "image/png",
     "image/jpeg",
     "image/jpg",
     "image/webp",
 }
+
+# The legacy binary PowerPoint format is a different container that python-pptx
+# cannot open, so it is rejected with an instruction rather than a bare 400.
+_LEGACY_PPT = "application/vnd.ms-powerpoint"
 
 
 # ── Schemas ──────────────────────────────────────────────────
@@ -80,6 +85,12 @@ async def upload_file(
     to avoid collisions.
     """
     # Validate type
+    if file.content_type == _LEGACY_PPT or (file.filename or "").lower().endswith(".ppt"):
+        raise HTTPException(
+            status_code=400,
+            detail="Old .ppt files can't be read. Open it in PowerPoint and "
+                   "save as .pptx, then upload again.",
+        )
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,

@@ -219,7 +219,7 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp"
+            accept=".pdf,.pptx,.png,.jpg,.jpeg,.webp"
             style={{ display: "none" }}
             onChange={handleUpload}
           />
@@ -241,7 +241,7 @@ export default function ScrollsView({ subjects, authToken }: ScrollsViewProps) {
           <div style={styles.emptyRune}>ᚱ</div>
           <div style={styles.emptyTitle}>The vault is empty</div>
           <div style={styles.emptyText}>
-            Upload a PDF or image and Mimir will extract its knowledge into memory.
+            Upload a PDF, slide deck or image and Mimir will extract its knowledge into memory.
           </div>
           <button
             style={styles.uploadBtnLarge}

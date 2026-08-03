@@ -226,7 +226,7 @@ export default function InputZone({
 
   // ── Rune action buttons config ───────────────────────────
   const ACTIONS = [
-    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF or image",                    onClick: handleScrollClick,   disabled: uploading },
+    { icon: "ᛋ", label: uploading ? "…" : "SCROLL", title: "Upload PDF, slide deck or image",                    onClick: handleScrollClick,   disabled: uploading },
     { icon: "ᛚ", label: "LESSON", title: "Start an interactive tutor session",          onClick: handleLessonOpen,    disabled: false },
     { icon: "ᛏ", label: "TRIAL",  title: "Quiz me on the active subject",               onClick: onTrial,             disabled: false },
     { icon: "ᚠ", label: "RUNES",  title: "Generate flashcards",                         onClick: onRunes,             disabled: false },
@@ -245,7 +245,7 @@ export default function InputZone({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        accept=".pdf,.pptx,.png,.jpg,.jpeg,.webp"
         style={{ display: "none" }}
         onChange={handleFileChange}
       />

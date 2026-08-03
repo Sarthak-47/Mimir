@@ -34,7 +34,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
 
           {/* InputZone buttons */}
           <Section rune="ᚲ" title="Oracle Input Buttons">
-            <Row rune="ᛋ" name="SCROLL"  desc="Upload a PDF or image. Mimir will summarise it and make it searchable." />
+            <Row rune="ᛋ" name="SCROLL"  desc="Upload a PDF, PowerPoint deck or image. Mimir will summarise it and make it searchable." />
             <Row rune="ᛚ" name="LESSON"  desc="Start a structured 5-stage tutor session on any topic of your choice." />
             <Row rune="ᛏ" name="TRIAL"   desc="Trigger a quiz on the currently active discipline." />
             <Row rune="ᚠ" name="RUNES"   desc="Generate a set of flashcards for the active discipline." />

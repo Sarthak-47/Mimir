@@ -30,6 +30,13 @@ except ImportError:
     logger.warning("PyMuPDF not installed — PDF text extraction unavailable.")
 
 try:
+    from pptx import Presentation
+    _HAS_PPTX = True
+except ImportError:
+    _HAS_PPTX = False
+    logger.warning("python-pptx not installed — PowerPoint extraction unavailable.")
+
+try:
     import pytesseract
     from PIL import Image
     # Point pytesseract at the standard Windows install path if not in PATH
@@ -190,6 +197,89 @@ def _extract_pdf(filepath: str) -> str:
         return ""
 
 
+def _extract_pptx(filepath: str) -> str:
+    """Extract text from a PowerPoint deck, one section per slide.
+
+    Lecture slides are how most course material actually arrives, so they are
+    worth reading properly rather than asking students to convert to PDF first.
+
+    Slide titles are emitted on their own line with a blank line before them, so
+    the semantic chunker treats each slide as a boundary and never merges the
+    end of one slide into the start of the next — the same trick the PDF path
+    uses with font-size headings.
+
+    Speaker notes are included: in a lecture deck they frequently carry the
+    explanation that the slide itself only gestures at, which is exactly the
+    material a student later wants to search.
+
+    Only the modern ``.pptx`` format is readable. The legacy binary ``.ppt`` is
+    a different container that python-pptx cannot open; the router rejects it
+    with a message telling the user to re-save.
+    """
+    if not _HAS_PPTX:
+        return ""
+    try:
+        prs = Presentation(filepath)
+        slides: list[str] = []
+
+        for number, slide in enumerate(prs.slides, start=1):
+            title = ""
+            body: list[str] = []
+
+            for shape in slide.shapes:
+                # Tables carry real content in technical decks.
+                if getattr(shape, "has_table", False):
+                    for row in shape.table.rows:
+                        cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                        if cells:
+                            body.append(" | ".join(cells))
+                    continue
+
+                if not getattr(shape, "has_text_frame", False):
+                    continue
+
+                text = "\n".join(
+                    p.text.strip() for p in shape.text_frame.paragraphs if p.text.strip()
+                ).strip()
+                if not text:
+                    continue
+
+                # The placeholder marked as the title, when the layout has one.
+                is_title = False
+                try:
+                    ph = getattr(shape, "placeholder_format", None)
+                    is_title = ph is not None and ph.idx == 0
+                except Exception:
+                    is_title = False
+
+                if is_title and not title:
+                    title = text.replace("\n", " ")
+                else:
+                    body.append(text)
+
+            notes = ""
+            try:
+                if slide.has_notes_slide:
+                    notes = slide.notes_slide.notes_text_frame.text.strip()
+            except Exception:
+                notes = ""
+
+            if not (title or body or notes):
+                continue                      # purely decorative slide
+
+            parts = [f"\nSlide {number}: {title}" if title else f"\nSlide {number}"]
+            parts.extend(body)
+            if notes:
+                parts.append(f"Speaker notes: {notes}")
+            slides.append("\n".join(parts))
+
+        return "\n\n".join(slides)
+
+    except Exception as e:
+        logger.error("PPTX extraction failed for %s: %s", filepath, e)
+        return ""
+
+
 def _extract_image_ocr(filepath: str) -> str:
     """Run Tesseract OCR on an image file. Returns empty string if unavailable."""
     if not _HAS_OCR:
@@ -319,6 +409,8 @@ async def parse_and_index_file(
     # ── Extract ──────────────────────────────────────────────
     if "pdf" in content_type:
         text = _extract_pdf(filepath)
+    elif "presentation" in content_type or filepath.lower().endswith(".pptx"):
+        text = _extract_pptx(filepath)
     else:
         text = await _extract_image(filepath)
 
@@ -345,7 +437,10 @@ async def parse_and_index_file(
 
     # ── Exam-paper detection & question extraction ───────────
     exam_question_count = 0
-    if "pdf" in content_type and text.strip() and is_exam_paper(text):
+    # Slide decks are checked too — tutorial and revision decks often carry
+    # past-paper questions with their mark allocations.
+    _is_document = "pdf" in content_type or "presentation" in content_type
+    if _is_document and text.strip() and is_exam_paper(text):
         parsed_qs = parse_exam_questions(text, filename)
         if parsed_qs:
             async with AsyncSessionLocal() as db:

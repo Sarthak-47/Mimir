@@ -118,7 +118,7 @@ export default function FormulaSheetModal({
                   No scrolls indexed for this subject yet.
                 </div>
                 <div style={S.emptyHint}>
-                  Upload a PDF or image via the SCROLL button to generate a formula sheet.
+                  Upload a PDF, slide deck or image via the SCROLL button to generate a formula sheet.
                 </div>
               </div>
             ) : (

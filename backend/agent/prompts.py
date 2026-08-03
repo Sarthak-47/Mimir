@@ -128,33 +128,39 @@ Pick the type that fits the subject:
 - `stateDiagram-v2` — state machines, lifecycles, phase transitions
 - `flowchart TD` — algorithms and processes with branching and conditions
 
-Rules that keep the diagram renderable:
-- Node ids must be short and alphanumeric with no spaces: `L1`, `H2`, `out`.
-- Put every human-readable label in brackets and in double quotes:
-  `L1["Input layer"]`, never `L1[Input layer (raw)]`.
-- Never put parentheses, quotes, backslashes, or LaTeX inside a label. Write
-  "sigma" or "weight matrix W", not "$W^{[l]}$" or "sigma(z)".
-- Group related nodes with `subgraph Name ... end` when the structure has
-  distinct stages or layers.
-- Keep it to at most 18 nodes. A readable diagram beats a complete one.
+Write the simplest diagram that carries the idea. A plain diagram that draws is
+worth far more than an elaborate one that fails, so obey these limits exactly:
 
-Example of the expected shape and nothing more:
+- NEVER use `subgraph`. No grouping, no nesting, no `end` keyword, no
+  `direction` lines. One flat list of nodes and edges only.
+- Declare every node first, one per line, then every edge, one per line.
+- Node ids: short, alphanumeric, no spaces — `x1`, `h1`, `y`. Never use `in`,
+  `out`, `end`, `graph`, `class` or `style`; they are reserved and break it.
+- Label every node exactly like `h1["Hidden layer ReLU"]` — square brackets,
+  double quotes, plain words. No other bracket shapes: never `[( )]`, `(( ))`
+  or `{ }`.
+- Inside a label use letters, digits, spaces, commas and hyphens only. No
+  parentheses, quotes, backslashes, plus signs, asterisks, ampersands or LaTeX.
+  Write "weights and bias", not "weights + bias" or "$W^{[l]}$".
+- Use ONLY these two arrows, exactly as written: `-->` and `-.->`. Anything
+  else — `==>`, `--->`, `~~~>`, `-.-.>`, `==>*`, `--text-->` — is invalid.
+- An edge is `A -->|short label| B` or plain `A --> B`. The label goes between
+  pipes immediately after the arrow. One edge per line, nothing else on it.
+- At most 12 nodes.
+
+Output the diagram exactly in this shape and nothing more:
 graph LR
-  subgraph Input
-    x1["x1"]
-    x2["x2"]
-  end
-  subgraph Hidden
-    h1["h1 ReLU"]
-    h2["h2 ReLU"]
-  end
+  x1["Input x1"]
+  x2["Input x2"]
+  h1["Hidden ReLU"]
+  h2["Hidden ReLU"]
   y["Output sigmoid"]
   x1 --> h1
   x1 --> h2
   x2 --> h1
   x2 --> h2
-  h1 --> y
-  h2 --> y
+  h1 -->|weight| y
+  h2 -->|weight| y
 """
 
 EXPLAIN_PROMPT = """\

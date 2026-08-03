@@ -229,6 +229,102 @@ _MERMAID_TYPES = (
     "classDiagram", "erDiagram", "mindmap", "journey", "gantt", "pie",
 )
 
+# Mermaid ids that are reserved words; a node called `in` or `end` kills the parse.
+_RESERVED_IDS = {"in", "out", "end", "graph", "class", "style", "click", "subgraph"}
+
+
+def _sanitize_mermaid(code: str) -> str:
+    """Repair the Mermaid mistakes local models actually make.
+
+    The prompt forbids all of these, but a 9B model slips often enough that
+    instructions alone mean a broken diagram on screen. Observed in the wild:
+    invented arrows (``~~~>``, ``==>*``, ``-.-.>``), ampersands and plus signs
+    inside labels (both are Mermaid operators, not punctuation), nodes named
+    after reserved words, and — the one nothing can safely repair — `subgraph`
+    blocks left unclosed. Grouping is therefore stripped entirely rather than
+    guessed at: a flat diagram that draws beats a grouped one that does not.
+    """
+    # Drop grouping wholesale. Unbalanced subgraph/end is the single biggest
+    # cause of a failed parse, and the nodes inside are still declared, so the
+    # diagram survives as a flat graph.
+    lines = [
+        ln for ln in code.splitlines()
+        if not re.match(r"\s*(subgraph\b|end\s*$|direction\b)", ln, re.IGNORECASE)
+    ]
+    code = "\n".join(lines)
+
+    # The `--text-->` label form first, before the general rule below would
+    # mangle the words sitting inside it.
+    code = re.sub(r"--[A-Za-z0-9 ,_-]+-->", "-->", code)
+
+    # Then collapse ANY run of arrow-ish characters onto one of the two valid
+    # forms, choosing dotted if the run contains a dot. Enumerating the broken
+    # variants individually kept missing new ones the model invented (`==>*`,
+    # `-.-.>`, `.-.->`); this covers them by construction and leaves already
+    # valid `-->` and `-.->` untouched.
+    code = re.sub(
+        r"([-.=~]{2,})>\*?",
+        lambda m: "-.->" if "." in m.group(1) else "-->",
+        code,
+    )
+
+    # Labels are where most breakage lives: the model writes arrows, ampersands
+    # and shape brackets inside them, all of which Mermaid reads as syntax.
+    # Rather than chase individual characters, reduce every label to a safe
+    # character set and force it into double quotes.
+    def _clean_text(raw: str) -> str:
+        txt = raw.strip().strip('"').strip("'")
+        txt = txt.strip("()").strip()          # stadium/round shapes: [(x)]
+        txt = re.sub(r"-+\.?-*>", " to ", txt)  # arrows written inside a label
+        txt = txt.replace("&", " and ").replace("+", " plus ").replace("@", " at ")
+        txt = re.sub(r"[^A-Za-z0-9 ,.\-_/]", " ", txt)
+        txt = re.sub(r"\s+", " ", txt).strip(" -")
+        return txt or "node"
+
+    code = re.sub(
+        r"\[[^\]\n]*\]",
+        lambda m: f'["{_clean_text(m.group(0)[1:-1])}"]',
+        code,
+    )
+    code = re.sub(
+        r"\|[^|\n]*\|",
+        lambda m: f"|{_clean_text(m.group(0)[1:-1])}|",
+        code,
+    )
+
+    # A node carrying two label groups — `H["a"]["b"]` — is a parse error. Keep
+    # the first and drop the rest.
+    code = re.sub(r"(\[\"[^\"\n]*\"\])(\s*\[\"[^\"\n]*\"\])+", r"\1", code)
+
+    # Node ids may not contain spaces. The model writes things like
+    # `X activations["..."]`. Renaming only the declaration would leave the
+    # edges pointing at a node that no longer exists, so collect the renames
+    # first and apply them everywhere — declaration and references alike.
+    renames: dict[str, str] = {}
+    for m in re.finditer(r"(?m)^\s*([A-Za-z][A-Za-z0-9_ ]*?)\s*\[\"", code):
+        ident = m.group(1).strip()
+        if " " in ident:
+            renames[ident] = re.sub(r"[^A-Za-z0-9_]", "_", ident)
+
+    # Longest first, so "X activations" is handled before a shorter prefix.
+    for old in sorted(renames, key=len, reverse=True):
+        code = re.sub(rf"(?<![\w\"]){re.escape(old)}(?![\w\"])", renames[old], code)
+
+    # Rename reserved ids (`in` -> `in_`) wherever they appear as a whole word,
+    # whether declaring the node or referencing it at either end of an edge.
+    # MULTILINE matters: an id used as an edge target sits at end of line, and
+    # without it only some occurrences get renamed — which silently splits one
+    # node into two and draws a disconnected graph.
+    for word in _RESERVED_IDS - {"end", "subgraph", "graph", "style", "class", "click"}:
+        code = re.sub(
+            rf"(?<![\w\"]){word}(?![\w\"])",
+            f"{word}_",
+            code,
+            flags=re.MULTILINE,
+        )
+
+    return code
+
 
 def tool_diagram(description: str, **_ignored) -> dict:
     """Generate a Mermaid diagram for a concept.
@@ -269,7 +365,7 @@ def tool_diagram(description: str, **_ignored) -> dict:
     # models slip, so strip the delimiters rather than fail the whole diagram.
     raw = raw.replace("$", "")
 
-    return {"type": "mermaid", "code": raw}
+    return {"type": "mermaid", "code": _sanitize_mermaid(raw)}
 
 
 # ── Tool: web_search ─────────────────────────────────────────

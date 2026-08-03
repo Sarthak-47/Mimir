@@ -243,7 +243,16 @@ def _sanitize_mermaid(code: str) -> str:
     after reserved words, and — the one nothing can safely repair — `subgraph`
     blocks left unclosed. Grouping is therefore stripped entirely rather than
     guessed at: a flat diagram that draws beats a grouped one that does not.
+
+    Every rule below is flowchart grammar, so this only runs on ``graph`` and
+    ``flowchart`` sources. Applied to a sequence diagram it was *causing*
+    failures: ``Client->>Server: SYN`` is valid there, and rewriting ``->>``
+    into ``-->`` then collapsing the message text into a node id broke output
+    the model had produced correctly.
     """
+    first = code.lstrip().splitlines()[0].strip().lower() if code.strip() else ""
+    if not first.startswith(("graph ", "flowchart ")):
+        return code
     # Drop grouping wholesale. Unbalanced subgraph/end is the single biggest
     # cause of a failed parse, and the nodes inside are still declared, so the
     # diagram survives as a flat graph.
@@ -253,20 +262,12 @@ def _sanitize_mermaid(code: str) -> str:
     ]
     code = "\n".join(lines)
 
-    # The `--text-->` label form first, before the general rule below would
-    # mangle the words sitting inside it.
-    code = re.sub(r"--[A-Za-z0-9 ,_-]+-->", "-->", code)
+    # The model sometimes writes the diagram as a comma-separated list, leaving
+    # a trailing comma on each edge line. Mermaid reads it as another statement.
+    code = re.sub(r"(?m),\s*$", "", code)
 
-    # Then collapse ANY run of arrow-ish characters onto one of the two valid
-    # forms, choosing dotted if the run contains a dot. Enumerating the broken
-    # variants individually kept missing new ones the model invented (`==>*`,
-    # `-.-.>`, `.-.->`); this covers them by construction and leaves already
-    # valid `-->` and `-.->` untouched.
-    code = re.sub(
-        r"([-.=~]{2,})>\*?",
-        lambda m: "-.->" if "." in m.group(1) else "-->",
-        code,
-    )
+    # `A --|label| B` is an arrow with the head missing.
+    code = re.sub(r"--\|([^|\n]*)\|", r"-->|\1|", code)
 
     # Labels are where most breakage lives: the model writes arrows, ampersands
     # and shape brackets inside them, all of which Mermaid reads as syntax.
@@ -292,9 +293,37 @@ def _sanitize_mermaid(code: str) -> str:
         code,
     )
 
+    # Bracket debris left after a well-formed label — `w1["Weights"]"]` or
+    # `w2["Weights"]")` — from the model closing the group twice.
+    code = re.sub(r"(\[\"[^\"\n]*\"\])[\"'\)\]]+", r"\1", code)
+
     # A node carrying two label groups — `H["a"]["b"]` — is a parse error. Keep
     # the first and drop the rest.
     code = re.sub(r"(\[\"[^\"\n]*\"\])(\s*\[\"[^\"\n]*\"\])+", r"\1", code)
+
+    # ── Arrows, once labels are already safe ────────────────
+    # Runs last so it cannot touch words inside a label: by this point every
+    # label is quoted and stripped of arrow characters.
+    #
+    # `A -- text --> B` is valid Mermaid, but the model decorates it with stray
+    # pipes and slashes (`-- Yes |-->`, `-- No |--/-->`). Rewrite the whole form
+    # into the canonical `A -->|text| B`.
+    code = re.sub(
+        r"--\s*([A-Za-z0-9][A-Za-z0-9 ,_-]{0,38}?)\s*[|/\\]*\s*-{1,}\.?-*>",
+        lambda m: f"-->|{m.group(1).strip()}|",
+        code,
+    )
+
+    # Then collapse any remaining run of arrow-ish characters onto one of the
+    # two valid forms, dotted if the run contains a dot. Enumerating broken
+    # variants individually kept missing the next invention (`==>*`, `-.-.>`,
+    # `->>`), so this covers them by construction. `>{1,}` catches the
+    # sequence-diagram arrows the model borrows into flowcharts.
+    code = re.sub(
+        r"([-.=~]{1,})>{1,}\*?",
+        lambda m: "-.->" if "." in m.group(1) else "-->",
+        code,
+    )
 
     # Node ids may not contain spaces. The model writes things like
     # `X activations["..."]`. Renaming only the declaration would leave the
@@ -322,6 +351,32 @@ def _sanitize_mermaid(code: str) -> str:
             code,
             flags=re.MULTILINE,
         )
+
+    # An edge endpoint can also be a multi-word id that was never declared
+    # anywhere — `ATPNADPH -.-> powers calvinCycle`. The rename pass above only
+    # inspects declarations, so collapse both endpoints of every edge directly.
+    def _fix_endpoint(tok: str) -> str:
+        tok = tok.strip()
+        if not tok:
+            return tok
+        m = re.match(r"^([^\[\n]+?)\s*(\[.*\])?$", tok)
+        if not m:
+            return tok
+        # No underscore stripping here: the reserved-word pass above renames
+        # `in` to `in_`, and trimming that trailing underscore would hand the
+        # reserved word straight back to the parser.
+        ident = re.sub(r"[^A-Za-z0-9_]", "_", m.group(1).strip())
+        return (ident.strip() or "n") + (m.group(2) or "")
+
+    def _fix_edge(m: re.Match) -> str:
+        indent, lhs, arrow, label, rhs = m.groups()
+        return f"{indent}{_fix_endpoint(lhs)} {arrow}{label or ''} {_fix_endpoint(rhs)}"
+
+    code = re.sub(
+        r"(?m)^(\s*)(.+?)\s*(-->|-\.->)\s*(\|[^|\n]*\|)?\s*(.+?)\s*$",
+        _fix_edge,
+        code,
+    )
 
     return code
 

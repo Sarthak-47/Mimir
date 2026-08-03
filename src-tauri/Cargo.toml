@@ -1,6 +1,6 @@
 [package]
 name = "mimir"
-version = "1.0.2"
+version = "1.0.3"
 description = "Mimir â€” A Norse-Themed Local Study Agent"
 authors = ["Sarthak Singh"]
 edition = "2021"
